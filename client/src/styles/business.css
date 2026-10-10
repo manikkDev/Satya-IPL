@@ -293,8 +293,11 @@ button:disabled { cursor:not-allowed; }
 .satya-form-grid small { display:block; font-size:13px; color:var(--muted-foreground); line-height:1.7; margin-top:7px; }
 .satya-required { font-size:11px; font-weight:500; color:var(--muted-foreground); border:1px solid var(--border); padding:2px 5px; border-radius:4px; }
 .satya-import-steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:24px; }
-.satya-import-steps span { padding:12px 15px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-weight:600; color:var(--muted-foreground); background:var(--card); }
-.satya-import-steps span.active { color:var(--primary); border-color:var(--primary); background:color-mix(in srgb,var(--primary) 6%,var(--card)); }
+.satya-import-steps span, .satya-import-steps button { padding:12px 15px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-weight:600; color:var(--muted-foreground); background:var(--card); text-align:left; }
+.satya-import-steps button { cursor:pointer; transition:border-color .15s ease,color .15s ease; }
+.satya-import-steps button:hover:not(:disabled) { border-color:var(--primary); color:var(--primary); }
+.satya-import-steps button:disabled { cursor:default; opacity:.55; }
+.satya-import-steps .active { color:var(--primary); border-color:var(--primary); background:color-mix(in srgb,var(--primary) 6%,var(--card)); }
 .satya-import-start { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:20px; }
 .satya-import-start > * { min-width:0; }
 .satya-sample-downloads { display:grid; gap:8px; }
@@ -332,7 +335,7 @@ button:disabled { cursor:not-allowed; }
 .satya-po-preview-item > strong { display:block; font-size:15px; margin-bottom:6px; }
 @media(max-width:1200px) { .satya-po-layout { grid-template-columns:minmax(0,1fr); } }
 @media(max-width:1000px) { .satya-import-start { grid-template-columns:minmax(0,1fr); } .satya-form-grid { grid-template-columns:minmax(0,1fr); } }
-@media(max-width:480px) { .satya-import-steps { gap:8px; } .satya-import-steps span { padding:10px; font-size:13px; } .satya-sample-expectations { grid-template-columns:minmax(0,1fr); } .satya-po-total { flex-wrap:wrap; } }
+@media(max-width:480px) { .satya-import-steps { gap:8px; } .satya-import-steps span, .satya-import-steps button { padding:10px; font-size:13px; } .satya-sample-expectations { grid-template-columns:minmax(0,1fr); } .satya-po-total { flex-wrap:wrap; } }
 @media print {
   html, body { height:auto; background:white; }
   body * { visibility:hidden; }

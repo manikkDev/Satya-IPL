@@ -33,7 +33,16 @@ function AnswerCard({ answer, onChoose }: { answer: Answer; onChoose: (id: strin
   const [copyState, setCopyState] = useState("");
   const facts = answer.facts;
   const structured = facts && answer.findings && answer.answerType === 'overview';
-  const showMoney = facts && ['overview', 'balance', 'payments', 'issues', 'decision'].includes(answer.answerType || 'overview');
+  const summaryCards = facts ? [
+    ["Delivery-supported balance", money(facts.supportedOutstanding, facts.currency), "Delivered goods, less linked payments"],
+    ["Payments linked to invoices", money(facts.settled, facts.currency), "Confirmed or source-referenced payments"],
+    ["Possible duplicate amount", money(facts.disputedExposure, facts.currency), "Disputed amount, not confirmed savings"],
+  ] : null;
+  const questionCards = facts ? ({
+    delivery: [["Units ordered", facts.ordered, "On the purchase order"], ["Units received", facts.received, "Net receipts at this snapshot"], ["Still to deliver", facts.openDelivery, "Not received against the order yet"]],
+    payments: [["Payments linked to invoices", money(facts.settled, facts.currency), "Confirmed or source-referenced payments"], ["Recorded outstanding", money(facts.recordedOutstanding, facts.currency), "What the ledgers still show as owed"], ["Delivery-supported balance", money(facts.supportedOutstanding, facts.currency), "Delivered goods, less linked payments"]],
+  } as Record<string, string[][]>)[answer.answerType || ""] : undefined;
+  const cards = questionCards || (summaryCards && ['overview', 'balance', 'issues', 'decision'].includes(answer.answerType || 'overview') ? summaryCards : null);
   const sources = answer.sources || [];
   const sourceLink = (source: Answer["sources"][number]) => <Link className="satya-evidence-chip" key={source.id} href={`/cases/${encodeURIComponent(source.caseId)}?snapshot=${encodeURIComponent(answer.snapshotId || "")}&evidence=${encodeURIComponent(source.id)}`}><FileSearch size={15} />{source.label.replaceAll("_", " ")}</Link>;
   const copy = async () => {
@@ -43,11 +52,7 @@ function AnswerCard({ answer, onChoose }: { answer: Answer; onChoose: (id: strin
 
   return <div className="satya-answer-reveal"><Panel>
     <div className="satya-assistant-label"><span className="satya-mark small" aria-hidden="true">S</span>Satya<span className="satya-tag"><ShieldCheck size={14} className="mr-2" />{sources.length ? "Based on your records" : "Workspace guidance"}</span></div>
-    {showMoney && facts && <div className="satya-chat-facts">{[
-      ["Delivery-supported balance", money(facts.supportedOutstanding, facts.currency), "Delivered goods, less linked payments"],
-      ["Payments linked to invoices", money(facts.settled, facts.currency), "Confirmed or source-referenced payments"],
-      ["Possible duplicate amount", money(facts.disputedExposure, facts.currency), "Disputed amount, not confirmed savings"],
-    ].map(([label, value, detail]) => <article key={label}><span>{label}</span><strong>{value}</strong><small>{detail}</small></article>)}</div>}
+    {cards && <div className="satya-chat-facts">{cards.map(([label, value, detail]) => <article key={label}><span>{label}</span><strong>{value}</strong><small>{detail}</small></article>)}</div>}
     <MarkdownAnswer content={answer.content} />
     {structured && !!answer.findings?.length && <details className="satya-chat-section"><summary>Supporting record checks ({answer.findings.length})</summary>{answer.findings.map((finding) => <article key={finding.id} className={`satya-finding ${finding.severity}`}><div className="satya-case-card-top"><h3>{evidenceLabel(finding.title)}</h3><span className="satya-tag">{evidenceLabel(finding.certainty)}</span></div><p>{finding.detail}</p><span className="satya-next">Next step: {evidenceLabel(finding.action)}</span></article>)}</details>}
     {!!answer.caseOptions?.length && <div className="satya-chat-section"><h3>Choose an investigation</h3><div className="satya-chat-sources">{answer.caseOptions.map((item) => <button className="satya-button secondary" key={item.id} onClick={() => onChoose(item.id)}>{item.poId} · {item.title}<ArrowUpRight size={16} /></button>)}</div></div>}
