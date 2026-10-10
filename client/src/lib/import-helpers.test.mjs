@@ -55,3 +55,12 @@ test("PO CSV export keeps record IDs distinct from line IDs and escapes spreadsh
   assert.equal(rows[0][columns.indexOf("lineId")], "ITEM-1");
   assert.equal(rows[0][columns.indexOf("supplier")], "'=SUM(1,2)");
 });
+
+test("PO exports preserve inspection policy, packing conversion and declared taxes", () => {
+  const csv = recordsCsv([{ id:"PO-BOX-1", type:"PO", reference:"PO/BOX/1", source:"export", supplier:"Example Supplier", currency:"INR", status:"approved", occurredAt:"2026-10-01T10:00:00+05:30", observedAt:"2026-10-01T10:00:00+05:30", matchingLevel:"four_way", coverage:"unknown", taxes:{ CGST:"90.00", SGST:"90.00" }, lines:[{ id:"1", description:"Pumps", quantity:"12", unitPrice:"100", uom:"EA", packSize:"12" }] }]);
+  const { columns, rows } = parseCsv(csv);
+  assert.equal(rows[0][columns.indexOf("matchingLevel")], "four_way");
+  assert.equal(rows[0][columns.indexOf("coverage")], "unknown");
+  assert.equal(rows[0][columns.indexOf("packSize")], "12");
+  assert.equal(rows[0][columns.indexOf("taxCGST")], "90.00");
+});

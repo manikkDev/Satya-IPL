@@ -32,7 +32,8 @@ function MarkdownAnswer({ content }: { content: string }) {
 function AnswerCard({ answer, onChoose }: { answer: Answer; onChoose: (id: string) => void }) {
   const [copyState, setCopyState] = useState("");
   const facts = answer.facts;
-  const structured = facts && answer.findings;
+  const structured = facts && answer.findings && answer.answerType === 'overview';
+  const showMoney = facts && ['overview', 'balance', 'payments', 'issues', 'decision'].includes(answer.answerType || 'overview');
   const sources = answer.sources || [];
   const sourceLink = (source: Answer["sources"][number]) => <Link className="satya-evidence-chip" key={source.id} href={`/cases/${encodeURIComponent(source.caseId)}?snapshot=${encodeURIComponent(answer.snapshotId || "")}&evidence=${encodeURIComponent(source.id)}`}><FileSearch size={15} />{source.label.replaceAll("_", " ")}</Link>;
   const copy = async () => {
@@ -42,22 +43,19 @@ function AnswerCard({ answer, onChoose }: { answer: Answer; onChoose: (id: strin
 
   return <div className="satya-answer-reveal"><Panel>
     <div className="satya-assistant-label"><span className="satya-mark small" aria-hidden="true">S</span>Satya<span className="satya-tag"><ShieldCheck size={14} className="mr-2" />{sources.length ? "Based on your records" : "Workspace guidance"}</span></div>
-    {facts && <div className="satya-chat-facts">{[
+    {showMoney && facts && <div className="satya-chat-facts">{[
       ["Delivery-supported balance", money(facts.supportedOutstanding, facts.currency), "Delivered goods, less linked payments"],
       ["Payments linked to invoices", money(facts.settled, facts.currency), "Confirmed or source-referenced payments"],
       ["Possible duplicate amount", money(facts.disputedExposure, facts.currency), "Disputed amount, not confirmed savings"],
     ].map(([label, value, detail]) => <article key={label}><span>{label}</span><strong>{value}</strong><small>{detail}</small></article>)}</div>}
-    {structured ? <>
-      <div className="satya-chat-content"><h2>{answer.content.split(/\n/)[0]}</h2><p>The records show <strong>{facts.ordered} units ordered</strong>, <strong>{facts.received} delivered</strong> and <strong>{facts.accepted} accepted</strong>. Another <strong>{facts.openDelivery} units</strong> are still to arrive.</p></div>
-      {facts.canonicalOutstanding === null && <div className="satya-notice warning"><strong>The final balance is not confirmed.</strong> Missing or conflicting records still need review. The figures above are not a payment approval.</div>}
-      <div className="satya-chat-section"><h3>{answer.findings!.length ? "What needs attention" : "What the check found"}</h3>{answer.findings!.length ? answer.findings!.map((finding) => <article key={finding.id} className={`satya-finding ${finding.severity}`}><div className="satya-case-card-top"><h3>{evidenceLabel(finding.title)}</h3><span className="satya-tag">{evidenceLabel(finding.certainty)}</span></div><p>{finding.detail}</p>{finding.exposure && <p><strong>Amount to review: {money(finding.exposure.amount, finding.exposure.currency)}</strong></p>}<span className="satya-next">Next step: {evidenceLabel(finding.action)}</span></article>) : <p>No issues were listed in this answer. Check the source records before taking action.</p>}</div>
-      {!!answer.ambiguities?.length && <div className="satya-chat-section"><h3>Information still needed</h3><ul className="satya-list">{answer.ambiguities.map((item) => <li key={item.id}>{item.neededEvidence}</li>)}</ul></div>}
-      <details className="satya-chat-section"><summary>Full explanation and calculation notes</summary><div className="mt-4"><MarkdownAnswer content={answer.content} /></div></details>
-    </> : <MarkdownAnswer content={answer.content} />}
+    <MarkdownAnswer content={answer.content} />
+    {structured && !!answer.findings?.length && <details className="satya-chat-section"><summary>Supporting record checks ({answer.findings.length})</summary>{answer.findings.map((finding) => <article key={finding.id} className={`satya-finding ${finding.severity}`}><div className="satya-case-card-top"><h3>{evidenceLabel(finding.title)}</h3><span className="satya-tag">{evidenceLabel(finding.certainty)}</span></div><p>{finding.detail}</p><span className="satya-next">Next step: {evidenceLabel(finding.action)}</span></article>)}</details>}
     {!!answer.caseOptions?.length && <div className="satya-chat-section"><h3>Choose an investigation</h3><div className="satya-chat-sources">{answer.caseOptions.map((item) => <button className="satya-button secondary" key={item.id} onClick={() => onChoose(item.id)}>{item.poId} · {item.title}<ArrowUpRight size={16} /></button>)}</div></div>}
     {!!sources.length && <div className="satya-chat-section"><h3>Records behind this answer <span className="satya-tag ml-2">{sources.length}</span></h3><p>Open a source to inspect the exact record used for this answer.</p><div className="satya-chat-sources">{sources.slice(0, 6).map(sourceLink)}</div>{sources.length > 6 && <details className="mt-4"><summary className="text-sm">Show {sources.length - 6} more sources</summary><div className="satya-chat-sources">{sources.slice(6).map(sourceLink)}</div></details>}</div>}
     {answer.graph && <details className="satya-chat-section"><summary><strong>Explore the record connections</strong><span className="satya-tag ml-2">{answer.graph.nodes.length} records · {answer.graph.edges.length} links</span></summary><p className="text-sm text-muted-foreground my-4">See how the orders, deliveries, invoices and payments connect. Dashed lines are possibilities, not confirmed matches.</p><BusinessGraph graph={answer.graph} /></details>}
     {answer.graphUnavailable && !answer.graph && <div className="satya-notice">Record connections could not be loaded. The answer and its sources are still available.</div>}
+    {answer.queriedAt && <p className="satya-answer-freshness">Read live at {new Date(answer.queriedAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })} IST · {answer.responseMode === 'grounded_ai' ? 'Grounded AI explanation' : 'Evidence-tool answer'}</p>}
+    {answer.providerStatus === 'authentication_required' && <div className="satya-notice warning">The configured language provider rejected its credentials. This question was answered from evidence tools; ask your administrator to reconnect the provider.</div>}
     {answer.snapshotId && <details className="satya-chat-section"><summary className="text-sm">About these figures</summary><p className="text-sm text-muted-foreground mt-3">Amounts come from the stored calculation, not a generated estimate. This answer uses record version <span className="font-mono">{answer.snapshotId}</span>. Later changes may produce a different balance.</p></details>}
     <div className="satya-answer-footer"><div><button className="satya-button secondary" onClick={copy}>{copyState === "Copied" ? <Check size={16} /> : <Copy size={16} />}{copyState === "Copied" ? "Copied" : "Copy answer"}</button>{copyState && <span role="status" className="text-xs ml-3">{copyState}</span>}</div>{answer.caseId && <Link href={`/cases/${encodeURIComponent(answer.caseId)}`} className="satya-button secondary">Open investigation <ArrowUpRight size={16} /></Link>}</div>
   </Panel></div>;
@@ -72,6 +70,7 @@ function Copilot() {
   const [conversationId, setConversationId] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [stage, setStage] = useState('Connecting to current company records');
   const [error, setError] = useState("");
   const lock = useRef(false);
   const sequence = useRef(0);
@@ -90,14 +89,15 @@ function Copilot() {
     const text = prompt.trim();
     if (!text || lock.current) return;
     lock.current = true;
-    setBusy(true); setError("");
+    setBusy(true); setError(""); setStage('Connecting to current company records');
     const id = retryId ?? ++sequence.current;
     if (retryId !== undefined) setMessages((previous) => previous.map((turn) => turn.id === id ? { id, prompt:text } : turn));
     else { setMessages((previous) => [...previous, { id, prompt:text }]); setQuestion(""); }
     try {
-      const answer: Answer = await businessApi.chat(text, caseId || undefined, conversationId);
+      const answer: Answer = await businessApi.chat(text, caseId || undefined, conversationId, setStage);
       setMessages((previous) => previous.map((turn) => turn.id === id ? { ...turn, answer } : turn));
       setConversationId(answer.conversationId);
+      if (answer.caseId) setCaseId(answer.caseId);
     } catch (error) {
       setMessages((previous) => previous.map((turn) => turn.id === id ? { ...turn, error:error instanceof Error ? error.message : "The answer could not be loaded. Please try again." } : turn));
     } finally { lock.current = false; setBusy(false); }
@@ -110,7 +110,7 @@ function Copilot() {
     <State error={error} />
     <div className="satya-chat-body">
       {messages.length === 0 && <div className="satya-chat-empty"><span className="satya-chat-symbol"><MessageSquare size={32} /></span><h2>What would you like to understand?</h2><p>Check a balance, understand a payment or find out why an invoice needs review. I’ll show what the records say and what’s still missing.</p><div className="satya-prompt-grid">{prompts.map((prompt) => <button disabled={busy} onClick={() => send(prompt)} key={prompt}>{prompt}<ArrowUpRight size={18} /></button>)}</div></div>}
-      {messages.map((turn, index) => <div key={turn.id} className="satya-chat-turn" ref={index === messages.length - 1 ? latest : undefined}><div className="satya-user-message"><span className="sr-only">Your question: </span>{turn.prompt}</div>{turn.answer ? <AnswerCard answer={turn.answer} onChoose={(id) => { reset(id); setQuestion(`Summarize ${cases.find((item) => item.id === id)?.poId || "this investigation"}`); }} /> : turn.error ? <Panel><State error={turn.error} /><button className="satya-button secondary" disabled={busy} onClick={() => send(turn.prompt, turn.id)}><RotateCcw size={16} />Try this question again</button></Panel> : <div className="satya-scanner" role="status" aria-live="polite"><div className="satya-scanner-heading"><ScanLine size={24} /><span>{elapsed >= 15 ? "Still waiting for your records…" : "Looking through the available records…"}</span></div><p>{elapsed >= 15 ? "The evidence service is taking longer than usual. Your question has not been lost." : "Checking the investigation and its connections. The answer will appear when the service responds."}</p><div className="satya-scan-steps" aria-hidden="true"><span><Files size={16} />Source records</span><span><GitBranch size={16} />Record connections</span><span><ClipboardCheck size={16} />Stored calculations</span><span><span className="satya-spin"><RotateCcw size={15} /></span>Working</span></div></div>}</div>)}
+      {messages.map((turn, index) => <div key={turn.id} className="satya-chat-turn" ref={index === messages.length - 1 ? latest : undefined}><div className="satya-user-message"><span className="sr-only">Your question: </span>{turn.prompt}</div>{turn.answer ? <AnswerCard answer={turn.answer} onChoose={(id) => { reset(id); setQuestion(`Summarize ${cases.find((item) => item.id === id)?.poId || "this investigation"}`); }} /> : turn.error ? <Panel><State error={turn.error} /><button className="satya-button secondary" disabled={busy} onClick={() => send(turn.prompt, turn.id)}><RotateCcw size={16} />Try this question again</button></Panel> : <div className="satya-scanner" role="status" aria-live="polite"><div className="satya-scanner-heading"><ScanLine size={24} /><span>{elapsed >= 20 ? 'Still working on your grounded answer…' : stage}</span></div><p>{elapsed >= 20 ? 'The service is taking longer than usual. Your question has not been lost.' : 'Reading the current snapshot and relevant source records—not a cached case summary.'}</p><div className="satya-scan-steps" aria-hidden="true"><span><Files size={16} />Source records</span><span><GitBranch size={16} />Record connections</span><span><ClipboardCheck size={16} />Stored calculations</span><span><span className="satya-spin"><RotateCcw size={15} /></span>Working</span></div></div>}</div>)}
     </div>
     <div className="satya-chat-composer"><form className="satya-chat-input" onSubmit={(event) => { event.preventDefault(); send(question); }}><Textarea ref={input} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(question); } }} maxLength={4000} placeholder={selectedCase ? `Ask about ${selectedCase.poId}…` : "Ask about an order, invoice or payment…"} rows={2} aria-label="Your question" disabled={busy} /><button className="satya-button" type="submit" disabled={busy || !question.trim()} aria-label={busy ? "Waiting for answer" : "Send question"}><Send size={19} /><span className="satya-send-label">{busy ? "Working" : "Send"}</span></button></form><div className="satya-composer-help"><span>Enter to send · Shift + Enter for a new line</span><span>{question.length}/4000 · No payments or supplier messages are sent</span></div></div>
   </BusinessShell>;

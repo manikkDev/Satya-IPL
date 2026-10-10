@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "node --test test/business.test.mjs"
+    "test": "node --test test/business.test.mjs test/questions.test.mjs"
   },
   "author": "",
   "license": "ISC",

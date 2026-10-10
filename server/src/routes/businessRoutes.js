@@ -36,7 +36,7 @@ router.get("/cases/:id", handle(async (req, res) => {
   const snapshot = businessCase.latestSnapshotId ? await snapshotFor(req.user.companyId, businessCase.latestSnapshotId) : null;
   const records = await BusinessRecord.find({ ...scope(req), id: { $in: businessCase.recordIds } }).lean();
   const byId = new Map(records.map((row) => [row.id, row.data]));
-  res.json({ ...businessCase, records: businessCase.inputRecords?.length ? businessCase.inputRecords : businessCase.recordIds.map((id) => byId.get(id)), snapshot: snapshot?.result || null, projection: snapshot?.projection || "pending" });
+  res.json({ ...businessCase, records: businessCase.inputRecords?.length ? businessCase.inputRecords : businessCase.recordIds.map((id) => byId.get(id)), snapshot: snapshot?.result || null, projection: snapshot?.projection || "pending", pendingReconciliation: !!(await BusinessJob.exists({ ...scope(req), caseId: businessCase.id, baseRevision: businessCase.revision, status: { $in: ['queued', 'running'] } })) });
 }));
 router.post("/cases/:id/reconcile", handle(async (req, res) => {
   if (!writers.has(req.user.role)) throw fail(403, "Reconciliation requires an operations role");

@@ -22,7 +22,10 @@ export async function narrateQuestion(businessCase, question, answer, history = 
   const pause = blocked.get(provider.name);
   if (pause && pause.key === provider.key && pause.until > Date.now()) return { ...answer, providerStatus: pause.reason, responseMode: 'evidence_tools' };
   const context = groundingContext(businessCase, answer);
-  const user = JSON.stringify({ question, CURRENT_CONTEXT: context, conversation: history.slice(-6).map((message) => ({ role: message.role, content: String(message.content).slice(0, 1200) })) });
+  const firstRecord = answer.focusRecordIds?.[0] || Object.keys(context.records)[0];
+  const quantityKey = firstRecord && context.facts[`record.${firstRecord}.quantity`] ? `record.${firstRecord}.quantity` : 'ledger.openDelivery';
+  const outputExample = { answer: `${firstRecord ? `[[record:${firstRecord}]]` : 'This investigation'} has [[fact:${quantityKey}]] in the current evidence.`, evidenceIds: context.evidenceIds.slice(0, 1) };
+  const user = JSON.stringify({ question, OUTPUT_TOKEN_FORMAT_EXAMPLE: outputExample, CURRENT_CONTEXT: context, conversation: history.slice(-6).map((message) => ({ role: message.role, content: String(message.content).slice(0, 1200) })) });
   const requestSignal = signal ? AbortSignal.any([signal, AbortSignal.timeout(18000)]) : AbortSignal.timeout(18000);
   try {
     const schema = { type: 'object', properties: { answer: { type: 'string' }, evidenceIds: { type: 'array', items: { type: 'string' } } }, required: ['answer', 'evidenceIds'], additionalProperties: false };
@@ -45,8 +48,10 @@ export async function narrateQuestion(businessCase, question, answer, history = 
     const text = provider.name === 'gemini' ? result.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') : result.choices?.[0]?.message?.content;
     const generated = JSON.parse(String(text).replace(/^```(?:json)?\s*|\s*```$/g, ''));
     const content = renderGroundedNarration(generated, context);
-    if (!content || !generated.evidenceIds.length) return { ...answer, provider: provider.name, providerStatus: 'invalid_grounding', responseMode: 'evidence_tools' };
-    return { ...answer, content, sources: answer.sources.filter((source) => generated.evidenceIds.includes(source.id)), provider: provider.name, model: provider.model, providerStatus: 'ok', responseMode: 'grounded_ai', mode: 'live_grounded_rag' };
+    const primary = (businessCase.records || []).find((record) => record.id === answer.focusRecordIds?.[0]);
+    const missingLinkEvidence = answer.answerType === 'record_link' && primary?.type === 'GRN' && primary.poId && (!content?.includes(context.records[primary.id]) || !(content.includes(primary.poId) || content.includes(context.records[primary.poId] || primary.poId)));
+    if (!content || missingLinkEvidence || !generated.evidenceIds.length) return { ...answer, provider: provider.name, providerStatus: 'invalid_grounding', responseMode: 'evidence_tools' };
+    return { ...answer, content, sources: answer.sources.filter((source) => generated.evidenceIds.includes(source.id) || source.id === answer.sources[0]?.id), provider: provider.name, model: provider.model, providerStatus: 'ok', responseMode: 'grounded_ai', mode: 'live_grounded_rag' };
   } catch (error) {
     return { ...answer, provider: provider.name, providerStatus: ['TimeoutError', 'AbortError'].includes(error.name) ? 'timeout' : 'invalid_grounding', responseMode: 'evidence_tools' };
   }

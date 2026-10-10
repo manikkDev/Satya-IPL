@@ -2,12 +2,17 @@
   "name": "client",
   "version": "0.1.0",
   "private": true,
-  "overrides": { "postcss": "8.5.23", "source-map-js": "1.2.2" },
+  "overrides": {
+    "postcss": "8.5.23",
+    "source-map-js": "1.2.2"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test src/lib/import-helpers.test.mjs",
+    "test:browser": "node test/import-workflows.browser.mjs && node test/case-detail.browser.mjs"
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.0",
@@ -52,6 +57,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.3",
+    "playwright": "^1.64.0",
     "tailwindcss": "^4",
     "tailwindcss-animate": "^1.0.7",
     "tw-animate-css": "^1.3.8",

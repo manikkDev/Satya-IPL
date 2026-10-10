@@ -6,10 +6,11 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import ProtectedRoute from "@/components/auth/protected-route";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { LayoutDashboard, Files, GitBranch, MessageSquare, Upload, ShieldCheck, FlaskConical, LogOut, Menu, X, LoaderCircle } from "lucide-react";
+import { LayoutDashboard, Files, GitBranch, MessageSquare, Upload, ShieldCheck, FlaskConical, LogOut, Menu, X, LoaderCircle, ClipboardList } from "lucide-react";
 
 const links = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+  { href: "/purchase-orders", label: "Purchase orders", icon: ClipboardList },
   { href: "/cases", label: "Investigations", icon: GitBranch },
   { href: "/records", label: "Records", icon: Files },
   { href: "/inbox", label: "Import records", icon: Upload },

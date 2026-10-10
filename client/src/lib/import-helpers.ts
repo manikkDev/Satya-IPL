@@ -105,16 +105,15 @@ export function validateOrderLines(lines: { description: string; quantity: strin
 }
 
 export function recordsCsv(records: SourceRecord[]) {
-  const columns = ["id", "reference", "supplier", "currency", "occurredAt", "observedAt", "status", "dueAt", "lineId", "description", "sku", "quantity", "unitPrice", "uom"];
+  const columns = ["id", "reference", "supplier", "currency", "occurredAt", "observedAt", "status", "dueAt", "matchingLevel", "coverage", "amount", "netAmount", "taxCGST", "taxSGST", "taxIGST", "taxCESS", "lineId", "description", "sku", "quantity", "unitPrice", "uom", "packSize", "poLineId"];
   const escape = (value: string) => {
     const safe = /^[=+@\-\t\r]/.test(value) ? `'${value}` : value;
     return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
   };
-  const rows = records.flatMap((record) => (record.lines || []).map((line) => columns.map((column) => {
-    if (column === "lineId") return line.id;
-    const value = ["description", "sku", "quantity", "unitPrice", "uom"].includes(column) ? line[column as keyof typeof line] : record[column as keyof typeof record];
-    return typeof value === "string" ? value : "";
-  })));
+  const rows = records.flatMap((record) => (record.lines || []).map((line) => {
+    const values: Record<string, unknown> = { ...record, ...line, id:record.id, lineId:line.id, taxCGST:record.taxes?.CGST, taxSGST:record.taxes?.SGST, taxIGST:record.taxes?.IGST, taxCESS:record.taxes?.CESS };
+    return columns.map((column) => typeof values[column] === "string" ? values[column] as string : "");
+  }));
   return [columns, ...rows].map((row) => row.map(escape).join(",")).join("\n") + "\n";
 }
 

@@ -57,6 +57,7 @@ test('ambiguous receipt references are not silently resolved', () => {
 test('LLM placeholders only render existing facts and record identities', () => {
   const context = { facts: { remaining: '40 units' }, records: { 'GRN-A': 'GRN/40' }, evidenceIds: ['ev-grn'] };
   assert.equal(renderGroundedNarration({ answer: '[[record:GRN-A]] records [[fact:remaining]].', evidenceIds: ['ev-grn'] }, context), 'GRN/40 records 40 units.');
+  assert.equal(renderGroundedNarration({ answer: 'GRN40 is a receipt.', evidenceIds: ['ev-grn'] }, context), 'GRN/40 is a receipt.');
   assert.equal(renderGroundedNarration({ answer: 'Pay INR 999999 immediately.', evidenceIds: ['ev-grn'] }, context), null);
   assert.equal(renderGroundedNarration({ answer: '[[fact:missing]]', evidenceIds: ['invented'] }, context), null);
 });

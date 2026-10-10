@@ -23,13 +23,28 @@ const reference = (record) => `${record.reference || record.id} (record ${record
 const escape = (value) => String(value).replace(/[\\`*_[\]<>]/g, '\\$&');
 export function renderGroundedNarration(response, context) {
   if (!response || typeof response.answer !== 'string' || response.answer.length > 6000 || !Array.isArray(response.evidenceIds) || response.evidenceIds.some((id) => !context.evidenceIds.includes(id))) return null;
+  const aliases = new Map();
+  for (const [id, label] of Object.entries(context.records)) {
+    for (const alias of new Set([id, label, compact(label)])) {
+      if (!/[a-z]/i.test(alias) || alias.length < 4) continue;
+      const key = alias.toLowerCase();
+      aliases.set(key, aliases.has(key) && aliases.get(key) !== id ? null : id);
+    }
+  }
+  const patternEscape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const normalized = response.answer.split(/(\[\[(?:fact|record):[^\]]+\]\])/g).map((part) => {
+    if (part.startsWith('[[')) return part;
+    const names = [...aliases].filter(([, id]) => id).sort((a, b) => b[0].length - a[0].length).map(([alias]) => patternEscape(alias));
+    if (!names.length) return part;
+    return part.replace(new RegExp(`\\b(?:${names.join('|')})\\b`, 'gi'), (match) => `[[record:${aliases.get(match.toLowerCase())}]]`);
+  }).join('');
   let invalid = false;
-  const withoutTokens = response.answer.replace(/\[\[(fact|record):([^\]]+)\]\]/g, (_token, kind, key) => {
+  const withoutTokens = normalized.replace(/\[\[(fact|record):([^\]]+)\]\]/g, (_token, kind, key) => {
     if (!Object.hasOwn(kind === 'fact' ? context.facts : context.records, key)) invalid = true;
     return '';
   });
   if (invalid || /\d|https?:\/\/|\[\[|\]\]/i.test(withoutTokens) || /\b(?:i|we)\s+(?:have\s+)?(?:sent|paid|approved|updated|deleted|linked|held|transferred)\b/i.test(withoutTokens)) return null;
-  return response.answer.replace(/\[\[(fact|record):([^\]]+)\]\]/g, (_token, kind, key) => escape((kind === 'fact' ? context.facts : context.records)[key]));
+  return normalized.replace(/\[\[(fact|record):([^\]]+)\]\]/g, (_token, kind, key) => escape((kind === 'fact' ? context.facts : context.records)[key]));
 }
 
 export function answerQuestion(businessCase, question, history = []) {
@@ -124,7 +139,10 @@ export function groundingContext(businessCase, answer) {
     records[record.id] = record.reference || record.id;
     if (record.amount) facts[`record.${record.id}.amount`] = `${record.currency} ${record.amount}`;
     if (record.poId) facts[`record.${record.id}.order`] = record.poId;
-    if (record.lines?.length) facts[`record.${record.id}.quantity`] = `${sumQuantity(record.lines)} ${record.lines[0].uom}`;
+    if (record.lines?.length) {
+      facts[`record.${record.id}.quantity`] = `${sumQuantity(record.lines)} ${record.lines[0].uom}`;
+      facts[`record.${record.id}.lineIds`] = record.lines.map((line) => line.poLineId || line.id).join(', ');
+    }
   }
   return { facts, records, evidenceIds: answer.sources.map((source) => source.id), currentAnswer: answer.content, answerType: answer.answerType, snapshotId: answer.snapshotId, recordDetails: (businessCase.records || []).slice(0, 60).map((record) => ({ id: record.id, type: record.type, reference: record.reference, poId: record.poId, invoiceId: record.invoiceId, status: record.status })), findings: answer.findings, ambiguities: answer.ambiguities };
 }

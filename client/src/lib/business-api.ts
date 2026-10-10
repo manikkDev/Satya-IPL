@@ -4,12 +4,12 @@ export type Ledger = { currency: string; ordered: string; received: string; acce
 export type Evidence = { id: string; recordId: string; reference: string; source: string; field: string; rawValue: string | null; derivedValue?: string; normalizedValue?: string; provenance: string; quality: string; observedAt: string; locator: { kind: string; pointer: string | null; documentId?: string; row?: number; column?: string } };
 export type Finding = { id: string; type: string; title: string; detail: string; severity: string; action: string; certainty: string; evidenceIds: string[]; exposure: { amount: string; currency: string } | null };
 export type BusinessLine = { id: string; description: string; quantity: string; unitPrice: string; uom: string; sku?: string; acceptedQuantity?: string };
-export type SourceRecord = { id: string; type: string; reference: string; source: string; supplier: string; currency: string; amount?: string; occurredAt: string; observedAt: string; provenance: string; lines?: BusinessLine[]; taxes?: Record<string, string>; invoiceId?: string; poId?: string; status: string };
+export type SourceRecord = { id: string; type: string; reference: string; source: string; supplier: string; currency: string; amount?: string; occurredAt: string; observedAt: string; provenance: string; lines?: BusinessLine[]; taxes?: Record<string, string>; invoiceId?: string; poId?: string; status: string; dueAt?: string };
 export type Graph = { nodes: { id: string; label: string; type: string; amount?: string; currency?: string }[]; edges: { id: string; source: string; target: string; type: string; status: string; amount?: string }[]; source?: string; degraded?: boolean };
 export type MatchSuggestion = { recordId: string; lineId: string; probability: number | null; score: number; kind: string; status: string; features: Record<string, number> };
 export type Snapshot = { caseId: string; snapshotId: string; observedBefore: string; ledger: Ledger; findings: Finding[]; evidence: Evidence[]; graph: Graph; unallocatedPayments: { paymentId: string; amount: string; currency: string; reference: string; candidateInvoiceIds: string[] }[]; duplicateCandidates: { recordId: string; candidateOriginalId: string }[]; ambiguities: { id: string; neededEvidence: string; balanceScenarios?: { minimum: string; maximum: string; currency: string; assumption: string } }[]; paymentAllocations: { paymentId: string; invoiceId: string; amount: string; currency: string; status: string }[]; matchSuggestions: MatchSuggestion[]; warnings: string[]; simulation?: boolean };
 export type BusinessCase = { id: string; title: string; supplier: string; sector: string; poId: string; revision: number; status: string; ledger?: Ledger; findingCount: number; records: SourceRecord[]; snapshot: Snapshot | null; projection: string; decisions: { id: string; action: string; reason: string; actorName: string; createdAt: string; effect: string }[] };
-export type ChatAnswer = { content: string; conversationId: string; sources: { id: string; recordId: string; label: string; caseId: string }[]; caseId?: string; snapshotId?: string; graph?: Graph; facts?: Ledger; mode: string };
+export type ChatAnswer = { answerType?: string; responseMode?: string; providerStatus?: string; queriedAt?: string; focusRecordIds?: string[]; provider?: string; content: string; conversationId: string; sources: { id: string; recordId: string; label: string; caseId: string }[]; caseId?: string; snapshotId?: string; graph?: Graph; facts?: Ledger; mode: string };
 
 const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${typeof window !== "undefined" ? localStorage.getItem("token") || "" : ""}` });
 async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -34,7 +34,7 @@ export const businessApi = {
   previewImport: (body: unknown) => request<{ id: string; canCommit: boolean; acceptedRecords: number; totalRows: number; issueCount: number; issues: { file: string; row: number; message: string }[]; records: SourceRecord[] }>("/imports/preview", body),
   document: (id: string) => request<{ id: string; name: string; content: string; checksum: string }>(`/documents/${encodeURIComponent(id)}`),
   import: (body: unknown) => request<{ caseId: string; job?: { id: string } }>("/imports", body),
-  chat: async (prompt: string, caseId?: string, conversationId?: string): Promise<ChatAnswer> => {
+  chat: async (prompt: string, caseId?: string, conversationId?: string, onStatus?: (stage: string) => void): Promise<ChatAnswer> => {
     const response = await fetch(`${SERVER_URL_1}/api/chat/stream`, { method: "POST", headers: headers(), body: JSON.stringify({ prompt, caseId, conversationId }) });
     if (!response.ok) { const body = await response.json(); throw new Error(body.message || "Copilot unavailable"); }
     if (!response.body) throw new Error("Chat stream unavailable");
@@ -48,10 +48,12 @@ export const businessApi = {
       const blocks = buffer.split(/\r?\n\r?\n/);
       buffer = blocks.pop() || "";
       for (const block of blocks) {
-        if (block.startsWith("event: answer")) {
-          const line = block.split("\n").find((part) => part.startsWith("data: "));
-          if (line) return JSON.parse(line.slice(6));
-        }
+        const line = block.split("\n").find((part) => part.startsWith("data: "));
+        if (!line) continue;
+        const data = JSON.parse(line.slice(6));
+        if (block.startsWith('event: status')) onStatus?.(data.stage);
+        if (block.startsWith('event: error')) throw new Error(data.message || 'This question could not be completed');
+        if (block.startsWith('event: answer')) return data;
       }
     }
     throw new Error("Stream ended before an evidence answer arrived");
