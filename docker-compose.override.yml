@@ -1,0 +1,10 @@
+# Local hybrid-dev override: client and server run natively (npm run dev) while
+# data/ML services run in containers. Containers reach the native server via
+# host.docker.internal instead of the compose `server` service name.
+services:
+  chatbot-backend:
+    environment:
+      GRAPH_API_URL: http://host.docker.internal:5002
+  ml-fl-service:
+    environment:
+      PROGRESS_WEBHOOK: http://host.docker.internal:5002/api/fl/progress

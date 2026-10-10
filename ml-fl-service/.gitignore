@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+data/raw/*
+data/processed/*
+data/partitions/*
+runs/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/partitions/.gitkeep
+!runs/.gitkeep

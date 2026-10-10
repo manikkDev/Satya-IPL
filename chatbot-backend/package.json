@@ -1,0 +1,42 @@
+{
+  "name": "chatbot-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "node --test test/*.test.mjs"
+  },
+  "author": "",
+  "license": "ISC",
+  "keywords": [],
+  "dependencies": {
+    "@google/genai": "^1.30.0",
+    "@supabase/supabase-js": "^2.57.4",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.18.2",
+    "file-type": "^21.0.0",
+    "google-auth-library": "^10.4.0",
+    "jsonwebtoken": "^9.0.2",
+    "mammoth": "^1.11.0",
+    "multer": "^2.0.2",
+    "node-fetch": "^3.3.2",
+    "openai": "^5.22.0",
+    "pdf-parse": "^1.1.1",
+    "uuid": "^9.0.0",
+    "xlsx": "^0.18.5",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.25.0"
+  },
+  "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^11.12.0",
+    "@types/multer": "^2.0.0",
+    "@types/xlsx": "^0.0.35",
+    "eslint": "^9.39.1",
+    "nodemon": "^2.0.22"
+  },
+  "description": "AI copilot and API gateway service (chat, LLM tools, ML/FL proxy)"
+}

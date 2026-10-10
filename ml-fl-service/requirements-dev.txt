@@ -1,0 +1,3 @@
+-r requirements.txt
+-r requirements-data.txt
+pytest==8.4.2

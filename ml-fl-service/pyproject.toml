@@ -1,0 +1,79 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "arth-fl"
+version = "0.1.0"
+description = "Federated financial risk model for Arth Saathi"
+requires-python = ">=3.9"
+dependencies = [
+  "flwr[simulation]>=1.20,<1.21",
+  "torch>=2.7.1,<2.8",
+  "numpy>=2.0,<2.1",
+  "pandas>=2.2,<2.3",
+  "pyarrow>=17,<18",
+  "scikit-learn>=1.5,<1.6",
+  "opacus>=1.5,<1.6",
+  "httpx>=0.28,<0.29",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["arth_fl"]
+
+[tool.flwr.app]
+publisher = "arth-saathi"
+
+[tool.flwr.app.components]
+serverapp = "arth_fl.server_app:app"
+clientapp = "arth_fl.client_app:app"
+
+[tool.flwr.app.config]
+run-id = "dev"
+dataset = "paysim_banks"
+task = "fraud"
+num-server-rounds = 50
+fraction-train = 1.0
+fraction-evaluate = 1.0
+local-epochs = 3
+batch-size = 512
+learning-rate = 0.001
+strategy = "fedprox"
+proximal-mu = 0.01
+dp-enabled = false
+dp-noise-multiplier = 1.0
+dp-clipping-norm = 1.0
+dp-delta = 1e-5
+secagg-enabled = true
+model = "residual_mlp_v1"
+clients = 5
+num-shares = 5
+reconstruction-threshold = 4
+max-weight = 1000000
+secagg-clipping-range = 8.0
+secagg-quantization-range = 4194304
+secagg-modulus-range = 4294967296
+secagg-timeout = 120.0
+client-sample-cap = 60000
+val-sample-cap = 50000
+seed = 42
+server-lr = 0.05
+partitions-dir = "data/partitions"
+hfl-dir = ""
+norm-stats-file = ""
+runs-dir = "runs"
+progress-webhook = ""
+
+[tool.flwr.federations]
+default = "local-sim"
+
+[tool.flwr.federations.local-sim]
+options.num-supernodes = 5
+options.backend.client-resources.num-cpus = 2
+options.backend.client-resources.num-gpus = 0.0
+
+[tool.flwr.federations.local-sim-3]
+options.num-supernodes = 3
+
+[tool.flwr.federations.local-sim-2]
+options.num-supernodes = 2

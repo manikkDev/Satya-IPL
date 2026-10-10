@@ -1,0 +1,9 @@
+.venv
+__pycache__
+.pytest_cache
+.env
+.git
+data/raw
+data/processed
+data/partitions
+runs
