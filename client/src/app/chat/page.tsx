@@ -7,7 +7,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import { Send, MessageSquare, FileSearch, Plus, ArrowUpRight, ScanLine, Files, GitBranch, ClipboardCheck, Copy, Check, RotateCcw, ShieldCheck } from "lucide-react";
-import BusinessShell, { Panel, State } from "@/components/BusinessShell";
+import BusinessShell, { Panel, State, evidenceLabel } from "@/components/BusinessShell";
 import BusinessGraph from "@/components/BusinessGraph";
 import { Textarea } from "@/components/ui/textarea";
 import { businessApi, money, type BusinessCase, type ChatAnswer, type Finding, type Snapshot } from "@/lib/business-api";
@@ -50,7 +50,7 @@ function AnswerCard({ answer, onChoose }: { answer: Answer; onChoose: (id: strin
     {structured ? <>
       <div className="satya-chat-content"><h2>{answer.content.split(/\n/)[0]}</h2><p>The records show <strong>{facts.ordered} units ordered</strong>, <strong>{facts.received} delivered</strong> and <strong>{facts.accepted} accepted</strong>. Another <strong>{facts.openDelivery} units</strong> are still to arrive.</p></div>
       {facts.canonicalOutstanding === null && <div className="satya-notice warning"><strong>The final balance is not confirmed.</strong> Missing or conflicting records still need review. The figures above are not a payment approval.</div>}
-      <div className="satya-chat-section"><h3>{answer.findings!.length ? "What needs attention" : "What the check found"}</h3>{answer.findings!.length ? answer.findings!.map((finding) => <article key={finding.id} className={`satya-finding ${finding.severity}`}><div className="satya-case-card-top"><h3>{finding.title}</h3><span className="satya-tag">{finding.certainty.replaceAll("_", " ")}</span></div><p>{finding.detail}</p>{finding.exposure && <p><strong>Amount to review: {money(finding.exposure.amount, finding.exposure.currency)}</strong></p>}<span className="satya-next">Next step: {finding.action.replaceAll("_", " ").toLowerCase()}</span></article>) : <p>No issues were listed in this answer. Check the source records before taking action.</p>}</div>
+      <div className="satya-chat-section"><h3>{answer.findings!.length ? "What needs attention" : "What the check found"}</h3>{answer.findings!.length ? answer.findings!.map((finding) => <article key={finding.id} className={`satya-finding ${finding.severity}`}><div className="satya-case-card-top"><h3>{evidenceLabel(finding.title)}</h3><span className="satya-tag">{evidenceLabel(finding.certainty)}</span></div><p>{finding.detail}</p>{finding.exposure && <p><strong>Amount to review: {money(finding.exposure.amount, finding.exposure.currency)}</strong></p>}<span className="satya-next">Next step: {finding.action.replaceAll("_", " ").toLowerCase()}</span></article>) : <p>No issues were listed in this answer. Check the source records before taking action.</p>}</div>
       {!!answer.ambiguities?.length && <div className="satya-chat-section"><h3>Information still needed</h3><ul className="satya-list">{answer.ambiguities.map((item) => <li key={item.id}>{item.neededEvidence}</li>)}</ul></div>}
       <details className="satya-chat-section"><summary>Full explanation and calculation notes</summary><div className="mt-4"><MarkdownAnswer content={answer.content} /></div></details>
     </> : <MarkdownAnswer content={answer.content} />}

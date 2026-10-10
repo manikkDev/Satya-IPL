@@ -54,6 +54,22 @@ export default function BusinessShell({ children, title, subtitle }: { children:
   </ProtectedRoute>;
 }
 
+export function evidenceLabel(value: string) {
+  const labels: Record<string, string> = {
+    PROVEN_FROM_INPUTS: "Supported by records",
+    CONDITIONAL: "Needs confirmation",
+    UNKNOWN: "Not confirmed",
+    APPROVE: "Review for approval; other checks still apply",
+    REQUEST_CLARIFICATION: "Request more information",
+    PLACE_ON_HOLD: "Put this investigation on hold",
+    ESCALATE: "Escalate for review",
+    "SETTLED MONEY STILL NEEDS ALLOCATION": "A payment is not linked to an invoice",
+    "THE SAME INVOICE REFERENCE APPEARS TWICE": "This invoice may be recorded twice",
+    "PARTIAL DELIVERY IS EXPECTED AT THIS POINT": "The rest of the delivery is not due yet",
+  };
+  return labels[value.toUpperCase()] || value.replaceAll("_", " ").toLowerCase();
+}
+
 export function Panel({ title, children, detail }: { title?: string; children: React.ReactNode; detail?: string }) {
   return <section className="satya-panel">{title && <div className="satya-panel-heading"><h2>{title}</h2>{detail && <p>{detail}</p>}</div>}{children}</section>;
 }

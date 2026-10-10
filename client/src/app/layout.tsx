@@ -44,7 +44,7 @@ export default function RootLayout({
             <AuthProvider>
               {children}
               <Toaster position="top-center" richColors />
-              <Analytics />
+              {process.env.NEXT_PUBLIC_ENABLE_ANALYTICS === '1' && <Analytics />}
             </AuthProvider>
           </div>
         </ThemeProvider>

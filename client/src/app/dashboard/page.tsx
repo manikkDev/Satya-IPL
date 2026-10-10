@@ -16,7 +16,7 @@ export default function DashboardPage() {
   return <BusinessShell title="Overview" subtitle="See what needs attention across your orders, deliveries, invoices and payments.">
     <State error={error} loading={loading} />
     {!loading && !error && <>
-      <div className="satya-metric-grid">{[
+      <div className="satya-metric-grid satya-money-grid">{[
         { label: "Needs review", value: String(needingReview), detail: `${cases.length} investigations in your workspace`, icon: ShieldAlert },
         { label: "Balance supported by deliveries", value: money(featured?.ledger?.supportedOutstanding, featured?.ledger?.currency), detail: `${featured?.poId || "Featured order"} · not a payment approval`, icon: Wallet },
         { label: "Possible duplicate amount", value: money(featured?.ledger?.disputedExposure, featured?.ledger?.currency), detail: `${featured?.poId || "Featured order"} · needs confirmation`, icon: GitBranch },
