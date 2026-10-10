@@ -12,6 +12,7 @@ export default async function seedDemoUsers() {
       { name: "Independent Auditor", email: "auditor@satya.demo", role: "auditor", companyId: "satya-demo" },
       { name: "Other Company Auditor", email: "isolated@satya.demo", role: "auditor", companyId: "isolated-demo" },
       { name: "Contract Test Manager", email: "tester@satya.demo", role: "ap_manager", companyId: "satya-contract-tests" },
+      { name: "Contract Test Analyst", email: "test-analyst@satya.demo", role: "ops_analyst", companyId: "satya-contract-tests" },
     ]) {
       if (!(await User.exists({ email: user.email }))) await User.create({ ...user, password: process.env.DEMO_PASSWORD || "SatyaDemo@123", active: true });
     }

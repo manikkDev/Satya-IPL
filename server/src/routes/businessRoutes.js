@@ -77,10 +77,13 @@ router.get("/graph/cases/:id", handle(async (req, res) => {
   catch { res.json({ ...snapshot.result.graph, source: "mongodb_snapshot", degraded: true, snapshotId: snapshot.id, warning: "Neo4j projection is unavailable; showing the committed evidence snapshot." }); }
 }));
 router.post("/cases/:id/decisions", handle(async (req, res) => {
-  if (!managers.has(req.user.role)) throw fail(403, "Financial decisions require a manager");
+  const isManager = managers.has(req.user.role);
+  const { action, reason, findingId, review } = req.body;
+  const analystActions = new Set(["REQUEST_CLARIFICATION", "ESCALATE"]);
+  if (!isManager && !(req.user.role === "ops_analyst" && analystActions.has(action))) throw fail(403, "Approvals, holds and evidence confirmation require a manager; analysts can escalate or request clarification");
+  if (review && !isManager) throw fail(403, "Confirming matches, duplicates or payment allocations requires a manager");
   const businessCase = await getCase(req);
   if (req.body.expectedRevision !== businessCase.revision || req.body.snapshotId !== businessCase.latestSnapshotId) throw fail(409, "Evidence changed; refresh the case before deciding");
-  const { action, reason, findingId, review } = req.body;
   if (!["APPROVE", "REQUEST_CLARIFICATION", "ESCALATE", "PLACE_ON_HOLD"].includes(action) || typeof reason !== "string" || reason.trim().length < 10 || reason.length > 2000) throw fail(422, "A permitted action and a meaningful reason are required");
   const snapshot = await snapshotFor(req.user.companyId, businessCase.latestSnapshotId);
   if (findingId && !snapshot.result.findings.some((finding) => finding.id === findingId)) throw fail(422, "Finding does not belong to this snapshot");

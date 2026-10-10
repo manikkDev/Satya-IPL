@@ -147,6 +147,49 @@ test("business contract: authentication, immutable evidence, graph, replay and d
     assert.equal(invalid.data.canCommit, false);
     assert.equal((await call('/api/v1/imports', tester, { previewId: invalid.data.id })).response.status, 422);
   });
+  await t.test("analyst escalates a case forward; only a manager can approve", async () => {
+    const analyst = await login("test-analyst@satya.demo");
+    const tester = await login("tester@satya.demo");
+    const suffix = Date.now();
+    const poId = `PO-HANDOFF-${suffix}`;
+    const timestamp = new Date(Date.now() - 3600000).toISOString();
+    const line = { id: '1', description: 'Pump 1 kW', sku: 'PUMP-1KW', quantity: '5', unitPrice: '1000', uom: 'EA', poLineId: '1' };
+    const base = { supplier: 'Handoff Supplier', occurredAt: timestamp, observedAt: timestamp, source: 'contract_test', currency: 'INR' };
+    const imported = await call('/api/v1/imports', analyst, { title: 'Approval handoff investigation', poId, records: [
+      { ...base, id: poId, type: 'PO', reference: poId, status: 'approved', lines: [line] },
+      { ...base, id: `GRN-HO-${suffix}`, type: 'GRN', reference: 'Handoff receipt', poId, lines: [{ ...line, acceptedQuantity: '5' }] },
+      { ...base, id: `INV-HO-${suffix}`, type: 'INVOICE', reference: `HO/INV/${suffix}`, poId, amount: '5000.00', netAmount: '5000.00', lines: [line] },
+    ] });
+    assert.equal(imported.response.status, 201);
+    const awaitJob = async (id, token) => {
+      for (let attempt = 0; attempt < 30; attempt++) {
+        const job = (await call(`/api/v1/jobs/${id}`, token)).data;
+        if (job.status === 'completed') return;
+        if (job.status === 'failed') throw new Error(job.error);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      throw new Error('Test reconciliation timed out');
+    };
+    await awaitJob(imported.data.job.id, analyst);
+    const current = () => call(`/api/v1/cases/${imported.data.caseId}`, analyst).then((result) => result.data);
+    let businessCase = await current();
+    assert.equal((await call(`/api/v1/cases/${businessCase.id}/decisions`, analyst, { expectedRevision: businessCase.revision, snapshotId: businessCase.snapshot.snapshotId, action: 'APPROVE', reason: 'An analyst must not approve payments' })).response.status, 403);
+    assert.equal((await call(`/api/v1/cases/${businessCase.id}/decisions`, analyst, { expectedRevision: businessCase.revision, snapshotId: businessCase.snapshot.snapshotId, action: 'ESCALATE', reason: 'Escalating with a fake review payload', review: { kind: 'confirm_duplicate', recordId: 'x', originalId: 'y' } })).response.status, 403);
+    const escalated = await call(`/api/v1/cases/${businessCase.id}/decisions`, analyst, { expectedRevision: businessCase.revision, snapshotId: businessCase.snapshot.snapshotId, action: 'ESCALATE', reason: 'Checks are complete; sending forward for finance approval.' });
+    assert.equal(escalated.response.status, 201);
+    assert.equal(escalated.data.decision.actorRole, 'ops_analyst');
+    await awaitJob(escalated.data.job.id, analyst);
+    businessCase = await current();
+    assert.equal(businessCase.status, 'escalated');
+    const approved = await call(`/api/v1/cases/${businessCase.id}/decisions`, tester, { expectedRevision: businessCase.revision, snapshotId: businessCase.snapshot.snapshotId, action: 'APPROVE', reason: 'Records reconcile; eligible balance approved for the payment workflow.' });
+    assert.equal(approved.response.status, 201);
+    await awaitJob(approved.data.job.id, tester);
+    businessCase = await current();
+    assert.equal(businessCase.status, 'reconciled');
+    assert.equal(businessCase.decisions.length, 2);
+    assert.equal(businessCase.decisions[0].actorRole, 'ops_analyst');
+    assert.equal(businessCase.decisions[1].actorRole, 'ap_manager');
+  });
   await t.test("retired domain endpoints are not mounted", async () => {
     for (const path of ["/api/consent/me", "/api/risk-graph/overview", "/api/fl/progress"]) assert.equal((await fetch(`${BASE}${path}`)).status, 404);
   });

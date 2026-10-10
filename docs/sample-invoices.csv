@@ -1,0 +1,3 @@
+id,reference,supplier,currency,occurredAt,observedAt,status,poId,amount,netAmount,taxCGST,taxSGST,lineId,description,sku,quantity,unitPrice,uom,poLineId
+DEMO-INVOICE-6101,DEMO/INV/6101,Example Pump Supplier,INR,2026-10-04T10:00:00+05:30,2026-10-04T10:00:00+05:30,posted,DEMO-PO-6101,70800.00,60000.00,5400.00,5400.00,1,Water pump 1 kW,PUMP-1KW,60,1000.00,EA,1
+DEMO-INVOICE-COPY-6101,DEMO/INV/6101,Example Pump Supplier,INR,2026-10-04T10:00:00+05:30,2026-10-04T11:00:00+05:30,posted,DEMO-PO-6101,70800.00,60000.00,5400.00,5400.00,1,Water pump 1 kW,PUMP-1KW,60,1000.00,EA,1

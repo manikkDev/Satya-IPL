@@ -1,0 +1,2 @@
+id,reference,supplier,currency,occurredAt,observedAt,status,dueAt,lineId,description,sku,quantity,unitPrice,uom,coverage
+DEMO-PO-6201,DEMO/PO/6201,Example Pump Supplier,INR,2026-10-01T10:00:00+05:30,2026-10-01T10:00:00+05:30,approved,2026-10-30T18:00:00+05:30,1,Water pump 1 kW,PUMP-1KW,10,1250.00,EA,unknown

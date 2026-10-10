@@ -1,0 +1,3 @@
+id,reference,supplier,currency,occurredAt,observedAt,status,poId,lineId,description,sku,quantity,acceptedQuantity,uom,poLineId,coverage
+DEMO-GRN-6101,DEMO/GRN/6101,Example Pump Supplier,INR,2026-10-02T10:00:00+05:30,2026-10-02T10:00:00+05:30,posted,DEMO-PO-6101,1,Water pump 1 kW,PUMP-1KW,40,40,EA,1,complete
+DEMO-GRN-6102,DEMO/GRN/6102,Example Pump Supplier,INR,2026-10-03T10:00:00+05:30,2026-10-03T10:00:00+05:30,posted,DEMO-PO-6101,1,Water pump 1 kW,PUMP-1KW,20,20,EA,1,complete
