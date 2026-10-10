@@ -16,7 +16,8 @@ import { SERVER_URL } from "@/utils/commonHelper";
 type User = {
   _id?: string;
   email: string;
-  role: "citizen" | "analyst" | "admin";
+  role: "ops_analyst" | "ap_manager" | "auditor" | "admin";
+  companyId?: string;
   institutionId?: number | null;
   customerRef?: string | null;
   name?: string;
@@ -64,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem("token", jwt);
         setToken(jwt);
       }
-      router.push(loggedInUser?.role === "analyst" || loggedInUser?.role === "admin" ? "/analyst" : "/citizen");
+      router.push("/dashboard");
     },
     [router],
   );
@@ -161,18 +162,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Check if user is logged in on initial load
-    const checkAuth = () => {
+    const checkAuth = async () => {
       try {
-        const userData = localStorage.getItem("user");
         const storedToken = localStorage.getItem("token");
-        if (userData) {
-          setUser(JSON.parse(userData));
-        }
         if (storedToken) {
+          const response = await fetch(`${SERVER_URL}/api/auth/profile`, { headers: { Authorization: `Bearer ${storedToken}` }, signal: AbortSignal.timeout(10000) });
+          if (!response.ok) throw new Error("Active company membership is required");
+          const currentUser = await response.json();
+          setUser(currentUser);
           setToken(storedToken);
+          localStorage.setItem("user", JSON.stringify(currentUser));
         }
-      } catch (error) {
-        console.error("Failed to parse user data from localStorage", error);
+      } catch {
+        localStorage.removeItem("user");
+        localStorage.removeItem("token");
+        setUser(null);
+        setToken(null);
       } finally {
         setIsLoading(false);
       }

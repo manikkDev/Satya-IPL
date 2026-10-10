@@ -1,0 +1,76 @@
+import { SERVER_URL, SERVER_URL_1 } from "@/utils/commonHelper";
+
+export type Ledger = { currency: string; ordered: string; received: string; accepted: string; openDelivery: string; recordedGross: string | null; recordedOutstanding: string | null; settled: string; supportedOutstanding: string | null; canonicalOutstanding: string | null; disputedExposure: string; eligibleNet: string };
+export type Evidence = { id: string; recordId: string; reference: string; source: string; field: string; rawValue: string | null; derivedValue?: string; provenance: string; quality: string; observedAt: string; locator: { kind: string; pointer: string | null } };
+export type Finding = { id: string; type: string; title: string; detail: string; severity: string; action: string; certainty: string; evidenceIds: string[]; exposure: { amount: string; currency: string } | null };
+export type BusinessLine = { id: string; description: string; quantity: string; unitPrice: string; uom: string; sku?: string; acceptedQuantity?: string };
+export type SourceRecord = { id: string; type: string; reference: string; source: string; supplier: string; currency: string; amount?: string; occurredAt: string; observedAt: string; provenance: string; lines?: BusinessLine[]; taxes?: Record<string, string>; invoiceId?: string; poId?: string; status: string };
+export type Graph = { nodes: { id: string; label: string; type: string; amount?: string; currency?: string }[]; edges: { id: string; source: string; target: string; type: string; status: string; amount?: string }[]; source?: string; degraded?: boolean };
+export type MatchSuggestion = { recordId: string; lineId: string; probability: number | null; score: number; kind: string; status: string; features: Record<string, number> };
+export type Snapshot = { caseId: string; snapshotId: string; observedBefore: string; ledger: Ledger; findings: Finding[]; evidence: Evidence[]; graph: Graph; unallocatedPayments: { paymentId: string; amount: string; currency: string; reference: string; candidateInvoiceIds: string[] }[]; duplicateCandidates: { recordId: string; candidateOriginalId: string }[]; ambiguities: { id: string; neededEvidence: string; balanceScenarios?: { minimum: string; maximum: string; currency: string; assumption: string } }[]; paymentAllocations: { paymentId: string; invoiceId: string; amount: string; currency: string; status: string }[]; matchSuggestions: MatchSuggestion[]; warnings: string[]; simulation?: boolean };
+export type BusinessCase = { id: string; title: string; supplier: string; sector: string; poId: string; revision: number; status: string; ledger?: Ledger; findingCount: number; records: SourceRecord[]; snapshot: Snapshot | null; projection: string; decisions: { id: string; action: string; reason: string; actorName: string; createdAt: string; effect: string }[] };
+export type ChatAnswer = { content: string; conversationId: string; sources: { id: string; recordId: string; label: string; caseId: string }[]; caseId?: string; snapshotId?: string; graph?: Graph; facts?: Ledger; mode: string };
+
+const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${typeof window !== "undefined" ? localStorage.getItem("token") || "" : ""}` });
+async function request<T>(path: string, body?: unknown): Promise<T> {
+  const response = await fetch(`${SERVER_URL}/api/v1${path}`, { headers: headers(), ...(body !== undefined ? { method: "POST", body: JSON.stringify(body) } : {}) });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || "Business request failed");
+  return data;
+}
+export const businessApi = {
+  cases: () => request<BusinessCase[]>("/cases"),
+  case: (id: string) => request<BusinessCase>(`/cases/${encodeURIComponent(id)}`),
+  snapshot: (id: string) => request<Snapshot>(`/snapshots/${encodeURIComponent(id)}`),
+  graph: (id: string) => request<Graph>(`/graph/cases/${encodeURIComponent(id)}`),
+  records: () => request<(SourceRecord & { caseId: string })[]>("/records"),
+  evaluation: () => request<Record<string, unknown>>("/evaluation"),
+  audit: () => request<{ _id: string; action: string; target: string; createdAt: string; role: string }[]>("/audit"),
+  reconcile: (id: string) => request<{ id: string; status: string }>(`/cases/${encodeURIComponent(id)}/reconcile`, {}),
+  job: (id: string) => request<{ status: string; error?: string; snapshotId?: string }>(`/jobs/${encodeURIComponent(id)}`),
+  decision: (id: string, body: unknown) => request<{ job: { id: string }; decision: unknown }>(`/cases/${encodeURIComponent(id)}/decisions`, body),
+  replay: (id: string, cutoff: string) => request<Snapshot>(`/cases/${encodeURIComponent(id)}/replay`, { observedBefore: cutoff }),
+  scenario: (id: string, record: unknown) => request<Snapshot>(`/cases/${encodeURIComponent(id)}/scenario`, { record }),
+  import: (body: unknown) => request<{ caseId: string; job?: { id: string } }>("/imports", body),
+  chat: async (prompt: string, caseId?: string, conversationId?: string): Promise<ChatAnswer> => {
+    const response = await fetch(`${SERVER_URL_1}/api/chat/stream`, { method: "POST", headers: headers(), body: JSON.stringify({ prompt, caseId, conversationId }) });
+    if (!response.ok) { const body = await response.json(); throw new Error(body.message || "Copilot unavailable"); }
+    if (!response.body) throw new Error("Chat stream unavailable");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split(/\r?\n\r?\n/);
+      buffer = blocks.pop() || "";
+      for (const block of blocks) {
+        if (block.startsWith("event: answer")) {
+          const line = block.split("\n").find((part) => part.startsWith("data: "));
+          if (line) return JSON.parse(line.slice(6));
+        }
+      }
+    }
+    throw new Error("Stream ended before an evidence answer arrived");
+  },
+};
+export async function waitForJob(id: string) {
+  for (let attempt = 0; attempt < 65; attempt++) {
+    const job = await businessApi.job(id);
+    if (job.status === "completed") return job;
+    if (job.status === "failed") throw new Error(job.error || "Reconciliation failed");
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error("Reconciliation is still running; refresh the case shortly");
+}
+export function money(value: string | null | undefined, currency = "INR") {
+  if (value === null || value === undefined) return "Needs evidence";
+  const [integer, fraction = "00"] = value.split(".");
+  const negative = integer.startsWith("-");
+  const absolute = integer.replace(/^-/, "");
+  const tail = absolute.slice(-3);
+  const head = absolute.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ",");
+  const grouped = head ? `${head},${tail}` : tail;
+  return `${negative ? "−" : ""}${currency === "INR" ? "₹" : `${currency} `}${grouped}.${fraction.padEnd(2, "0")}`;
+}

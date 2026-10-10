@@ -3,6 +3,13 @@
 // const server_url = require("../utils/commonHelper");
 const nextConfig = {
   outputFileTracingRoot: __dirname,
+  async redirects() {
+    return [
+      { source: '/analyst/:path*', destination: '/dashboard', permanent: false },
+      { source: '/citizen/:path*', destination: '/dashboard', permanent: false },
+      { source: '/graph', destination: '/cases', permanent: false },
+    ];
+  },
   eslint: {
     // Production builds must fail when application lint checks fail.
     // Lint findings are release-blocking rather than silently ignored.

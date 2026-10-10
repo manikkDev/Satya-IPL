@@ -22,10 +22,12 @@ const userSchema = new mongoose.Schema(
         },
         role: {
             type: String,
-            enum: ['citizen', 'analyst', 'admin'],
-            default: 'citizen',
+            enum: ['ops_analyst', 'ap_manager', 'auditor', 'admin'],
+            default: 'ops_analyst',
             index: true,
         },
+        companyId: { type: String, required: true, index: true },
+        active: { type: Boolean, default: true },
         institutionId: {
             type: Number,
             min: 0,

@@ -1,42 +1,43 @@
 @config "../../tailwind.config.js";
 @import "tailwindcss";
+@import "../styles/business.css";
 
 :root {
-  --background: #11181c;
+  --background: #11131e;
   --foreground: #f8f9fa;
-  --card: #151d22;
+  --card: #1a1d2b;
   --card-foreground: #f8f9fa;
-  --popover: #151d22;
+  --popover: #1a1d2b;
   --popover-foreground: #f8f9fa;
-  --primary: #34b27b;
-  --primary-foreground: #0b120e;
-  --primary-rgb: 52 178 123;
-  --secondary: #1a2328;
+  --primary: #f2b76c;
+  --primary-foreground: #20170e;
+  --primary-rgb: 242, 183, 108;
+  --secondary: #222535;
   --secondary-foreground: #f8f9fa;
-  --muted: #1a2328;
+  --muted: #222535;
   --muted-foreground: #b9c2c9;
-  --accent: #1f2a30;
+  --accent: #2a2b42;
   --accent-foreground: #f8f9fa;
   --destructive: #e54b4f;
   --destructive-foreground: #ffffff;
   --destructive-rgb: 229 75 79;
-  --border: #223037;
-  --input: #223037;
-  --ring: #34b27b;
+  --border: #303344;
+  --input: #303344;
+  --ring: #f2b76c;
   --radius: 1.4rem;
-  --chart-1: #34b27b;
+  --chart-1: #f2b76c;
   --chart-2: #6aa9ff;
   --chart-3: #ff9f6b;
   --chart-4: #8c5cff;
   --chart-5: #94a3b8;
-  --sidebar: #11181c;
+  --sidebar: #11131e;
   --sidebar-foreground: #f8f9fa;
-  --sidebar-primary: #34b27b;
-  --sidebar-primary-foreground: #0b120e;
-  --sidebar-accent: #1a2328;
+  --sidebar-primary: #f2b76c;
+  --sidebar-primary-foreground: #20170e;
+  --sidebar-accent: #222535;
   --sidebar-accent-foreground: #f8f9fa;
-  --sidebar-border: #223037;
-  --sidebar-ring: #34b27b;
+  --sidebar-border: #303344;
+  --sidebar-ring: #f2b76c;
   --spacing: 0.27rem;
   --font-mono: IBM Plex Mono, monospace;
   --font-sans: Plus Jakarta Sans, sans-serif;
@@ -51,35 +52,35 @@
 }
 
 .dark {
-  --background: #0f1519;
+  --background: #10121d;
   --foreground: #f8f9fa;
-  --card: #141b20;
+  --card: #181b28;
   --card-foreground: #f8f9fa;
-  --popover: #141b20;
+  --popover: #181b28;
   --popover-foreground: #f8f9fa;
-  --primary: #34b27b;
-  --primary-foreground: #0b120e;
-  --primary-rgb: 52 178 123;
-  --secondary: #1a2328;
+  --primary: #f2b76c;
+  --primary-foreground: #20170e;
+  --primary-rgb: 242, 183, 108;
+  --secondary: #222535;
   --secondary-foreground: #f8f9fa;
-  --muted: #1a2328;
+  --muted: #222535;
   --muted-foreground: #b9c2c9;
-  --accent: #1f2a30;
+  --accent: #2a2b42;
   --accent-foreground: #f8f9fa;
   --destructive: #e54b4f;
   --destructive-foreground: #ffffff;
   --destructive-rgb: 229 75 79;
-  --border: #223037;
-  --input: #223037;
-  --ring: #34b27b;
-  --sidebar: #0f1519;
+  --border: #303344;
+  --input: #303344;
+  --ring: #f2b76c;
+  --sidebar: #10121d;
   --sidebar-foreground: #f8f9fa;
-  --sidebar-primary: #34b27b;
-  --sidebar-primary-foreground: #0b120e;
-  --sidebar-accent: #1a2328;
+  --sidebar-primary: #f2b76c;
+  --sidebar-primary-foreground: #20170e;
+  --sidebar-accent: #222535;
   --sidebar-accent-foreground: #f8f9fa;
-  --sidebar-border: #223037;
-  --sidebar-ring: #34b27b;
+  --sidebar-border: #303344;
+  --sidebar-ring: #f2b76c;
   --shadow-opacity: 0.3;
 }
 
@@ -204,8 +205,8 @@
 /* Green glow button */
 .btn-primary {
   @apply inline-flex items-center justify-center rounded-full font-bold text-sm transition-all duration-200;
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
+  background: var(--primary);
+  color: var(--primary-foreground);
   padding: 14px 32px;
 }
 .btn-primary:hover {
@@ -230,8 +231,8 @@
 
 /* Floating card */
 .float-card {
-  background: hsl(var(--card));
-  border: 1px solid hsl(var(--border));
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: 0 24px 64px color-mix(in srgb, var(--shadow-color) 35%, transparent);
 }
@@ -240,7 +241,7 @@
 .glass-card {
   backdrop-filter: blur(12px);
   background: color-mix(in srgb, var(--card) 70%, transparent);
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 28px;
   transition: all 150ms ease;
@@ -254,8 +255,8 @@
 .stat-chip {
   @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px];
   font-family: var(--font-mono);
-  background: hsl(var(--accent));
-  color: hsl(var(--primary));
+  background: var(--accent);
+  color: var(--primary);
 }
 
 /* Idle float animation */

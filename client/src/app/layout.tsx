@@ -14,12 +14,12 @@ const fontVariables = {
 } as CSSProperties;
 
 export const metadata: Metadata = {
-  title: "Arth Saathi",
-  description: "Arth Saathi is an AI-powered assistant platform",
+  title: "Satya · Evidence-led Business Operations",
+  description: "Reconstruct orders, receipts, invoices and payments with traceable evidence. Built for Indian business operations.",
   icons: {
-    icon: "/main-logo.png",
-    shortcut: "/main-logo.png",
-    apple: "/main-logo.png",
+    icon: "/satya.svg",
+    shortcut: "/satya.svg",
+    apple: "/satya.svg",
   },
 };
 

@@ -1,13 +1,14 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "Node.js express backend server structure",
+  "description": "Satya company-scoped procurement, evidence and decision API",
+  "overrides": { "qs": "6.16.0" },
   "main": "src/index.js",
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "node --test test/api.test.mjs"
+    "test": "node --test test/business.test.mjs"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

@@ -7,7 +7,7 @@ const connectDB = async () => {
             console.warn('⚠️ No MongoDB connection string found in .env (expected MONGO_URI or DB_URI)');
             return;
         }
-        const conn = await mongoose.connect(uri);
+        const conn = await mongoose.connect(uri, { dbName: process.env.APP_DB_NAME || 'satya' });
         console.log(`MongoDB Connected: ${conn.connection.host}`);
     } catch (error) {
         console.error(`MongoDB Connection Error: ${error.message}`);

@@ -1,6 +1,6 @@
 // server.js
 import env from './config/env.js';
-import app from "./app.js";
+import app from "./businessApp.js";
 
 // When running on Vercel serverless, export the Express app as the default handler.
 // When running locally (e.g., `node backend/src/server.js`), start the HTTP server.

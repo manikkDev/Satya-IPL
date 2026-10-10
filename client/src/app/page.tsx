@@ -1,27 +1,16 @@
 'use client';
 
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import Link from "next/link";
+import { ArrowUpRight, Files, GitBranch, ShieldCheck, MessageSquare, ArrowRight } from "lucide-react";
 import HeroSection from "@/components/HeroSection";
-import FeaturesSection from "@/components/FeaturesSection";
-import HowItWorksSection from "@/components/HowItWorks";
-import DemoPreviewSection from "@/components/DemoPreviewSection";
-import StatsSection from "@/components/StatsSection";
-import ProblemSection from "@/components/ProblemsSesction";
+import { Brand } from "@/components/BusinessShell";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 export default function Home() {
-  return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <main>
-        <HeroSection />
-        <ProblemSection />
-        <FeaturesSection />
-        <HowItWorksSection />
-        <DemoPreviewSection />
-        <StatsSection />
-      </main>
-      <Footer />
-    </div>
-  );
+  return <div className="min-h-screen bg-background"><header className="satya-landing-nav"><Brand /><nav><a href="#how-it-works">The workflow</a><Link href="/cases">Investigations</Link><Link href="/chat">Copilot</Link></nav><div className="flex items-center gap-4"><ThemeToggle /><Link href="/login" className="satya-button secondary">Open workspace <ArrowUpRight size={15} /></Link></div></header><HeroSection /><div className="satya-landing-caption">Illustrative network animation above. Live source-backed graphs are inside each investigation.</div><section id="how-it-works" className="satya-landing-section"><p className="satya-eyebrow">FROM FRAGMENTED RECORDS TO DEFENSIBLE DECISIONS</p><h2>Not just another flagged invoice.<br /><em>The whole evidence trail.</em></h2><div className="satya-feature-grid">{[
+    { icon: Files, title: "Bring the sources together", text: "Orders, warehouse receipts, supplier invoices and bank observations retain their original values and identities." },
+    { icon: GitBranch, title: "Reconstruct, don’t guess", text: "Trace split deliveries and transfers. Preserve uncertain links and disputed duplicate postings instead of hiding them." },
+    { icon: ShieldCheck, title: "Choose a safe next step", text: "Approve, request clarification, escalate or place on hold—with a scope, reason and inspectable calculation." },
+    { icon: MessageSquare, title: "Ask the evidence", text: "The copilot retrieves authorized company facts and graph paths. Financial truth comes from the ledger, not generated prose." },
+  ].map(({ icon: Icon, title, text }, index) => <article className="satya-panel" key={title}><div className="flex items-center justify-between"><Icon className="text-primary" size={25} /><span className="satya-step-number">0{index + 1}</span></div><h3>{title}</h3><p>{text}</p></article>)}</div></section><section className="satya-landing-section satya-landing-demo"><div><p className="satya-eyebrow">THE TARGET DEMONSTRATION</p><h2>100 pumps ordered.<br />60 delivered.<br /><em>One bill posted twice.</em></h2><p>Payments split across transfers. An unreferenced transfer has competing invoice links. Satya shows the facts, the calculation, and the evidence still needed.</p><Link href="/login" className="satya-button">Investigate the demo <ArrowRight size={16} /></Link></div><div className="satya-demo-chain">{["Purchase order", "Buyer receipts", "Supplier invoice / AP", "Split bank transfers", "Evidence-backed next step"].map((step, index) => <div key={step}><span>0{index + 1}</span><strong>{step}</strong><ShieldCheck size={18} /></div>)}<p>Constructed equipment-company fixtures.<br />Not live banking, GST verification or claimed savings.</p></div></section><footer className="satya-landing-footer"><Brand /><p>Know what you actually owe, and why.</p><span>India-first operations · Evidence before action.</span></footer></div>;
 }

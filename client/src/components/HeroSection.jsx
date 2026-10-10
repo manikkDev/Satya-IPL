@@ -2,9 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 
 const STATS = [
-  { value: "5.7M+", label: "Federated Transactions" },
-  { value: "5", label: "Institutions" },
-  { value: "0", label: "Raw Rows Shared" },
+  { value: "4", label: "Connected record families" },
+  { value: "4", label: "Operational next steps" },
+  { value: "INR", label: "India-first workspace" },
 ];
 
 // ══════════════════════════════════════════════════════════════════
@@ -72,9 +72,9 @@ const NetworkOrb = () => {
 
       // 3 suspicious nodes with strong forward Z for visibility
       [
-        { ox: r * 0.44, oy: -r * 0.54, oz: r * 0.64, id: "NH", score: 94 },
-        { ox: r * 0.83, oy: r * 0.24, oz: r * 0.33, id: "MT", score: 81 },
-        { ox: r * 0.14, oy: r * 0.73, oz: r * 0.5, id: "AL", score: 76 },
+        { ox: r * 0.44, oy: -r * 0.54, oz: r * 0.64, id: "PO", score: null },
+        { ox: r * 0.83, oy: r * 0.24, oz: r * 0.33, id: "GRN", score: null },
+        { ox: r * 0.14, oy: r * 0.73, oz: r * 0.5, id: "INV", score: null },
       ].forEach((s) =>
         nds.push({ ...s, flagged: true, r: 7, ph: Math.random() * 6.28 }),
       );
@@ -711,7 +711,7 @@ const HeroSection = () => {
                 marginBottom: 20,
               }}
             >
-              Sharper risk models.
+              Every record connected.
               <br />
               <em
                 style={{
@@ -720,9 +720,9 @@ const HeroSection = () => {
                   fontWeight: 400,
                 }}
               >
-                Verifiable privacy
+                Decisions backed
               </em>
-              <span style={{ fontWeight: 900 }}> by design.</span>
+              <span style={{ fontWeight: 900 }}> by evidence.</span>
             </h1>
 
             <p
@@ -735,7 +735,7 @@ const HeroSection = () => {
                 margin: "0 auto 32px",
               }}
             >
-              Arth Saathi is a research prototype for collaborative fraud and credit-risk modelling. It demonstrates federated strategies, measured differential-privacy trade-offs, pseudonymised graph intelligence and citizen controls while production-grade institution isolation and secure aggregation are validated.
+              Satya connects purchase orders, buyer receipts, supplier invoices and payments into one explainable picture. Investigate duplicate postings, understand split deliveries and transfers, and see exactly what evidence supports the balance—or what is still missing.
             </p>
 
             <div
@@ -750,7 +750,7 @@ const HeroSection = () => {
               }}
             >
               <a
-                href="/signup"
+                href="/login"
                 className="btn-primary btn-glow animate-glow-pulse"
                 style={{
                   fontSize: 14,
