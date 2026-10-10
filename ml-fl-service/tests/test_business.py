@@ -90,6 +90,22 @@ class BusinessTests(unittest.TestCase):
         request.records.reverse()
         self.assertEqual(original["ledger"], reconcile(request)["ledger"])
 
+    def test_repeated_utr_observation_is_not_new_cash(self):
+        request = self.request()
+        duplicate = request.records[6].model_copy(deep=True)
+        duplicate.id = 'BANK-COPY'
+        request.records.append(duplicate)
+        self.assertEqual(reconcile(request)['ledger']['settled'], '50800.00')
+
+    def test_later_reversal_of_same_transfer_removes_settlement(self):
+        request = self.request()
+        reversal = request.records[6].model_copy(deep=True)
+        reversal.id = 'BANK-REVERSED'
+        reversal.status = 'reversed'
+        reversal.observedAt = request.observedBefore
+        request.records.append(reversal)
+        self.assertEqual(reconcile(request)['ledger']['settled'], '20800.00')
+
     def test_pending_payment_not_cash(self):
         request = self.request()
         request.records[6].status = "pending"

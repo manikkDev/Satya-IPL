@@ -6,7 +6,7 @@ export const summarizeCase = (businessCase) => {
     `${businessCase.title} — ${businessCase.supplier}`,
     `As known at ${snapshot.observedBefore}; snapshot ${snapshot.snapshotId}.`,
     `Ordered ${ledger.ordered} units; buyer receipts ${ledger.received}; accepted ${ledger.accepted}; remaining delivery ${ledger.openDelivery}.`,
-    ledger.recordedOutstanding === null ? `Source AP spans conflicting currencies: ${Object.entries(ledger.recordedByCurrency || {}).map(([currency, amount]) => `${currency} ${amount}`).join('; ')}. No converted total was invented.` : `Source-recorded open AP: ${ledger.currency} ${ledger.recordedOutstanding}.`,
+    ledger.recordedOutstanding === null ? `Source AP spans conflicting currencies: ${Object.entries(ledger.recordedByCurrency || {}).map(([currency, amount]) => `${currency} ${amount}`).join('; ')}. No converted total was invented.` : `Posting-based open balance: ${ledger.currency} ${ledger.recordedOutstanding} (imported invoice postings less referenced settlements, not an independently imported general ledger).`,
     ledger.supportedOutstanding === null ? 'Receipt-supported outstanding cannot be established across conflicting currencies.' : `Receipt-supported outstanding: ${ledger.currency} ${ledger.supportedOutstanding}. Confirmed/source-referenced settled allocation: ${ledger.currency} ${ledger.settled}.`,
     ledger.canonicalOutstanding === null ? "The canonical outstanding balance is not confirmed: duplicate treatment or critical source evidence is unresolved." : `Reconstructed outstanding: ${ledger.currency} ${ledger.canonicalOutstanding}.`,
     ...snapshot.findings.map((finding) => `${finding.title}: ${finding.detail} Next step: ${finding.action.replaceAll("_", " ").toLowerCase()}.`),

@@ -55,7 +55,7 @@ test("business contract: authentication, immutable evidence, graph, replay and d
   });
   await t.test("what-if delivery does not mutate live sources", async () => {
     const before = (await call("/api/v1/cases/pumps-1001", manager)).data;
-    const record = { id: `WHATIF-${Date.now()}`, type: "GRN", reference: "Test hypothetical delivery", source: "scenario_test", supplier: before.supplier, poId: before.poId, occurredAt: before.snapshot.observedBefore, observedAt: before.snapshot.observedBefore, lines: [{ id: "1", description: "Centrifugal pump CP-100 1 kW", sku: "CP100-1KW", quantity: "40", acceptedQuantity: "40", unitPrice: "1000", uom: "EA", poLineId: "1" }] };
+    const record = { id: `WHATIF-${Date.now()}`, type: "GRN", reference: "Test hypothetical delivery", source: "scenario_test", supplier: before.supplier, currency: before.snapshot.ledger.currency, poId: before.poId, occurredAt: before.snapshot.observedBefore, observedAt: before.snapshot.observedBefore, lines: [{ id: "1", description: "Centrifugal pump CP-100 1 kW", sku: "CP100-1KW", quantity: "40", acceptedQuantity: "40", unitPrice: "1000", uom: "EA", poLineId: "1" }] };
     const preview = await call("/api/v1/cases/pumps-1001/scenario", manager, { record });
     assert.equal(preview.data.ledger.received, "100");
     assert.equal(preview.data.ledger.supportedOutstanding, "20000.00");

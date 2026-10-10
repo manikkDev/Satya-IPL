@@ -29,7 +29,7 @@ class Line(Contract):
     sku: Optional[str] = Field(None, max_length=80)
     quantity: str
     unitPrice: str = "0"
-    uom: Literal["EA", "BOX", "SET", "M", "KG"] = "EA"
+    uom: Literal["EA", "BOX", "SET", "M", "KG"]
     acceptedQuantity: Optional[str] = None
     poLineId: Optional[str] = None
     packSize: Optional[str] = None
@@ -60,7 +60,7 @@ class Record(Contract):
     observedAt: datetime
     poId: Optional[str] = None
     invoiceId: Optional[str] = None
-    currency: Literal["INR", "USD", "EUR"] = "INR"
+    currency: Literal["INR", "USD", "EUR"]
     amount: Optional[str] = None
     netAmount: Optional[str] = None
     taxes: dict[str, str] = Field(default_factory=dict)
@@ -102,6 +102,8 @@ class Record(Contract):
 
     @model_validator(mode="after")
     def required_values(self):
+        if self.type in {'PO', 'INVOICE'} and any('unitPrice' not in line.model_fields_set for line in self.lines):
+            raise ValueError('Order/invoice unit prices must be explicit; missing prices are not zero')
         if self.type == "PO" and len({line.uom for line in self.lines}) > 1:
             raise ValueError("Mixed order units require separate case scopes in this initial engine")
         if self.type in {"PO", "INVOICE", "GRN", "RETURN"} and not self.lines:

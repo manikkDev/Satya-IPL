@@ -67,7 +67,7 @@ router.post("/cases/:id/replay", handle(async (req, res) => {
     if (decision.review.kind === "confirm_duplicate") input.confirmedDuplicates[decision.review.recordId] = decision.review.originalId;
     if (decision.review.kind === "allocate_payment") input.paymentAllocations[decision.review.recordId] = decision.review.invoiceId;
   }
-  res.json({ ...(await engine("reconcile", input)), replay: true, simulation: true });
+  res.json({ ...(await engine("reconcile", input)), replay: true, simulation: true, replayInterpretation: 'current_rules_applied_to_observations_at_cutoff' });
 }));
 router.get("/graph/cases/:id", handle(async (req, res) => {
   const businessCase = await getCase(req);

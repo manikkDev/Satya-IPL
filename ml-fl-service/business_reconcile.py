@@ -2,7 +2,7 @@ import hashlib
 import json
 import re
 from collections import defaultdict
-from decimal import Decimal, getcontext
+from decimal import Decimal, getcontext, ROUND_HALF_UP
 
 from business_contracts import ReconcileRequest
 from business_matching import evaluation, line_suggestions
@@ -10,10 +10,11 @@ from business_matching import evaluation, line_suggestions
 D = Decimal
 ZERO = D("0")
 RULE_VERSION = "satya-ledger-v2"
+POLICY = {"version": "satya-demo-policy-v1", "unitPriceTolerance": "0.01", "rounding": "ROUND_HALF_UP", "taxValidation": "declared_components_only", "automaticApproval": False}
 
 
 def money(value):
-    return str(value.quantize(D("0.01")))
+    return str(value.quantize(D("0.01"), rounding=ROUND_HALF_UP))
 
 
 def quantity(value):
@@ -34,6 +35,7 @@ def reconcile(request: ReconcileRequest):
     manifest = request.model_dump(mode="json")
     manifest["records"] = sorted(manifest["records"], key=lambda r: r["id"])
     manifest["ruleVersion"] = RULE_VERSION
+    manifest["policy"] = POLICY
     model_report = evaluation()
     manifest["modelIdentity"] = {key: model_report.get(key) for key in ("ready", "modelVersion", "artifactSha256", "calibration")}
     digest = hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
@@ -148,7 +150,26 @@ def reconcile(request: ReconcileRequest):
     settlements, allocations, unallocated = defaultdict(lambda: ZERO), [], []
     invoice_credits = {r.id: D(r.amount) - credits[r.id] for r in canonical_invoices}
     ambiguities = []
-    payment_records = [r for r in records if r.type == "PAYMENT" and r.status == "settled"]
+    payment_groups = defaultdict(list)
+    for payment in (r for r in records if r.type == 'PAYMENT'):
+        key = (payment.supplier, payment.currency, payment.utr.strip().upper()) if payment.utr else ('source_record', payment.id)
+        payment_groups[key].append(payment)
+    payment_records = []
+    for group in payment_groups.values():
+        original = group[0]
+        latest_time = max(item.observedAt for item in group)
+        latest = [item for item in group if item.observedAt == latest_time]
+        conflict = any(D(item.amount) != D(original.amount) or item.invoiceId != original.invoiceId for item in group) or len({item.status for item in latest}) > 1
+        if conflict:
+            finding('PAYMENT_SOURCE_CONFLICT', 'Transfer observations disagree', 'The same transfer reference has conflicting amounts, invoice references or current statuses. None was counted as confirmed cash.', [cite(item, 'amount', item.amount) for item in group], 'REQUEST_CLARIFICATION', 'high')
+            continue
+        canonical = min(latest, key=lambda item: item.id)
+        for item in group:
+            if item.id != canonical.id:
+                edge(item.id, canonical.id, 'TRANSFER_OBSERVATION_OF', 'source_reference_identity')
+        if canonical.status == 'settled':
+            payment_records.append(canonical)
+    payment_records.sort(key=lambda item: (item.occurredAt, item.id))
     for payment in payment_records:
         manual = request.paymentAllocations.get(payment.id)
         target_id = manual or payment.invoiceId
@@ -183,7 +204,7 @@ def reconcile(request: ReconcileRequest):
     for invoice in active_main:
         net = sum((D(line.quantity) * D(line.unitPrice) for line in invoice.lines), ZERO)
         computed = net + sum((D(amount) for amount in invoice.taxes.values()), ZERO)
-        if computed != D(invoice.amount) or (invoice.netAmount is not None and D(invoice.netAmount) != net):
+        if D(money(computed)) != D(invoice.amount) or (invoice.netAmount is not None and D(invoice.netAmount) != D(money(net))):
             finding("HEADER_LINE_TOTAL_CONFLICT", "Invoice totals disagree with its lines", f"Line net plus declared tax is {money(computed)} {invoice.currency}; the source header is {invoice.amount}. No repair was guessed.", [cite(invoice, "amount", invoice.amount), cite(invoice, "computedGross", money(computed))], "PLACE_ON_HOLD", "high")
         if invoice.currency != po.currency:
             currency_conflict = True
@@ -199,15 +220,19 @@ def reconcile(request: ReconcileRequest):
                 continue
             supported = min(billed, max(support_remaining[target.id], ZERO))
             support_remaining[target.id] -= supported
-            supported_net += supported * D(target.unitPrice)
+            normalized_price = D(line.unitPrice) / factor
+            price_difference = abs(normalized_price - D(target.unitPrice))
+            supported_net += supported * (normalized_price if price_difference <= D(POLICY['unitPriceTolerance']) else D(target.unitPrice))
             billed_qty += billed
             supported_qty += supported
-            if invoice.currency == po.currency and D(line.unitPrice) / factor != D(target.unitPrice):
+            if invoice.currency == po.currency and ZERO < price_difference <= D(POLICY['unitPriceTolerance']):
+                finding('WITHIN_PRICE_TOLERANCE', 'Minor unit-price variance is within the prototype policy', f"Unit-price difference {quantity(price_difference)} is within {POLICY['unitPriceTolerance']} {po.currency}; the remaining balance was not written off.", [cite(invoice, f'lines/{line.id}/unitPrice', line.unitPrice), cite(po, f'lines/{target.id}/unitPrice', target.unitPrice)], 'NO_ACTION_REQUIRED', 'info')
+            if invoice.currency == po.currency and price_difference > D(POLICY['unitPriceTolerance']):
                 finding("UNIT_PRICE_VARIANCE", "Unit price differs from approved order", "Compare the approved PO price after the verified unit conversion; a reviewer must authorize a revision.", [cite(invoice, f"lines/{line.id}/unitPrice", line.unitPrice), cite(po, f"lines/{target.id}/unitPrice", target.unitPrice)], "REQUEST_CLARIFICATION", "high")
         if supported_qty < billed_qty and invoice.id not in suspect_ids:
             finding("BILLED_ABOVE_ACCEPTED" if po.matchingLevel == "four_way" else "BILLED_ABOVE_RECEIVED", "Billed quantity exceeds eligible receipt evidence", f"Only {quantity(supported_qty)} of {quantity(billed_qty)} billed units have available {'inspection acceptance' if po.matchingLevel == 'four_way' else 'buyer receipt'} support.", [cite(invoice, "billedQuantity", quantity(billed_qty)), cite(po, "eligibleQuantity", quantity(accepted_total if po.matchingLevel == "four_way" else received_total))], "PLACE_ON_HOLD", "high")
         supported_gross = ZERO
-        if invoice.currency == po.currency and computed == D(invoice.amount) and net > ZERO:
+        if invoice.currency == po.currency and D(money(computed)) == D(invoice.amount) and net > ZERO:
             supported_gross = supported_net + sum((D(amount) * supported_net / net for amount in invoice.taxes.values()), ZERO)
             supported_gross = min(supported_gross, D(invoice.amount))
         outstanding = D(invoice.amount) - credits[invoice.id] - settlements[invoice.id]
@@ -228,7 +253,7 @@ def reconcile(request: ReconcileRequest):
     main_settled = sum((settlements[r.id] for r in active_main if r.currency == po.currency), ZERO)
     recorded_settled = sum((D(item["amount"]) for item in allocations if item["invoiceId"] in {r.id for r in main} and item["currency"] == po.currency), ZERO)
     supported_outstanding = sum((D(r["supportedOutstanding"]) for r in same_currency_results), ZERO)
-    critical_unknown = any(f["type"] in {"HEADER_LINE_TOTAL_CONFLICT", "UNKNOWN_UNIT_CONVERSION", "UNMATCHED_ITEM"} for f in findings)
+    critical_unknown = any(f["type"] in {"HEADER_LINE_TOTAL_CONFLICT", "UNKNOWN_UNIT_CONVERSION", "UNMATCHED_ITEM", "PAYMENT_SOURCE_CONFLICT"} for f in findings)
     canonical_outstanding = None if not active_main or duplicate_candidates or currency_conflict or critical_unknown else money(sum((D(r["outstanding"]) for r in same_currency_results), ZERO))
     ledger = {"currency": po.currency, "ordered": quantity(ordered), "received": quantity(received_total), "accepted": quantity(accepted_total), "openDelivery": quantity(max(ordered - received_total, ZERO)), "recordedGross": money(recorded_gross), "recordedOutstanding": money(recorded_gross - recorded_settled), "settled": money(main_settled), "supportedOutstanding": money(supported_outstanding), "canonicalOutstanding": canonical_outstanding, "disputedExposure": money(sum((D(lookup[r["recordId"]].amount) for r in duplicate_candidates if lookup[r["recordId"]].currency == po.currency), ZERO)), "eligibleNet": money(sum((D(line.unitPrice) * min(D(line.quantity), received[line.id] if po.matchingLevel == "three_way" else accepted[line.id]) for line in po.lines), ZERO))}
     if currency_conflict:
@@ -241,4 +266,4 @@ def reconcile(request: ReconcileRequest):
         if any(identifier in {r.id for r in active_main} for identifier in ambiguity["alternatives"]) and payment["currency"] == po.currency:
             ambiguity["balanceScenarios"] = {"minimum": money(max(supported_outstanding - D(payment["amount"]), ZERO)), "maximum": money(supported_outstanding), "currency": po.currency, "kind": "single_transfer_scenario_not_global_certified_bounds", "assumption": "Receipt-supported original obligation; suspected duplicate remains separately disputed."}
     nodes = [{"id": r.id, "label": r.reference, "type": r.type, "amount": r.amount, "currency": r.currency, "provenance": r.provenance} for r in records]
-    return {"snapshotId": snapshot_id, "inputHash": digest, "caseId": request.caseId, "companyId": request.companyId, "poId": po.id, "ruleVersion": RULE_VERSION, "observedBefore": request.observedBefore.isoformat(), "occurredBefore": request.occurredBefore.isoformat() if request.occurredBefore else None, "ledger": ledger, "invoices": invoice_results, "findings": findings, "evidence": list(evidence.values()), "paymentAllocations": allocations, "unallocatedPayments": unallocated, "duplicateCandidates": duplicate_candidates, "ambiguities": ambiguities, "graph": {"nodes": nodes, "edges": links}, "provenance": sorted({r.provenance for r in records}), "warnings": ["GST components are source declarations; no GST rate/IRN verification performed.", "Supported gross uses declared-tax pro-rata allocation; header freight/discounts are not supported by this schema."], "matchSuggestions": line_suggestions(records, po), "matchingTruncated": sum(len(invoice.lines) for invoice in invoices if invoice.supplier == po.supplier) * len(po.lines) > 500, "model": evaluation(), "capabilities": {"exactArithmetic": True, "learnedAutomaticApproval": False, "graphProjection": "pending"}}
+    return {"snapshotId": snapshot_id, "inputHash": digest, "caseId": request.caseId, "companyId": request.companyId, "poId": po.id, "ruleVersion": RULE_VERSION, "policy": POLICY, "observedBefore": request.observedBefore.isoformat(), "occurredBefore": request.occurredBefore.isoformat() if request.occurredBefore else None, "ledger": ledger, "invoices": invoice_results, "findings": findings, "evidence": list(evidence.values()), "paymentAllocations": allocations, "unallocatedPayments": unallocated, "duplicateCandidates": duplicate_candidates, "ambiguities": ambiguities, "graph": {"nodes": nodes, "edges": links}, "provenance": sorted({r.provenance for r in records}), "warnings": ["GST components are source declarations; no GST rate/IRN verification performed.", "Supported gross uses declared-tax pro-rata allocation; header freight/discounts are not supported by this schema."], "matchSuggestions": line_suggestions(records, po), "matchingTruncated": sum(len(invoice.lines) for invoice in invoices if invoice.supplier == po.supplier) * len(po.lines) > 500, "model": evaluation(), "capabilities": {"exactArithmetic": True, "learnedAutomaticApproval": False, "graphProjection": "pending"}}
