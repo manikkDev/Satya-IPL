@@ -66,7 +66,7 @@ export default function CasePage() {
     await run(async () => {
       if (reason.trim().length < 10) throw new Error("Explain your decision in at least 10 characters before saving it.");
       const result = await businessApi.decision(id, { action, findingId, review, reason, expectedRevision: data.revision, snapshotId: view.snapshotId });
-      await waitForJob(result.job.id); await load(); setReason(""); setNotice("Decision saved and records checked again. No payment or supplier message was sent.");
+      await waitForJob(result.job.id); await load(true); setReason(""); setNotice("Decision saved and records checked again. No payment or supplier message was sent.");
     });
   };
   const ledger = view?.ledger;
