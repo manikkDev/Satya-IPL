@@ -1,7 +1,7 @@
 import { SERVER_URL, SERVER_URL_1 } from "@/utils/commonHelper";
 
 export type Ledger = { currency: string; ordered: string; received: string; accepted: string; openDelivery: string; recordedGross: string | null; recordedOutstanding: string | null; settled: string; supportedOutstanding: string | null; canonicalOutstanding: string | null; disputedExposure: string; eligibleNet: string };
-export type Evidence = { id: string; recordId: string; reference: string; source: string; field: string; rawValue: string | null; derivedValue?: string; provenance: string; quality: string; observedAt: string; locator: { kind: string; pointer: string | null } };
+export type Evidence = { id: string; recordId: string; reference: string; source: string; field: string; rawValue: string | null; derivedValue?: string; normalizedValue?: string; provenance: string; quality: string; observedAt: string; locator: { kind: string; pointer: string | null; documentId?: string; row?: number; column?: string } };
 export type Finding = { id: string; type: string; title: string; detail: string; severity: string; action: string; certainty: string; evidenceIds: string[]; exposure: { amount: string; currency: string } | null };
 export type BusinessLine = { id: string; description: string; quantity: string; unitPrice: string; uom: string; sku?: string; acceptedQuantity?: string };
 export type SourceRecord = { id: string; type: string; reference: string; source: string; supplier: string; currency: string; amount?: string; occurredAt: string; observedAt: string; provenance: string; lines?: BusinessLine[]; taxes?: Record<string, string>; invoiceId?: string; poId?: string; status: string };
@@ -31,6 +31,8 @@ export const businessApi = {
   decision: (id: string, body: unknown) => request<{ job: { id: string }; decision: unknown }>(`/cases/${encodeURIComponent(id)}/decisions`, body),
   replay: (id: string, cutoff: string) => request<Snapshot>(`/cases/${encodeURIComponent(id)}/replay`, { observedBefore: cutoff }),
   scenario: (id: string, record: unknown) => request<Snapshot>(`/cases/${encodeURIComponent(id)}/scenario`, { record }),
+  previewImport: (body: unknown) => request<{ id: string; canCommit: boolean; acceptedRecords: number; totalRows: number; issueCount: number; issues: { file: string; row: number; message: string }[]; records: SourceRecord[] }>("/imports/preview", body),
+  document: (id: string) => request<{ id: string; name: string; content: string; checksum: string }>(`/documents/${encodeURIComponent(id)}`),
   import: (body: unknown) => request<{ caseId: string; job?: { id: string } }>("/imports", body),
   chat: async (prompt: string, caseId?: string, conversationId?: string): Promise<ChatAnswer> => {
     const response = await fetch(`${SERVER_URL_1}/api/chat/stream`, { method: "POST", headers: headers(), body: JSON.stringify({ prompt, caseId, conversationId }) });

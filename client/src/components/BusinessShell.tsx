@@ -2,33 +2,64 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import ProtectedRoute from "@/components/auth/protected-route";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { ArrowUpRight, LayoutDashboard, Files, GitBranch, MessageSquare, Upload, ShieldCheck, FlaskConical, LogOut } from "lucide-react";
+import { LayoutDashboard, Files, GitBranch, MessageSquare, Upload, ShieldCheck, FlaskConical, LogOut, Menu, X, LoaderCircle } from "lucide-react";
 
 const links = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/cases", label: "Investigations", icon: GitBranch },
-  { href: "/records", label: "Source records", icon: Files },
-  { href: "/inbox", label: "Import workspace", icon: Upload },
-  { href: "/chat", label: "Evidence copilot", icon: MessageSquare },
-  { href: "/audit", label: "Decision trail", icon: ShieldCheck },
-  { href: "/evaluation", label: "Model transparency", icon: FlaskConical },
+  { href: "/records", label: "Records", icon: Files },
+  { href: "/inbox", label: "Import records", icon: Upload },
+  { href: "/chat", label: "Ask Satya", icon: MessageSquare },
+  { href: "/audit", label: "Review history", icon: ShieldCheck },
+  { href: "/evaluation", label: "Model performance", icon: FlaskConical },
 ];
+
 export function Brand() {
-  return <Link href="/" className="satya-brand"><span className="satya-mark">S</span><span>satya<span className="satya-brand-dot">.</span></span></Link>;
+  return <Link href="/" className="satya-brand" aria-label="Satya home"><span className="satya-mark" aria-hidden="true">S</span><span>satya<span className="satya-brand-dot">.</span></span></Link>;
 }
+
 export default function BusinessShell({ children, title, subtitle }: { children: React.ReactNode; title: string; subtitle: string }) {
   const { user, logout } = useAuth();
   const pathname = usePathname();
-  return <ProtectedRoute><div className="satya-workspace"><aside className="satya-sidebar"><Brand /><div className="satya-company">EQUIPMENT DISTRIBUTION<span>India · evidence-led operations</span></div><nav>{links.filter((item) => item.href !== '/audit' || ['ap_manager', 'auditor', 'admin'].includes(user?.role || '')).filter((item) => item.href !== '/inbox' || user?.role !== 'auditor').map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={pathname.startsWith(href) ? "active" : ""}><Icon size={17} />{label}{pathname.startsWith(href) && <ArrowUpRight size={14} className="ml-auto" />}</Link>)}</nav><div className="satya-sidebar-bottom"><span className="satya-live">SOURCE-FIRST INTELLIGENCE</span><p>Financial facts come from records, not generated conclusions.</p><div className="flex items-center justify-between"><span className="text-xs">{user?.name}<br /><span className="text-muted-foreground">{user?.role?.replaceAll("_", " ")}</span></span><button onClick={logout} aria-label="Sign out"><LogOut size={18} /></button></div></div></aside><main className="satya-main"><header className="satya-topbar"><span>Operations / <strong>{title}</strong></span><div className="flex items-center gap-3"><span className="satya-tag">INR · IST</span><ThemeToggle /></div></header><section className="satya-page"><div className="satya-page-heading"><div><p className="satya-eyebrow">THE EVIDENCE WORKSPACE</p><h1>{title}</h1><p>{subtitle}</p></div><span className="satya-tag">Constructed demo · not live banking</span></div>{children}</section></main></div></ProtectedRoute>;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") { setMenuOpen(false); menuButton.current?.focus(); } };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [menuOpen]);
+
+  return <ProtectedRoute>
+    <div className="satya-workspace">
+      <a href="#workspace-content" className="satya-skip-link">Skip to content</a>
+      <aside className="satya-sidebar">
+        <div className="satya-sidebar-brand"><Brand /><button ref={menuButton} className="satya-mobile-menu" aria-label={menuOpen ? "Close navigation" : "Open navigation"} aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X size={22} /> : <Menu size={22} />}</button></div>
+        <div className="satya-company">Business workspace<span>Orders, invoices & payments</span></div>
+        <nav id="workspace-navigation" aria-label="Main navigation" className={menuOpen ? "is-open" : ""}>
+          {links.filter((item) => item.href !== "/audit" || ["ap_manager", "auditor", "admin"].includes(user?.role || "")).filter((item) => item.href !== "/inbox" || user?.role !== "auditor").map(({ href, label, icon: Icon }) => <Link key={href} href={href} aria-current={pathname.startsWith(href) ? "page" : undefined} className={pathname.startsWith(href) ? "active" : ""} onClick={() => setMenuOpen(false)}><Icon size={20} aria-hidden="true" />{label}</Link>)}
+          <button className="satya-mobile-signout" onClick={logout}><LogOut size={18} />Sign out</button>
+        </nav>
+        <div className="satya-sidebar-bottom"><div className="satya-trust-note"><ShieldCheck size={20} /><p>Every answer starts with your records. Missing information is never guessed.</p></div><div className="satya-profile"><span className="satya-avatar">{(user?.name || user?.email || "S").charAt(0).toUpperCase()}</span><span><strong>{user?.name || "Your account"}</strong><small>{user?.role?.replaceAll("_", " ")}</small></span><button onClick={logout} aria-label="Sign out" title="Sign out"><LogOut size={19} /></button></div></div>
+      </aside>
+      <main className="satya-main" id="workspace-content" tabIndex={-1}>
+        <header className="satya-topbar"><span>Workspace <span aria-hidden="true">/</span> <strong>{title}</strong></span><div className="satya-topbar-tools"><span className="satya-tag">INR · India time</span><ThemeToggle /></div></header>
+        <section className="satya-page"><div className="satya-page-heading"><div><h1>{title}</h1><p>{subtitle}</p></div><span className="satya-demo-badge">Demo workspace · no live payments</span></div>{children}</section>
+      </main>
+    </div>
+  </ProtectedRoute>;
 }
+
 export function Panel({ title, children, detail }: { title?: string; children: React.ReactNode; detail?: string }) {
   return <section className="satya-panel">{title && <div className="satya-panel-heading"><h2>{title}</h2>{detail && <p>{detail}</p>}</div>}{children}</section>;
 }
+
 export function State({ error, loading }: { error?: string; loading?: boolean }) {
-  if (error) return <div role="alert" className="satya-notice error">{error}</div>;
-  if (loading) return <div className="satya-notice">Retrieving persisted business evidence…</div>;
+  if (error) return <div role="alert" className="satya-notice error"><strong>We couldn’t complete that request.</strong><br />{error}</div>;
+  if (loading) return <div role="status" className="satya-notice satya-loading"><LoaderCircle size={20} className="satya-spin" />Loading your records…</div>;
   return null;
 }

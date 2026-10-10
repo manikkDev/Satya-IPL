@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Literal, Optional
@@ -8,11 +9,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 def decimal_value(value):
     if not isinstance(value, (str, Decimal)):
         raise ValueError("Exact quantities and money must be decimal strings")
+    if len(str(value)) > 64 or not re.fullmatch(r'[+-]?[0-9]+(?:\.[0-9]+)?', str(value)):
+        raise ValueError('Use a bounded plain decimal string, not scientific notation or separators')
     try:
         number = Decimal(value)
     except InvalidOperation as error:
         raise ValueError("Invalid decimal") from error
-    if not number.is_finite() or abs(number) > Decimal("1000000000000"):
+    if not number.is_finite() or number > Decimal("1000000000000") or number < Decimal("-1000000000000"):
         raise ValueError("Decimal outside permitted finite bounds")
     if number.as_tuple().exponent < -6:
         raise ValueError("At most six decimal places are supported")
@@ -21,6 +24,14 @@ def decimal_value(value):
 
 class Contract(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class FieldOrigin(Contract):
+    documentId: str = Field(max_length=100)
+    row: int = Field(ge=2, le=2001)
+    column: str = Field(max_length=100)
+    rawValue: str = Field(max_length=2000)
+    transform: str = Field(max_length=80)
 
 
 class Line(Contract):
@@ -73,6 +84,7 @@ class Record(Contract):
     gstin: Optional[str] = Field(None, max_length=40)
     irn: Optional[str] = Field(None, max_length=100)
     provenance: Literal["CONSTRUCTED", "USER_PROVIDED", "PUBLIC_REAL", "PUBLIC_SYNTHETIC"] = "USER_PROVIDED"
+    fieldEvidence: dict[str, FieldOrigin] = Field(default_factory=dict, max_length=1500)
 
     @field_validator("id")
     @classmethod
@@ -89,6 +101,8 @@ class Record(Contract):
     @field_validator("taxes", mode="before")
     @classmethod
     def tax_values(cls, value):
+        if not isinstance(value, dict):
+            raise ValueError('Tax components must be an object of exact decimal strings')
         if set(value) - {"CGST", "SGST", "IGST", "CESS"}:
             raise ValueError("Unsupported tax component")
         return {key: decimal_value(amount) for key, amount in value.items()}
@@ -102,6 +116,8 @@ class Record(Contract):
 
     @model_validator(mode="after")
     def required_values(self):
+        if self.type == 'PAYMENT' and ('status' not in self.model_fields_set or self.status not in {'settled', 'pending', 'failed', 'reversed'}):
+            raise ValueError('Payment settlement status must be explicit; missing or posted is not settled evidence')
         if self.type in {'PO', 'INVOICE'} and any('unitPrice' not in line.model_fields_set for line in self.lines):
             raise ValueError('Order/invoice unit prices must be explicit; missing prices are not zero')
         if self.type == "PO" and len({line.uom for line in self.lines}) > 1:

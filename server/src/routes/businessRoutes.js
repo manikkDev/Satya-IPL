@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
-import { BusinessCase, BusinessRecord, BusinessSnapshot, BusinessJob, BusinessImport } from "../models/Business.js";
+import { BusinessCase, BusinessRecord, BusinessSnapshot, BusinessJob, BusinessImport, SourceDocument, ImportPreview } from "../models/Business.js";
 import { engine, inputFor, queueJob, graphFor } from "../utils/businessService.js";
 import { recordAudit } from "../utils/audit.js";
 import AuditLog from "../models/AuditLog.js";
@@ -85,7 +85,8 @@ router.post("/cases/:id/decisions", handle(async (req, res) => {
   const snapshot = await snapshotFor(req.user.companyId, businessCase.latestSnapshotId);
   if (findingId && !snapshot.result.findings.some((finding) => finding.id === findingId)) throw fail(422, "Finding does not belong to this snapshot");
   if (action === "APPROVE" && (!snapshot.result.invoices.length || snapshot.result.ledger.canonicalOutstanding === null || snapshot.result.findings.some((finding) => finding.severity !== "info"))) throw fail(409, "A reconciled commercial invoice and resolved blocking evidence are required for whole-case approval");
-  const reviews = JSON.parse(JSON.stringify(businessCase.reviews));
+  const previousReviews = businessCase.reviews || {};
+  const reviews = { invoiceLinks: { ...(previousReviews.invoiceLinks || {}) }, confirmedDuplicates: { ...(previousReviews.confirmedDuplicates || {}) }, paymentAllocations: { ...(previousReviews.paymentAllocations || {}) } };
   let acceptedReview = null;
   if (review) {
     if (review.kind === 'link_invoice' && typeof review.recordId === 'string' && review.poId === businessCase.poId) {
@@ -107,7 +108,7 @@ router.post("/cases/:id/decisions", handle(async (req, res) => {
     await engine("reconcile", { ...input, ...reviews });
   }
   const decision = { id: crypto.randomUUID(), action, reason: reason.trim(), findingId: findingId || null, review: acceptedReview, actorId: String(req.user._id), actorName: req.user.name, actorRole: req.user.role, createdAt: new Date().toISOString(), snapshotId: snapshot.id, effect: "internal_workflow_only_no_transfer_or_message" };
-  const updated = await BusinessCase.findOneAndUpdate({ ...scope(req), id: businessCase.id, revision: businessCase.revision }, { $set: { reviews }, $inc: { revision: 1 }, $push: { decisions: decision } }, { returnDocument: "after" });
+  const updated = await BusinessCase.findOneAndUpdate({ ...scope(req), id: businessCase.id, revision: businessCase.revision, latestSnapshotId: snapshot.id }, { $set: { reviews }, $inc: { revision: 1 }, $push: { decisions: decision } }, { returnDocument: "after" });
   if (!updated) throw fail(409, "Another reviewer updated this case");
   const job = await queueJob(updated);
   await recordAudit({ req, action: `business.${action.toLowerCase()}`, target: businessCase.id, meta: { decisionId: decision.id, snapshotId: snapshot.id } });
@@ -122,16 +123,42 @@ router.get("/audit", handle(async (req, res) => {
   res.json(await AuditLog.find(scope(req)).sort({ createdAt: -1 }).limit(100).lean());
 }));
 router.get("/evaluation", handle(async (_req, res) => res.json(await engine("evaluation"))));
+router.get('/documents/:id', handle(async (req, res) => {
+  const document = await SourceDocument.findOne({ ...scope(req), id: req.params.id }).select('id name source mediaType checksum content').lean();
+  if (!document) throw fail(404, 'Source document not found');
+  res.json(document);
+}));
+router.post('/imports/preview', handle(async (req, res) => {
+  if (!writers.has(req.user.role)) throw fail(403, 'Import preview requires an operations role');
+  const { title, poId, files } = req.body;
+  const result = await engine('import-preview', { title, poId, files, ingestedAt: new Date().toISOString() });
+  if (result.canCommit) {
+    try { await engine('reconcile', { caseId: 'preview', companyId: req.user.companyId, poId, records: result.records }); }
+    catch (error) { if (error.status !== 422) throw error; result.canCommit = false; result.issueCount += 1; result.issues.push({ file: 'bundle', row: 0, message: error.message }); }
+  }
+  const id = crypto.randomUUID();
+  await ImportPreview.create({ ...scope(req), id, actorId: String(req.user._id), bundle: { title, poId, records: result.records }, documents: result.documents, result: { ...result, documents: undefined } });
+  res.json({ id, ...result, documents: result.documents.map(({ content, ...metadata }) => metadata) });
+}));
 router.post("/imports", handle(async (req, res) => {
   if (!writers.has(req.user.role)) throw fail(403, "Import requires an operations role");
-  const { title, poId, records } = req.body;
+  let payload = req.body;
+  let storedPreview = null;
+  if (req.body.previewId) {
+    if (typeof req.body.previewId !== 'string') throw fail(422, 'Preview ID must be a string');
+    storedPreview = await ImportPreview.findOne({ ...scope(req), id: req.body.previewId }).lean();
+    if (!storedPreview) throw fail(404, 'Import preview not found');
+    if (!storedPreview.result.canCommit) throw fail(422, 'Correct every blocking preview issue before committing');
+    payload = storedPreview.bundle;
+  }
+  const { title, poId, records } = payload;
   if (typeof title !== "string" || title.length < 3 || title.length > 160 || typeof poId !== "string" || !Array.isArray(records) || !records.length || records.length > 1000) throw fail(422, "A title, order ID and up to 1000 structured records are required");
   const companyId = req.user.companyId;
   if (importsInFlight.has(companyId)) throw fail(409, "A source import is already running for this company; retry shortly");
   importsInFlight.add(companyId);
   try {
-    const normalized = records.map((record) => ({ ...record, coverage: record.coverage || 'unknown', provenance: "USER_PROVIDED" }));
-    const checksum = crypto.createHash("sha256").update(JSON.stringify({ poId, records: normalized })).digest("hex");
+    const normalized = records.map((record) => ({ ...record, fieldEvidence: storedPreview ? record.fieldEvidence || {} : {}, coverage: record.coverage || 'unknown', provenance: "USER_PROVIDED" }));
+    const checksum = storedPreview?.result.sourceFingerprint || crypto.createHash("sha256").update(JSON.stringify({ poId, records: normalized })).digest("hex");
     const caseId = `import-${checksum}`;
     let businessCase = await BusinessCase.findOne({ companyId, id: caseId });
     if (businessCase?.latestSnapshotId) return res.json({ caseId, idempotent: true });
@@ -140,6 +167,7 @@ router.post("/imports", handle(async (req, res) => {
       if (await BusinessRecord.exists({ companyId, id: { $in: normalized.map((record) => record.id) } })) throw fail(409, "Source record IDs already exist; do not create a new liability by reimporting them");
       businessCase = await BusinessCase.create({ companyId, id: caseId, title, sector: "Imported", poId, supplier: normalized.find((record) => record.id === poId)?.supplier, sourceChecksum: checksum, inputRecords: normalized, recordIds: normalized.map((record) => record.id), status: "importing" });
     }
+    for (const document of storedPreview?.documents || []) await SourceDocument.updateOne({ companyId, id: document.id }, { $setOnInsert: document }, { upsert: true });
     for (const record of normalized) await BusinessRecord.updateOne({ companyId, id: record.id }, { $setOnInsert: { caseId, kind: record.type, data: record, ...(record.amount ? { amount: record.amount } : {}), sourceChecksum: checksum } }, { upsert: true });
     await BusinessImport.updateOne({ companyId, id: checksum }, { $setOnInsert: { caseId, checksum, recordCount: normalized.length, actorId: String(req.user._id) } }, { upsert: true });
     await recordAudit({ req, action: "business.import", target: caseId, meta: { checksum, recordCount: normalized.length } });

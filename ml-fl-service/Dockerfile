@@ -5,7 +5,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 && rm -rf /var/lib/apt/lists/*
 COPY requirements-business.txt ./
 RUN python -m pip install --no-cache-dir -r requirements-business.txt
-COPY app.py business_contracts.py business_demo.py business_reconcile.py business_matching.py business_training.py ./
+COPY app.py business_contracts.py business_demo.py business_reconcile.py business_matching.py business_training.py business_imports.py ./
 COPY tests ./tests
 RUN mkdir -p /app/runs && useradd --create-home --uid 10001 satya && chown -R satya:satya /app
 USER satya

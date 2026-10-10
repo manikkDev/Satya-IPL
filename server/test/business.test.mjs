@@ -116,6 +116,37 @@ test("business contract: authentication, immutable evidence, graph, replay and d
     assert.equal(reviewed.decisions[0].effect, 'internal_workflow_only_no_transfer_or_message');
     assert.equal((await call(`/api/v1/cases/${current.id}`, manager)).response.status, 404);
   });
+  await t.test('CSV preview commits source-row provenance without guessing currency', async () => {
+    const tester = await login('tester@satya.demo');
+    const id = `CSV-PO-${Date.now()}`;
+    const content = `id,reference,supplier,currency,occurredAt,status,lineId,description,quantity,unitPrice,uom\n${id},CSV/ORDER/0001,Example Supplier,INR,2026-10-01T10:00:00+05:30,approved,1,Pump 1 kW,10,1000,EA\n`;
+    const mapping = Object.fromEntries(['id','reference','supplier','currency','occurredAt','status','lineId','description','quantity','unitPrice','uom'].map((field) => [field, field]));
+    const payload = { title: 'CSV contract test', poId: id, files: [{ name: 'orders.csv', recordType: 'PO', source: 'procurement_csv', content, mapping, numberFormat: 'plain' }] };
+    const validation = await call('/api/v1/imports/preview', tester, payload);
+    assert.equal(validation.response.status, 200);
+    assert.equal(validation.data.canCommit, true);
+    const committed = await call('/api/v1/imports', tester, { previewId: validation.data.id });
+    assert.equal(committed.response.status, 201);
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const job = (await call(`/api/v1/jobs/${committed.data.job.id}`, tester)).data;
+      if (job.status === 'completed') break;
+      if (job.status === 'failed') throw new Error(job.error);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    const imported = (await call(`/api/v1/cases/${committed.data.caseId}`, tester)).data;
+    const evidence = imported.snapshot.evidence.find((item) => item.locator.kind === 'csv_cell');
+    assert.equal(evidence.locator.row, 2);
+    const original = await call(`/api/v1/documents/${evidence.locator.documentId}`, tester);
+    assert.equal(original.data.content, content);
+    assert.equal((await call(`/api/v1/documents/${evidence.locator.documentId}`, manager)).response.status, 404);
+    const again = await call('/api/v1/imports/preview', tester, payload);
+    const repeated = await call('/api/v1/imports', tester, { previewId: again.data.id });
+    assert.equal(repeated.data.caseId, committed.data.caseId);
+    assert.equal(repeated.data.idempotent, true);
+    const invalid = await call('/api/v1/imports/preview', tester, { ...payload, files: [{ ...payload.files[0], content: content.replace(',INR,', ',,') }] });
+    assert.equal(invalid.data.canCommit, false);
+    assert.equal((await call('/api/v1/imports', tester, { previewId: invalid.data.id })).response.status, 422);
+  });
   await t.test("retired domain endpoints are not mounted", async () => {
     for (const path of ["/api/consent/me", "/api/risk-graph/overview", "/api/fl/progress"]) assert.equal((await fetch(`${BASE}${path}`)).status, 404);
   });

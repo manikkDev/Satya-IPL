@@ -78,7 +78,7 @@ The frontend still uses `output: 'standalone'`. The Docker image copies static a
 
 ## Current boundaries
 
-- Structured JSON source bundles are implemented; mapped CSV, document OCR and extraction review are next layers.
+- Structured JSON and mapped CSV source bundles are implemented. CSV imports have a persisted validation preview, block on row/header errors, preserve original files and row/column provenance, and commit idempotently. Document OCR remains a later phase.
 - Supplier identity is explicit/assumed in demo exports; reviewed vendor-master/alias resolution is not yet a general entity-resolution service.
 - Current money currencies are INR/USD/EUR with two-decimal settlement precision. Mixed-unit orders require separate case scope. Tax amounts are declarations, not legal validation.
 - Price tolerance is a versioned prototype policy, not a statutory rule. Approval is an internal workflow instruction, never a money-transfer call.

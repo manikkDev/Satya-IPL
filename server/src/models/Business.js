@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const { Schema } = mongoose;
 const scoped = { companyId: { type: String, required: true, index: true }, id: { type: String, required: true } };
 const make = (name, fields, options = {}) => {
-  const schema = new Schema({ ...scoped, ...fields }, { timestamps: true, ...options });
+  const schema = new Schema({ ...scoped, ...fields }, { timestamps: true, minimize: false, ...options });
   schema.index({ companyId: 1, id: 1 }, { unique: true });
   return mongoose.model(name, schema);
 };
@@ -13,4 +13,6 @@ export const BusinessCase = make("BusinessCase", { title: String, sector: String
 export const BusinessSnapshot = make("BusinessSnapshot", { caseId: String, result: { type: Schema.Types.Mixed, required: true }, inputs: { type: Schema.Types.Mixed, required: true }, projection: { type: String, default: "pending" } });
 export const BusinessDecision = make("BusinessDecision", { caseId: String, snapshotId: String, action: String, actorId: String, reason: String, recordId: String, findingId: String, review: Schema.Types.Mixed });
 export const BusinessJob = make("BusinessJob", { caseId: String, status: { type: String, enum: ["queued", "running", "completed", "failed"], default: "queued" }, leaseUntil: Date, workerToken: String, attempts: { type: Number, default: 0 }, baseRevision: Number, input: Schema.Types.Mixed, error: String, snapshotId: String });
+export const SourceDocument = make('SourceDocument', { name: String, source: String, mediaType: String, checksum: String, content: { type: String, required: true } });
+export const ImportPreview = make('ImportPreview', { actorId: String, bundle: Schema.Types.Mixed, documents: Schema.Types.Mixed, result: Schema.Types.Mixed });
 export const BusinessImport = make("BusinessImport", { caseId: String, checksum: String, recordCount: Number, provenance: { type: String, default: "USER_PROVIDED" }, actorId: String });

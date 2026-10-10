@@ -52,6 +52,9 @@ def reconcile(request: ReconcileRequest):
             line_index = next(index for index, item in enumerate(record.lines) if item.id == line_id)
             pointer_field = f"lines/{line_index}/{name}"
         evidence[identifier] = {"id": identifier, "recordId": record.id, "reference": record.reference, "source": record.source, "field": field, "rawValue": str(value) if source_field else None, "derivedValue": None if source_field else str(value), "locator": {"kind": "json_pointer" if source_field else "derivation", "pointer": f"/records/{record_index}/{pointer_field}" if source_field else None}, "observedAt": record.observedAt.isoformat(), "provenance": record.provenance, "quality": "schema_validated_not_issuer_verified" if source_field else "calculated_from_snapshot_inputs"}
+        origin = record.fieldEvidence.get(field)
+        if origin:
+            evidence[identifier].update({"rawValue": origin.rawValue, "normalizedValue": str(value), "transform": origin.transform, "locator": {"kind": "csv_cell", "pointer": None, "documentId": origin.documentId, "row": origin.row, "column": origin.column}, "quality": "mapped_csv_field_not_issuer_verified"})
         return identifier
 
     def finding(kind, title, detail, refs, action="REQUEST_CLARIFICATION", severity="review", amount=None, certainty="proven_from_inputs"):
