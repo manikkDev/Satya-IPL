@@ -11,3 +11,5 @@ runs/*
 !data/processed/.gitkeep
 !data/partitions/.gitkeep
 !runs/.gitkeep
+!runs/satya-linkage/
+!runs/satya-linkage/*

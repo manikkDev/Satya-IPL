@@ -1,0 +1,137 @@
+{
+  "ready": true,
+  "modelVersion": "satya-pair-xgb-v2",
+  "task": "invoice_line_to_order_line",
+  "trainedAt": "2026-10-10T07:32:34.150149+00:00",
+  "source": "CONSTRUCTED",
+  "generatorVersion": "equipment-pairs-v2",
+  "seed": 42,
+  "featureSchema": [
+    "description_similarity",
+    "token_overlap",
+    "sku_agreement",
+    "reference_agreement",
+    "reference_conflict",
+    "specification_agreement",
+    "price_similarity",
+    "quantity_similarity"
+  ],
+  "episodeCount": 1600,
+  "pairCount": 9600,
+  "splitCounts": {
+    "train": 5760,
+    "validation": 1440,
+    "calibration": 960,
+    "test": 1440
+  },
+  "splitManifestHash": "8b0564f09aeccdfc80444ec176a94502e592b393c5e1302437853e7d933d8541",
+  "calibration": {
+    "kind": "held_out_sigmoid",
+    "coefficient": 1.2645661082829356,
+    "intercept": -0.17679646189631087
+  },
+  "baselines": {
+    "logistic": {
+      "prAuc": 0.9739893953839234,
+      "rocAuc": 0.9743364197530864,
+      "precision": 0.8934993084370678,
+      "recall": 0.8972222222222223,
+      "brier": 0.07017618278386985,
+      "samples": 1440
+    }
+  },
+  "test": {
+    "prAuc": 0.9727106625917393,
+    "rocAuc": 0.9737818287037036,
+    "precision": 0.8654545454545455,
+    "recall": 0.9916666666666667,
+    "brier": 0.054787168621044754,
+    "samples": 1440
+  },
+  "highConfidence": {
+    "threshold": 0.98,
+    "count": 489,
+    "coverage": 0.33958333333333335,
+    "precision": 1.0
+  },
+  "reliabilityBins": [
+    {
+      "low": 0.0,
+      "high": 0.1,
+      "count": 605,
+      "predicted": 0.0027747790927586595,
+      "observed": 0.0
+    },
+    {
+      "low": 0.1,
+      "high": 0.2,
+      "count": 0,
+      "predicted": null,
+      "observed": null
+    },
+    {
+      "low": 0.2,
+      "high": 0.30000000000000004,
+      "count": 0,
+      "predicted": null,
+      "observed": null
+    },
+    {
+      "low": 0.30000000000000004,
+      "high": 0.4,
+      "count": 1,
+      "predicted": 0.35589029092914515,
+      "observed": 1.0
+    },
+    {
+      "low": 0.4,
+      "high": 0.5,
+      "count": 9,
+      "predicted": 0.4545252622554913,
+      "observed": 0.5555555555555556
+    },
+    {
+      "low": 0.5,
+      "high": 0.6000000000000001,
+      "count": 66,
+      "predicted": 0.561887631532234,
+      "observed": 0.6818181818181818
+    },
+    {
+      "low": 0.6000000000000001,
+      "high": 0.7000000000000001,
+      "count": 127,
+      "predicted": 0.6777046522791262,
+      "observed": 0.6929133858267716
+    },
+    {
+      "low": 0.7000000000000001,
+      "high": 0.8,
+      "count": 141,
+      "predicted": 0.7259730089973526,
+      "observed": 0.6453900709219859
+    },
+    {
+      "low": 0.8,
+      "high": 0.9,
+      "count": 2,
+      "predicted": 0.8081250054664044,
+      "observed": 0.5
+    },
+    {
+      "low": 0.9,
+      "high": 1.0,
+      "count": 489,
+      "predicted": 0.9995738945073395,
+      "observed": 1.0
+    }
+  ],
+  "automaticApproval": false,
+  "limitations": [
+    "Constructed pair labels; not measured on a real Indian company's records.",
+    "Balanced constructed candidate prevalence is not deployment prevalence.",
+    "No pretrained semantic encoder or OCR model is fine-tuned in this artifact.",
+    "Specification and recurring-order negatives are limited to this generator; human review remains mandatory."
+  ],
+  "artifactSha256": "70f52e63fc3171fe51fc3958f870d63fa77816a14d7458bcf7313572b54b64ee"
+}

@@ -1,0 +1,103 @@
+services:
+  - type: web
+    name: satya-ipl-api
+    runtime: docker
+    rootDir: server
+    region: singapore
+    plan: free
+    branch: main
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "5002"
+      - key: APP_DB_NAME
+        value: satya
+      - key: DEMO_MODE
+        value: "1"
+      - key: SEED_DEMO_USERS
+        value: "1"
+      - key: ENGINE_API_URL
+        value: https://satya-ipl-ml.onrender.com
+      - key: ALLOWED_ORIGINS
+        value: https://satya-ipl.vercel.app
+      - key: RATE_LIMIT_AUTH
+        value: "30"
+      - key: RATE_LIMIT_API
+        value: "1200"
+      - key: RATE_LIMIT_WRITES
+        value: "200"
+      - key: DB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: NODE_INTERNAL_TOKEN
+        sync: false
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USER
+        value: neo4j
+      - key: NEO4J_PASSWORD
+        sync: false
+
+  - type: web
+    name: satya-ipl-chat
+    runtime: docker
+    rootDir: chatbot-backend
+    region: singapore
+    plan: free
+    branch: main
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "5001"
+      - key: GRAPH_API_URL
+        value: https://satya-ipl-api.onrender.com
+      - key: ML_API_URL
+        value: https://satya-ipl-ml.onrender.com
+      - key: ALLOWED_ORIGINS
+        value: https://satya-ipl.vercel.app
+      - key: SATYA_LLM_PROVIDER
+        value: auto
+      - key: ENABLE_EXTERNAL_BUSINESS_LLM
+        value: "0"
+      - key: JWT_SECRET
+        sync: false
+      - key: NODE_INTERNAL_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_KEY
+        sync: false
+
+  - type: web
+    name: satya-ipl-ml
+    runtime: docker
+    rootDir: ml-fl-service
+    region: singapore
+    plan: free
+    branch: main
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: MODEL_ARTIFACT_DIR
+        value: runs/satya-linkage
+      - key: PROGRESS_WEBHOOK
+        value: https://satya-ipl-api.onrender.com/api/fl/progress
+      - key: FLOWER_PYTHON
+        value: ""
+      - key: NODE_INTERNAL_TOKEN
+        sync: false
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USER
+        value: neo4j
+      - key: NEO4J_PASSWORD
+        sync: false
