@@ -193,4 +193,201 @@ test("business contract: authentication, immutable evidence, graph, replay and d
   await t.test("retired domain endpoints are not mounted", async () => {
     for (const path of ["/api/consent/me", "/api/risk-graph/overview", "/api/fl/progress"]) assert.equal((await fetch(`${BASE}${path}`)).status, 404);
   });
+
+  // ── Feature 4: Transaction Lifecycle State Machine tests ─────────────
+
+  await t.test("state machine: decision on importing case is rejected", async () => {
+    // Create a case and grab it before reconciliation finishes
+    const tester = await login("tester@satya.demo");
+    const suffix = Date.now();
+    const poId = `PO-FSM-IMP-${suffix}`;
+    const timestamp = new Date(Date.now() - 3600000).toISOString();
+    const line = { id: '1', description: 'Pump 1 kW', sku: 'PUMP-1KW', quantity: '5', unitPrice: '1000', uom: 'EA', poLineId: '1' };
+    const base = { supplier: 'FSM Supplier', occurredAt: timestamp, observedAt: timestamp, source: 'fsm_test', currency: 'INR' };
+    const imported = await call('/api/v1/imports', tester, { title: 'FSM importing test', poId, records: [
+      { ...base, id: poId, type: 'PO', reference: poId, status: 'approved', lines: [line] },
+    ] });
+    assert.equal(imported.response.status, 201);
+    // The case starts as 'importing' — try to decide before reconciliation
+    const caseData = (await call(`/api/v1/cases/${imported.data.caseId}`, tester)).data;
+    if (caseData.status === 'importing') {
+      const result = await call(`/api/v1/cases/${caseData.id}/decisions`, tester, {
+        expectedRevision: caseData.revision,
+        snapshotId: caseData.snapshot?.snapshotId || 'none',
+        action: 'PLACE_ON_HOLD',
+        reason: 'Attempting decision on importing case'
+      });
+      assert.equal(result.response.status, 409);
+      assert.ok(result.data.message.includes('importing'));
+    }
+    // Clean up: wait for reconciliation to finish
+    const awaitJob = async (id, token) => {
+      for (let attempt = 0; attempt < 30; attempt++) {
+        const job = (await call(`/api/v1/jobs/${id}`, token)).data;
+        if (job.status === 'completed' || job.status === 'failed') return;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    };
+    await awaitJob(imported.data.job.id, tester);
+  });
+
+  await t.test("state machine: decision on reconciled case is rejected", async () => {
+    // Use the handoff pattern: analyst imports, manager approves → reconciled
+    const analyst = await login("test-analyst@satya.demo");
+    const tester = await login("tester@satya.demo");
+    const suffix = Date.now();
+    const poId = `PO-FSM-REC-${suffix}`;
+    const timestamp = new Date(Date.now() - 3600000).toISOString();
+    const line = { id: '1', description: 'Pump 1 kW', sku: 'PUMP-1KW', quantity: '5', unitPrice: '1000', uom: 'EA', poLineId: '1' };
+    const base = { supplier: 'FSM Reconciled', occurredAt: timestamp, observedAt: timestamp, source: 'fsm_test', currency: 'INR' };
+    const imported = await call('/api/v1/imports', analyst, { title: 'FSM reconciled test', poId, records: [
+      { ...base, id: poId, type: 'PO', reference: poId, status: 'approved', lines: [line] },
+      { ...base, id: `GRN-FSM-REC-${suffix}`, type: 'GRN', reference: 'FSM receipt', poId, lines: [{ ...line, acceptedQuantity: '5' }] },
+      { ...base, id: `INV-FSM-REC-${suffix}`, type: 'INVOICE', reference: `FSM/INV/REC/${suffix}`, poId, amount: '5000.00', netAmount: '5000.00', lines: [line] },
+    ] });
+    assert.equal(imported.response.status, 201);
+    const awaitJob = async (id, token) => {
+      for (let attempt = 0; attempt < 30; attempt++) {
+        const job = (await call(`/api/v1/jobs/${id}`, token)).data;
+        if (job.status === 'completed') return;
+        if (job.status === 'failed') throw new Error(job.error);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      throw new Error('Timed out');
+    };
+    await awaitJob(imported.data.job.id, analyst);
+    const current = () => call(`/api/v1/cases/${imported.data.caseId}`, analyst).then((r) => r.data);
+    let businessCase = await current();
+    // Manager approves
+    const approved = await call(`/api/v1/cases/${businessCase.id}/decisions`, tester, {
+      expectedRevision: businessCase.revision, snapshotId: businessCase.snapshot.snapshotId,
+      action: 'APPROVE', reason: 'Approving for FSM reconciled-state test.'
+    });
+    assert.equal(approved.response.status, 201);
+    await awaitJob(approved.data.job.id, tester);
+    businessCase = await current();
+    assert.equal(businessCase.status, 'reconciled');
+    // Now try another decision on the reconciled case → should be rejected
+    const blocked = await call(`/api/v1/cases/${businessCase.id}/decisions`, tester, {
+      expectedRevision: businessCase.revision, snapshotId: businessCase.snapshot.snapshotId,
+      action: 'PLACE_ON_HOLD', reason: 'Attempting hold on already reconciled case'
+    });
+    assert.equal(blocked.response.status, 409);
+    assert.ok(blocked.data.message.includes('reconciled'));
+  });
+
+  await t.test("state machine: self-approval is blocked (importer cannot approve)", async () => {
+    const tester = await login("tester@satya.demo");
+    const suffix = Date.now();
+    const poId = `PO-FSM-SELF-${suffix}`;
+    const timestamp = new Date(Date.now() - 3600000).toISOString();
+    const line = { id: '1', description: 'Pump 1 kW', sku: 'PUMP-1KW', quantity: '5', unitPrice: '1000', uom: 'EA', poLineId: '1' };
+    const base = { supplier: 'FSM SelfApproval', occurredAt: timestamp, observedAt: timestamp, source: 'fsm_test', currency: 'INR' };
+    const imported = await call('/api/v1/imports', tester, { title: 'FSM self-approval test', poId, records: [
+      { ...base, id: poId, type: 'PO', reference: poId, status: 'approved', lines: [line] },
+      { ...base, id: `GRN-FSM-SELF-${suffix}`, type: 'GRN', reference: 'Self receipt', poId, lines: [{ ...line, acceptedQuantity: '5' }] },
+      { ...base, id: `INV-FSM-SELF-${suffix}`, type: 'INVOICE', reference: `FSM/INV/SELF/${suffix}`, poId, amount: '5000.00', netAmount: '5000.00', lines: [line] },
+    ] });
+    assert.equal(imported.response.status, 201);
+    const awaitJob = async (id, token) => {
+      for (let attempt = 0; attempt < 30; attempt++) {
+        const job = (await call(`/api/v1/jobs/${id}`, token)).data;
+        if (job.status === 'completed') return;
+        if (job.status === 'failed') throw new Error(job.error);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      throw new Error('Timed out');
+    };
+    await awaitJob(imported.data.job.id, tester);
+    const businessCase = (await call(`/api/v1/cases/${imported.data.caseId}`, tester)).data;
+    // tester (ap_manager) imported this case, so they MUST NOT be able to approve it
+    const selfApprove = await call(`/api/v1/cases/${businessCase.id}/decisions`, tester, {
+      expectedRevision: businessCase.revision, snapshotId: businessCase.snapshot.snapshotId,
+      action: 'APPROVE', reason: 'Attempting self-approval which should be blocked'
+    });
+    assert.equal(selfApprove.response.status, 403);
+    assert.ok(selfApprove.data.message.includes('segregation'));
+    // But a DIFFERENT manager can approve
+    const manager2 = await login("manager@satya.demo");
+    const approved = await call(`/api/v1/cases/${businessCase.id}/decisions`, manager2, {
+      expectedRevision: businessCase.revision, snapshotId: businessCase.snapshot.snapshotId,
+      action: 'APPROVE', reason: 'Different manager approves successfully'
+    });
+    assert.equal(approved.response.status, 201);
+  });
+
+  await t.test("state machine: decisions record previousStatus and newStatus", async () => {
+    // Use an existing case that went through the handoff test to check audit fields
+    const analyst = await login("test-analyst@satya.demo");
+    const tester = await login("tester@satya.demo");
+    const suffix = Date.now();
+    const poId = `PO-FSM-AUDIT-${suffix}`;
+    const timestamp = new Date(Date.now() - 3600000).toISOString();
+    const line = { id: '1', description: 'Pump 1 kW', sku: 'PUMP-1KW', quantity: '5', unitPrice: '1000', uom: 'EA', poLineId: '1' };
+    const base = { supplier: 'FSM Audit', occurredAt: timestamp, observedAt: timestamp, source: 'fsm_test', currency: 'INR' };
+    const imported = await call('/api/v1/imports', analyst, { title: 'FSM audit trail test', poId, records: [
+      { ...base, id: poId, type: 'PO', reference: poId, status: 'approved', lines: [line] },
+      { ...base, id: `GRN-FSM-AUD-${suffix}`, type: 'GRN', reference: 'Audit receipt', poId, lines: [{ ...line, acceptedQuantity: '5' }] },
+      { ...base, id: `INV-FSM-AUD-${suffix}`, type: 'INVOICE', reference: `FSM/INV/AUD/${suffix}`, poId, amount: '5000.00', netAmount: '5000.00', lines: [line] },
+    ] });
+    assert.equal(imported.response.status, 201);
+    const awaitJob = async (id, token) => {
+      for (let attempt = 0; attempt < 30; attempt++) {
+        const job = (await call(`/api/v1/jobs/${id}`, token)).data;
+        if (job.status === 'completed') return;
+        if (job.status === 'failed') throw new Error(job.error);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      throw new Error('Timed out');
+    };
+    await awaitJob(imported.data.job.id, analyst);
+    const current = () => call(`/api/v1/cases/${imported.data.caseId}`, analyst).then((r) => r.data);
+    let businessCase = await current();
+    // Escalate — check previousStatus/newStatus on the returned decision
+    const escalated = await call(`/api/v1/cases/${businessCase.id}/decisions`, analyst, {
+      expectedRevision: businessCase.revision, snapshotId: businessCase.snapshot.snapshotId,
+      action: 'ESCALATE', reason: 'Escalating to verify audit metadata is recorded'
+    });
+    assert.equal(escalated.response.status, 201);
+    assert.equal(escalated.data.decision.previousStatus, 'needs_review');
+    assert.equal(escalated.data.decision.newStatus, 'escalated');
+    await awaitJob(escalated.data.job.id, analyst);
+    // Verify it's persisted on the case too
+    businessCase = await current();
+    assert.equal(businessCase.decisions.at(-1).previousStatus, 'needs_review');
+    assert.equal(businessCase.decisions.at(-1).newStatus, 'escalated');
+  });
+
+  await t.test("state machine: non-approve actions allowed for importer (no self-approval restriction)", async () => {
+    // Verify that the self-approval check only applies to APPROVE, not to PLACE_ON_HOLD etc.
+    const tester = await login("tester@satya.demo");
+    const suffix = Date.now();
+    const poId = `PO-FSM-NONAPP-${suffix}`;
+    const timestamp = new Date(Date.now() - 3600000).toISOString();
+    const line = { id: '1', description: 'Pump 1 kW', sku: 'PUMP-1KW', quantity: '5', unitPrice: '1000', uom: 'EA', poLineId: '1' };
+    const base = { supplier: 'FSM NonApprove', occurredAt: timestamp, observedAt: timestamp, source: 'fsm_test', currency: 'INR' };
+    const imported = await call('/api/v1/imports', tester, { title: 'FSM non-approve importer test', poId, records: [
+      { ...base, id: poId, type: 'PO', reference: poId, status: 'approved', lines: [line] },
+      { ...base, id: `GRN-FSM-NA-${suffix}`, type: 'GRN', reference: 'NA receipt', poId, lines: [{ ...line, acceptedQuantity: '5' }] },
+      { ...base, id: `INV-FSM-NA-${suffix}`, type: 'INVOICE', reference: `FSM/INV/NA/${suffix}`, poId, amount: '5000.00', netAmount: '5000.00', lines: [line] },
+    ] });
+    assert.equal(imported.response.status, 201);
+    const awaitJob = async (id, token) => {
+      for (let attempt = 0; attempt < 30; attempt++) {
+        const job = (await call(`/api/v1/jobs/${id}`, token)).data;
+        if (job.status === 'completed') return;
+        if (job.status === 'failed') throw new Error(job.error);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      throw new Error('Timed out');
+    };
+    await awaitJob(imported.data.job.id, tester);
+    const businessCase = (await call(`/api/v1/cases/${imported.data.caseId}`, tester)).data;
+    // Same importer can PLACE_ON_HOLD (not blocked by self-approval)
+    const held = await call(`/api/v1/cases/${businessCase.id}/decisions`, tester, {
+      expectedRevision: businessCase.revision, snapshotId: businessCase.snapshot.snapshotId,
+      action: 'PLACE_ON_HOLD', reason: 'Importer placing on hold is allowed; only APPROVE is restricted'
+    });
+    assert.equal(held.response.status, 201);
+  });
 });

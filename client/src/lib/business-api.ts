@@ -8,7 +8,7 @@ export type SourceRecord = { id: string; type: string; reference: string; source
 export type Graph = { nodes: { id: string; label: string; type: string; amount?: string; currency?: string }[]; edges: { id: string; source: string; target: string; type: string; status: string; amount?: string }[]; source?: string; degraded?: boolean };
 export type MatchSuggestion = { recordId: string; lineId: string; probability: number | null; score: number; kind: string; status: string; features: Record<string, number> };
 export type Snapshot = { caseId: string; snapshotId: string; observedBefore: string; ledger: Ledger; findings: Finding[]; evidence: Evidence[]; graph: Graph; unallocatedPayments: { paymentId: string; amount: string; currency: string; reference: string; candidateInvoiceIds: string[] }[]; duplicateCandidates: { recordId: string; candidateOriginalId: string }[]; ambiguities: { id: string; neededEvidence: string; balanceScenarios?: { minimum: string; maximum: string; currency: string; assumption: string } }[]; paymentAllocations: { paymentId: string; invoiceId: string; amount: string; currency: string; status: string }[]; matchSuggestions: MatchSuggestion[]; warnings: string[]; simulation?: boolean };
-export type BusinessCase = { id: string; title: string; supplier: string; sector: string; poId: string; revision: number; status: string; ledger?: Ledger; findingCount: number; records: SourceRecord[]; snapshot: Snapshot | null; projection: string; decisions: { id: string; action: string; reason: string; actorName: string; createdAt: string; effect: string }[] };
+export type BusinessCase = { id: string; title: string; supplier: string; sector: string; poId: string; revision: number; status: string; ledger?: Ledger; findingCount: number; records: SourceRecord[]; snapshot: Snapshot | null; projection: string; decisions: { id: string; action: string; reason: string; actorName: string; createdAt: string; effect: string; previousStatus?: string; newStatus?: string; assigneeId?: string; assigneeName?: string }[]; assigneeId?: string; assigneeName?: string };
 export type ChatAnswer = { answerType?: string; responseMode?: string; providerStatus?: string; queriedAt?: string; focusRecordIds?: string[]; provider?: string; content: string; conversationId: string; sources: { id: string; recordId: string; label: string; caseId: string }[]; caseId?: string; snapshotId?: string; graph?: Graph; facts?: Ledger; mode: string };
 
 const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${typeof window !== "undefined" ? localStorage.getItem("token") || "" : ""}` });
@@ -18,6 +18,26 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
   if (!response.ok) throw new Error(data.message || "Business request failed");
   return data;
 }
+// ── Dashboard / Risk / Alert / Audit types ────────────────────────────
+export type DashboardSummary = {
+  currency: string;
+  mixedCurrencyWarning: string | null;
+  totals: { recordedOutstanding: string; supportedOutstanding: string; canonicalOutstanding: string; disputedExposure: string; settled: string };
+  statusCounts: { needs_review: number; reconciled: number; escalated: number; on_hold: number; awaiting_evidence: number; importing: number; total: number };
+  findings: { blocking: number; informational: number };
+  duplicateCandidates: number;
+  unallocatedPayments: number;
+  supplierBalances: { supplier: string; recorded: string; supported: string; disputed: string; settled: string; caseCount: number; currency: string }[];
+  attentionItems: { caseId: string; poId: string; supplier: string; status: string; reasons: string[]; recordedOutstanding: string; currency: string }[];
+};
+export type AttentionItem = {
+  caseId: string; poId: string; supplier: string; status: string; priority: number; rules: string[];
+  ledger: { currency: string; recordedOutstanding: string; supportedOutstanding: string; disputedExposure: string } | null;
+  blockingFindings: number; duplicateCandidates: number; unallocatedPayments: number; decisionCount: number; importedBy: string | null; createdAt: string;
+};
+export type Alert = { type: string; severity: string; caseId: string; poId: string; supplier: string; message: string; createdAt: string };
+export type DetailedAuditEntry = { _id: string; action: string; target: string; createdAt: string; role: string; caseContext: { poId: string; supplier: string; currentStatus: string; decisionCount: number } | null };
+
 export const businessApi = {
   cases: () => request<BusinessCase[]>("/cases"),
   case: (id: string) => request<BusinessCase>(`/cases/${encodeURIComponent(id)}`),
@@ -34,6 +54,12 @@ export const businessApi = {
   previewImport: (body: unknown) => request<{ id: string; canCommit: boolean; acceptedRecords: number; totalRows: number; issueCount: number; issues: { file: string; row: number; message: string }[]; records: SourceRecord[] }>("/imports/preview", body),
   document: (id: string) => request<{ id: string; name: string; content: string; checksum: string }>(`/documents/${encodeURIComponent(id)}`),
   import: (body: unknown) => request<{ caseId: string; job?: { id: string } }>("/imports", body),
+  // ── New endpoints (Features 1, 6, 8, 10, 11, 12) ────────────────────
+  dashboardSummary: () => request<DashboardSummary>("/dashboard/summary"),
+  dashboardAttention: () => request<{ items: AttentionItem[]; scoringRules: string }>("/dashboard/attention"),
+  alerts: () => request<{ alerts: Alert[]; notice: string }>("/alerts"),
+  assign: (id: string, body: { assigneeId: string; assigneeName: string; reason: string }) => request<{ assignment: unknown }>(`/cases/${encodeURIComponent(id)}/assign`, body),
+  auditDetailed: () => request<DetailedAuditEntry[]>("/audit/detailed"),
   chat: async (prompt: string, caseId?: string, conversationId?: string, onStatus?: (stage: string) => void): Promise<ChatAnswer> => {
     const response = await fetch(`${SERVER_URL_1}/api/chat/stream`, { method: "POST", headers: headers(), body: JSON.stringify({ prompt, caseId, conversationId }) });
     if (!response.ok) { const body = await response.json(); throw new Error(body.message || "Copilot unavailable"); }

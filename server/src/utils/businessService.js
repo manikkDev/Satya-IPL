@@ -3,6 +3,66 @@ import neo4j from "neo4j-driver";
 import { BusinessCase, BusinessRecord, BusinessSnapshot, BusinessJob } from "../models/Business.js";
 import { recordAudit } from './audit.js';
 
+// ── Transaction Lifecycle State Machine ──────────────────────────────
+// Permitted transitions: Map<currentStatus, Map<action, targetStatus>>
+// Derived from the existing status-derivation logic in publish() and the
+// decision actions permitted by businessRoutes.  System-initiated transitions
+// (e.g. importing→needs_review via reconciliation) are handled separately in
+// publish() and are not user-invoked actions.
+export const TRANSITIONS = new Map([
+  ['needs_review', new Map([
+    ['APPROVE',                'reconciled'],
+    ['PLACE_ON_HOLD',          'on_hold'],
+    ['ESCALATE',               'escalated'],
+    ['REQUEST_CLARIFICATION',  'awaiting_evidence'],
+  ])],
+  ['on_hold', new Map([
+    ['APPROVE',                'reconciled'],
+    ['ESCALATE',               'escalated'],
+    ['REQUEST_CLARIFICATION',  'awaiting_evidence'],
+    ['PLACE_ON_HOLD',          'on_hold'],       // idempotent hold-with-review
+  ])],
+  ['escalated', new Map([
+    ['APPROVE',                'reconciled'],
+    ['PLACE_ON_HOLD',          'on_hold'],
+    ['REQUEST_CLARIFICATION',  'awaiting_evidence'],
+    ['ESCALATE',               'escalated'],     // re-escalate with new reason
+  ])],
+  ['awaiting_evidence', new Map([
+    ['APPROVE',                'reconciled'],
+    ['PLACE_ON_HOLD',          'on_hold'],
+    ['ESCALATE',               'escalated'],
+    ['REQUEST_CLARIFICATION',  'awaiting_evidence'], // request further evidence
+  ])],
+  // 'reconciled' — terminal for decisions; new records trigger re-reconcile
+  // 'importing'  — system-only; transitions to needs_review/reconciled via publish()
+]);
+
+/**
+ * Validate a proposed status transition.
+ *
+ * @param {string}  currentStatus  The case's current workflow status.
+ * @param {string}  action         The decision action being attempted.
+ * @returns {{ valid: boolean, targetStatus?: string, reason?: string }}
+ */
+export const validateTransition = (currentStatus, action) => {
+  if (currentStatus === 'importing') {
+    return { valid: false, reason: `Case is still being imported and cannot accept decisions yet` };
+  }
+  if (currentStatus === 'reconciled') {
+    return { valid: false, reason: `Case is already reconciled; no further decisions are permitted unless new evidence triggers re-reconciliation` };
+  }
+  const allowed = TRANSITIONS.get(currentStatus);
+  if (!allowed) {
+    return { valid: false, reason: `Unknown case status "${currentStatus}"` };
+  }
+  const targetStatus = allowed.get(action);
+  if (targetStatus === undefined) {
+    return { valid: false, reason: `Action "${action}" is not permitted when the case status is "${currentStatus}"` };
+  }
+  return { valid: true, targetStatus };
+};
+
 export const engine = async (path, body) => {
   const response = await fetch(`${process.env.ENGINE_API_URL || process.env.ML_API_URL || "http://localhost:8000"}/internal/${path}`, { method: body ? "POST" : "GET", headers: { "content-type": "application/json", "x-internal-token": process.env.NODE_INTERNAL_TOKEN || "" }, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(60000) });
   const result = await response.json();

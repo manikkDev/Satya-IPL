@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
 import { BusinessCase, BusinessRecord, BusinessSnapshot, BusinessJob, BusinessImport, SourceDocument, ImportPreview } from "../models/Business.js";
-import { engine, inputFor, queueJob, graphFor } from "../utils/businessService.js";
+import { engine, inputFor, queueJob, graphFor, validateTransition } from "../utils/businessService.js";
 import { recordAudit } from "../utils/audit.js";
 import AuditLog from "../models/AuditLog.js";
 
@@ -84,6 +84,16 @@ router.post("/cases/:id/decisions", handle(async (req, res) => {
   if (review && !isManager) throw fail(403, "Confirming matches, duplicates or payment allocations requires a manager");
   const businessCase = await getCase(req);
   if (req.body.expectedRevision !== businessCase.revision || req.body.snapshotId !== businessCase.latestSnapshotId) throw fail(409, "Evidence changed; refresh the case before deciding");
+  // ── Transition validation ──────────────────────────────────────────
+  const transition = validateTransition(businessCase.status, action);
+  if (!transition.valid) throw fail(409, transition.reason);
+  // ── Self-approval segregation of duties ────────────────────────────
+  if (action === 'APPROVE') {
+    const importRecord = await BusinessImport.findOne({ companyId: req.user.companyId, caseId: businessCase.id }).lean();
+    if (importRecord && String(importRecord.actorId) === String(req.user._id)) {
+      throw fail(403, 'The user who imported this case cannot approve it (segregation of duties)');
+    }
+  }
   if (!["APPROVE", "REQUEST_CLARIFICATION", "ESCALATE", "PLACE_ON_HOLD"].includes(action) || typeof reason !== "string" || reason.trim().length < 10 || reason.length > 2000) throw fail(422, "A permitted action and a meaningful reason are required");
   const snapshot = await snapshotFor(req.user.companyId, businessCase.latestSnapshotId);
   if (findingId && !snapshot.result.findings.some((finding) => finding.id === findingId)) throw fail(422, "Finding does not belong to this snapshot");
@@ -110,7 +120,7 @@ router.post("/cases/:id/decisions", handle(async (req, res) => {
     const input = await inputFor(businessCase);
     await engine("reconcile", { ...input, ...reviews });
   }
-  const decision = { id: crypto.randomUUID(), action, reason: reason.trim(), findingId: findingId || null, review: acceptedReview, actorId: String(req.user._id), actorName: req.user.name, actorRole: req.user.role, createdAt: new Date().toISOString(), snapshotId: snapshot.id, effect: "internal_workflow_only_no_transfer_or_message" };
+  const decision = { id: crypto.randomUUID(), action, reason: reason.trim(), findingId: findingId || null, review: acceptedReview, actorId: String(req.user._id), actorName: req.user.name, actorRole: req.user.role, createdAt: new Date().toISOString(), snapshotId: snapshot.id, effect: "internal_workflow_only_no_transfer_or_message", previousStatus: businessCase.status, newStatus: transition.targetStatus };
   const updated = await BusinessCase.findOneAndUpdate({ ...scope(req), id: businessCase.id, revision: businessCase.revision, latestSnapshotId: snapshot.id }, { $set: { reviews }, $inc: { revision: 1 }, $push: { decisions: decision } }, { returnDocument: "after" });
   if (!updated) throw fail(409, "Another reviewer updated this case");
   const job = await queueJob(updated);
@@ -185,4 +195,222 @@ router.post("/cases/:id/scenario", handle(async (req, res) => {
   input.records.push({ ...req.body.record, provenance: "USER_PROVIDED" });
   res.json({ ...(await engine("reconcile", input)), simulation: true, warning: "Simulation only: no source records, ledger or financial decision was changed." });
 }));
+
+// ── Feature 1 & 10: Obligation Tracking / Financial Insights Dashboard ──
+// Aggregates obligation data across all company cases from authoritative snapshots.
+router.get("/dashboard/summary", handle(async (req, res) => {
+  const cases = await BusinessCase.find(scope(req)).sort({ createdAt: 1 }).limit(200).lean();
+  const snapshotIds = cases.map((c) => c.latestSnapshotId).filter(Boolean);
+  const snapshots = await BusinessSnapshot.find({ ...scope(req), id: { $in: snapshotIds } }).select("id result.ledger result.findings result.duplicateCandidates result.unallocatedPayments result.invoices").lean();
+  const snapshotMap = new Map(snapshots.map((s) => [s.id, s]));
+
+  let totalRecordedOutstanding = 0, totalSupportedOutstanding = 0, totalCanonicalOutstanding = 0;
+  let totalDisputedExposure = 0, totalSettled = 0;
+  let needsReviewCount = 0, reconciledCount = 0, escalatedCount = 0, onHoldCount = 0, awaitingEvidenceCount = 0, importingCount = 0;
+  let totalFindingsBlocking = 0, totalFindingsInfo = 0, totalDuplicateCandidates = 0, totalUnallocatedPayments = 0;
+  const supplierBalances = {};
+  const currenciesSeen = new Set();
+  const attentionItems = [];
+
+  for (const c of cases) {
+    // Status counts
+    if (c.status === "needs_review") needsReviewCount++;
+    else if (c.status === "reconciled") reconciledCount++;
+    else if (c.status === "escalated") escalatedCount++;
+    else if (c.status === "on_hold") onHoldCount++;
+    else if (c.status === "awaiting_evidence") awaitingEvidenceCount++;
+    else if (c.status === "importing") importingCount++;
+
+    const snapshot = snapshotMap.get(c.latestSnapshotId);
+    if (!snapshot?.result?.ledger) continue;
+
+    const ledger = snapshot.result.ledger;
+    currenciesSeen.add(ledger.currency);
+    const recorded = parseFloat(ledger.recordedOutstanding) || 0;
+    const supported = parseFloat(ledger.supportedOutstanding) || 0;
+    const canonical = ledger.canonicalOutstanding !== null ? parseFloat(ledger.canonicalOutstanding) || 0 : null;
+    const disputed = parseFloat(ledger.disputedExposure) || 0;
+    const settled = parseFloat(ledger.settled) || 0;
+
+    totalRecordedOutstanding += recorded;
+    totalSupportedOutstanding += supported;
+    if (canonical !== null) totalCanonicalOutstanding += canonical;
+    totalDisputedExposure += disputed;
+    totalSettled += settled;
+
+    // Supplier aggregation
+    const supplier = c.supplier || "Unknown";
+    if (!supplierBalances[supplier]) supplierBalances[supplier] = { recorded: 0, supported: 0, disputed: 0, settled: 0, caseCount: 0, currency: ledger.currency };
+    supplierBalances[supplier].recorded += recorded;
+    supplierBalances[supplier].supported += supported;
+    supplierBalances[supplier].disputed += disputed;
+    supplierBalances[supplier].settled += settled;
+    supplierBalances[supplier].caseCount++;
+
+    // Findings counts
+    const findings = snapshot.result.findings || [];
+    const blocking = findings.filter((f) => f.severity !== "info");
+    totalFindingsBlocking += blocking.length;
+    totalFindingsInfo += findings.length - blocking.length;
+
+    // Duplicates and unallocated payments
+    const duplicates = snapshot.result.duplicateCandidates?.length || 0;
+    const unallocated = snapshot.result.unallocatedPayments?.length || 0;
+    totalDuplicateCandidates += duplicates;
+    totalUnallocatedPayments += unallocated;
+
+    // Attention items — cases that need action
+    if (c.status !== "reconciled" && c.status !== "importing") {
+      const reasons = [];
+      if (blocking.length > 0) reasons.push(`${blocking.length} blocking issue${blocking.length > 1 ? "s" : ""}`);
+      if (duplicates > 0) reasons.push(`${duplicates} possible duplicate${duplicates > 1 ? "s" : ""}`);
+      if (unallocated > 0) reasons.push(`${unallocated} unlinked payment${unallocated > 1 ? "s" : ""}`);
+      if (disputed > 0) reasons.push(`${ledger.currency} ${disputed.toFixed(2)} disputed exposure`);
+      if (c.status === "escalated") reasons.push("escalated — awaiting manager review");
+      if (c.status === "awaiting_evidence") reasons.push("waiting for additional evidence");
+      if (reasons.length > 0) {
+        attentionItems.push({ caseId: c.id, poId: c.poId, supplier: c.supplier, status: c.status, reasons, recordedOutstanding: ledger.recordedOutstanding, currency: ledger.currency });
+      }
+    }
+  }
+
+  // Determine mixed-currency warning
+  const currency = currenciesSeen.size === 1 ? [...currenciesSeen][0] : currenciesSeen.size > 0 ? "MIXED" : "INR";
+
+  res.json({
+    currency,
+    mixedCurrencyWarning: currenciesSeen.size > 1 ? "Totals combine multiple currencies. Individual case balances are authoritative." : null,
+    totals: {
+      recordedOutstanding: totalRecordedOutstanding.toFixed(2),
+      supportedOutstanding: totalSupportedOutstanding.toFixed(2),
+      canonicalOutstanding: totalCanonicalOutstanding.toFixed(2),
+      disputedExposure: totalDisputedExposure.toFixed(2),
+      settled: totalSettled.toFixed(2),
+    },
+    statusCounts: { needs_review: needsReviewCount, reconciled: reconciledCount, escalated: escalatedCount, on_hold: onHoldCount, awaiting_evidence: awaitingEvidenceCount, importing: importingCount, total: cases.length },
+    findings: { blocking: totalFindingsBlocking, informational: totalFindingsInfo },
+    duplicateCandidates: totalDuplicateCandidates,
+    unallocatedPayments: totalUnallocatedPayments,
+    supplierBalances: Object.entries(supplierBalances).map(([name, data]) => ({ supplier: name, ...data, recorded: data.recorded.toFixed(2), supported: data.supported.toFixed(2), disputed: data.disputed.toFixed(2), settled: data.settled.toFixed(2) })).sort((a, b) => parseFloat(b.recorded) - parseFloat(a.recorded)),
+    attentionItems: attentionItems.sort((a, b) => b.reasons.length - a.reasons.length).slice(0, 25),
+  });
+}));
+
+// ── Feature 6: Risk and Attention Dashboard ──────────────────────────
+// Prioritized list of cases needing attention, with transparent scoring rules.
+router.get("/dashboard/attention", handle(async (req, res) => {
+  const cases = await BusinessCase.find({ ...scope(req), status: { $nin: ["reconciled", "importing"] } }).sort({ createdAt: 1 }).limit(100).lean();
+  const snapshotIds = cases.map((c) => c.latestSnapshotId).filter(Boolean);
+  const snapshots = await BusinessSnapshot.find({ ...scope(req), id: { $in: snapshotIds } }).select("id result.ledger result.findings result.duplicateCandidates result.unallocatedPayments").lean();
+  const snapshotMap = new Map(snapshots.map((s) => [s.id, s]));
+  const imports = await BusinessImport.find({ ...scope(req), caseId: { $in: cases.map((c) => c.id) } }).lean();
+  const importMap = new Map(imports.map((i) => [i.caseId, i]));
+
+  const items = cases.map((c) => {
+    const snapshot = snapshotMap.get(c.latestSnapshotId);
+    const ledger = snapshot?.result?.ledger;
+    const findings = snapshot?.result?.findings || [];
+    const blocking = findings.filter((f) => f.severity !== "info");
+    const duplicates = snapshot?.result?.duplicateCandidates?.length || 0;
+    const unallocated = snapshot?.result?.unallocatedPayments?.length || 0;
+    const disputed = parseFloat(ledger?.disputedExposure || "0");
+    const importRecord = importMap.get(c.id);
+
+    // Transparent priority scoring — each rule adds a deterministic score
+    let priority = 0;
+    const rules = [];
+    if (c.status === "escalated") { priority += 30; rules.push("Escalated — requires manager decision"); }
+    if (c.status === "awaiting_evidence") { priority += 15; rules.push("Waiting for additional evidence"); }
+    if (c.status === "on_hold") { priority += 10; rules.push("On hold — needs review to proceed"); }
+    if (blocking.length > 0) { priority += blocking.length * 5; rules.push(`${blocking.length} blocking finding${blocking.length > 1 ? "s" : ""} require review`); }
+    if (duplicates > 0) { priority += duplicates * 8; rules.push(`${duplicates} possible duplicate${duplicates > 1 ? "s" : ""} need confirmation`); }
+    if (unallocated > 0) { priority += unallocated * 6; rules.push(`${unallocated} unlinked payment${unallocated > 1 ? "s" : ""}`); }
+    if (disputed > 1000) { priority += 20; rules.push("Disputed exposure exceeds 1,000"); }
+    else if (disputed > 0) { priority += 5; rules.push("Non-zero disputed exposure"); }
+
+    // Time-based aging: older unresolved cases score higher
+    const ageHours = (Date.now() - new Date(c.createdAt).getTime()) / 3600000;
+    if (ageHours > 168) { priority += 15; rules.push("Unresolved for more than 7 days"); }
+    else if (ageHours > 48) { priority += 5; rules.push("Unresolved for more than 48 hours"); }
+
+    // No decisions yet
+    if (!c.decisions?.length) { priority += 5; rules.push("No decisions recorded yet"); }
+
+    return {
+      caseId: c.id, poId: c.poId, supplier: c.supplier, status: c.status,
+      priority, rules,
+      ledger: ledger ? { currency: ledger.currency, recordedOutstanding: ledger.recordedOutstanding, supportedOutstanding: ledger.supportedOutstanding, disputedExposure: ledger.disputedExposure } : null,
+      blockingFindings: blocking.length, duplicateCandidates: duplicates, unallocatedPayments: unallocated,
+      decisionCount: c.decisions?.length || 0,
+      importedBy: importRecord?.actorId || null,
+      createdAt: c.createdAt,
+    };
+  }).sort((a, b) => b.priority - a.priority);
+
+  res.json({ items, scoringRules: "Priority is calculated from status, blocking findings, duplicates, unlinked payments, disputed exposure, age and decision history. Higher scores need attention first." });
+}));
+
+// ── Feature 8: Exception assignment ──────────────────────────────────
+// Assigns a case to a specific user for investigation. Stored in the decisions array.
+router.post("/cases/:id/assign", handle(async (req, res) => {
+  if (!managers.has(req.user.role)) throw fail(403, "Only managers can assign investigations");
+  const { assigneeId, assigneeName, reason } = req.body;
+  if (typeof assigneeId !== "string" || typeof assigneeName !== "string" || typeof reason !== "string" || reason.trim().length < 10) throw fail(422, "Assignee and a meaningful reason (10+ characters) are required");
+  const businessCase = await getCase(req);
+  if (businessCase.status === "reconciled") throw fail(409, "Cannot assign a reconciled case");
+  const assignment = { id: crypto.randomUUID(), action: "ASSIGN", reason: reason.trim(), actorId: String(req.user._id), actorName: req.user.name, actorRole: req.user.role, assigneeId, assigneeName, createdAt: new Date().toISOString(), effect: "internal_workflow_only_no_transfer_or_message", previousStatus: businessCase.status, newStatus: businessCase.status };
+  const updated = await BusinessCase.findOneAndUpdate({ ...scope(req), id: businessCase.id, revision: businessCase.revision }, { $set: { assigneeId, assigneeName }, $push: { decisions: assignment }, $inc: { revision: 1 } }, { returnDocument: "after" });
+  if (!updated) throw fail(409, "Another reviewer updated this case");
+  await recordAudit({ req, action: "business.assign", target: businessCase.id, meta: { assigneeId, assigneeName } });
+  res.status(201).json({ assignment });
+}));
+
+// ── Feature 11: Alerts — in-app notification log (no external provider) ─
+// Returns generated alerts based on case state. No external email/push — safe.
+router.get("/alerts", handle(async (req, res) => {
+  const cases = await BusinessCase.find(scope(req)).sort({ createdAt: 1 }).limit(200).lean();
+  const snapshotIds = cases.map((c) => c.latestSnapshotId).filter(Boolean);
+  const snapshots = await BusinessSnapshot.find({ ...scope(req), id: { $in: snapshotIds } }).select("id result.ledger result.findings result.duplicateCandidates result.unallocatedPayments").lean();
+  const snapshotMap = new Map(snapshots.map((s) => [s.id, s]));
+
+  const alerts = [];
+  for (const c of cases) {
+    if (c.status === "reconciled" || c.status === "importing") continue;
+    const snapshot = snapshotMap.get(c.latestSnapshotId);
+    const findings = snapshot?.result?.findings || [];
+    const blocking = findings.filter((f) => f.severity !== "info");
+    const duplicates = snapshot?.result?.duplicateCandidates?.length || 0;
+    const unallocated = snapshot?.result?.unallocatedPayments?.length || 0;
+    const disputed = parseFloat(snapshot?.result?.ledger?.disputedExposure || "0");
+
+    if (c.status === "escalated") alerts.push({ type: "escalated", severity: "high", caseId: c.id, poId: c.poId, supplier: c.supplier, message: `Case ${c.poId} has been escalated and requires manager review`, createdAt: c.updatedAt || c.createdAt });
+    if (blocking.length > 0) alerts.push({ type: "blocking_findings", severity: "medium", caseId: c.id, poId: c.poId, supplier: c.supplier, message: `${blocking.length} blocking issue${blocking.length > 1 ? "s" : ""} found in ${c.poId}`, createdAt: c.updatedAt || c.createdAt });
+    if (duplicates > 0) alerts.push({ type: "duplicate_candidates", severity: "high", caseId: c.id, poId: c.poId, supplier: c.supplier, message: `${duplicates} possible duplicate invoice${duplicates > 1 ? "s" : ""} in ${c.poId} — ${snapshot.result.ledger.currency} ${disputed.toFixed(2)} at risk`, createdAt: c.updatedAt || c.createdAt });
+    if (unallocated > 0) alerts.push({ type: "unlinked_payments", severity: "medium", caseId: c.id, poId: c.poId, supplier: c.supplier, message: `${unallocated} payment${unallocated > 1 ? "s" : ""} not linked to an invoice in ${c.poId}`, createdAt: c.updatedAt || c.createdAt });
+    if (c.status === "awaiting_evidence") alerts.push({ type: "awaiting_evidence", severity: "medium", caseId: c.id, poId: c.poId, supplier: c.supplier, message: `Case ${c.poId} is waiting for additional evidence`, createdAt: c.updatedAt || c.createdAt });
+
+    // Age-based alerts
+    const ageHours = (Date.now() - new Date(c.createdAt).getTime()) / 3600000;
+    if (ageHours > 168 && !c.decisions?.length) alerts.push({ type: "stale_no_action", severity: "high", caseId: c.id, poId: c.poId, supplier: c.supplier, message: `Case ${c.poId} has been open for ${Math.floor(ageHours / 24)} days with no recorded decisions`, createdAt: c.createdAt });
+  }
+
+  alerts.sort((a, b) => (a.severity === "high" ? 0 : 1) - (b.severity === "high" ? 0 : 1));
+  res.json({ alerts, notice: "These are in-app alerts generated from case state. No external notifications (email, SMS, push) are configured." });
+}));
+
+// ── Feature 12: Enhanced audit with transition history ────────────────
+router.get("/audit/detailed", handle(async (req, res) => {
+  if (!managers.has(req.user.role) && req.user.role !== "auditor") throw fail(403, "Detailed audit access requires a manager or auditor");
+  const logs = await AuditLog.find(scope(req)).sort({ createdAt: -1 }).limit(200).lean();
+  // Enrich with case context where available
+  const caseIds = [...new Set(logs.map((l) => l.target).filter(Boolean))];
+  const cases = await BusinessCase.find({ ...scope(req), id: { $in: caseIds } }).select("id poId supplier status decisions").lean();
+  const caseMap = new Map(cases.map((c) => [c.id, c]));
+  const enriched = logs.map((log) => {
+    const c = caseMap.get(log.target);
+    return { ...log, caseContext: c ? { poId: c.poId, supplier: c.supplier, currentStatus: c.status, decisionCount: c.decisions?.length || 0 } : null };
+  });
+  res.json(enriched);
+}));
+
 export default router;
