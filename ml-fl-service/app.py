@@ -26,17 +26,6 @@ def internal(x_internal_token: str = Header(default="")):
         raise HTTPException(401, "Invalid service authentication")
 
 
-@app.get("/")
-def root():
-    return {
-        "ok": True,
-        "service": "satya-reconciliation",
-        "health": "/health",
-        "docs": "/docs",
-        "note": "Reconciliation endpoints live under /internal/* and require service authentication",
-    }
-
-
 @app.get("/health")
 def health():
     return {"ok": True, "service": "satya-reconciliation", "rulesReady": True, "modelReady": evaluation().get("ready", False)}
