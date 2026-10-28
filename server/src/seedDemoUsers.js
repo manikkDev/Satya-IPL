@@ -17,7 +17,15 @@ export default async function seedDemoUsers() {
       if (!(await User.exists({ email: user.email }))) await User.create({ ...user, password: process.env.DEMO_PASSWORD || "SatyaDemo@123", active: true });
     }
   }
-  const bundle = await engine("demo");
+  let bundle;
+  for (let attempt = 0; ; attempt++) {
+    try { bundle = await engine("demo"); break; }
+    catch (error) {
+      if (attempt >= 4) throw error;
+      console.log(`Demo engine not ready (attempt ${attempt + 1}/5); retrying in 15s`);
+      await new Promise((resolve) => setTimeout(resolve, 15000));
+    }
+  }
   for (const item of bundle.cases) {
     if (await BusinessCase.exists({ companyId: bundle.company.id, id: item.id })) continue;
     for (const record of item.records) {

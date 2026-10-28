@@ -6,4 +6,6 @@ __pycache__
 data/raw
 data/processed
 data/partitions
-runs
+runs/*
+!runs/satya-linkage
+!runs/satya-linkage/*
