@@ -1,8 +1,18 @@
 import crypto from "node:crypto";
 import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
-import { BusinessCase, BusinessRecord, BusinessSnapshot, BusinessJob, BusinessImport, SourceDocument, ImportPreview } from "../models/Business.js";
-import { engine, inputFor, queueJob, graphFor, validateTransition } from "../utils/businessService.js";
+import { BusinessCase, BusinessRecord, BusinessSnapshot, BusinessJob, BusinessImport, SourceDocument, ImportPreview, BusinessAlert, BusinessReminder } from "../models/Business.js";
+import User from "../models/User.js";
+import { engine, inputFor, queueJob, graphFor } from "../utils/businessService.js";
+import {
+  validateTransition,
+  checkSegregationOfDuties,
+  detectAnomalies,
+  evaluateEvidenceCompleteness,
+  syncCaseAlerts,
+  EXCEPTION_TRANSITIONS,
+  DOCUMENT_TRANSITIONS
+} from "../utils/lifecycleAndAnomalyService.js";
 import { recordAudit } from "../utils/audit.js";
 import AuditLog from "../models/AuditLog.js";
 
@@ -36,7 +46,27 @@ router.get("/cases/:id", handle(async (req, res) => {
   const snapshot = businessCase.latestSnapshotId ? await snapshotFor(req.user.companyId, businessCase.latestSnapshotId) : null;
   const records = await BusinessRecord.find({ ...scope(req), id: { $in: businessCase.recordIds } }).lean();
   const byId = new Map(records.map((row) => [row.id, row.data]));
-  res.json({ ...businessCase, records: businessCase.inputRecords?.length ? businessCase.inputRecords : businessCase.recordIds.map((id) => byId.get(id)), snapshot: snapshot?.result || null, projection: snapshot?.projection || "pending", pendingReconciliation: !!(await BusinessJob.exists({ ...scope(req), caseId: businessCase.id, baseRevision: businessCase.revision, status: { $in: ['queued', 'running'] } })) });
+  const fullRecords = businessCase.inputRecords?.length ? businessCase.inputRecords : businessCase.recordIds.map((id) => byId.get(id));
+
+  // Compute anomalies & evidence completeness
+  const anomalies = detectAnomalies({ businessCase, snapshot: snapshot?.result, records: fullRecords });
+  const documents = await SourceDocument.find({ ...scope(req), $or: [{ caseId: businessCase.id }, { id: { $in: businessCase.recordIds } }] }).lean();
+  const completeness = evaluateEvidenceCompleteness({ records: fullRecords, documents });
+
+  // Sync alerts for this case idempotently
+  if (snapshot?.result) {
+    await syncCaseAlerts({ companyId: req.user.companyId, businessCase, snapshot: snapshot.result }).catch(() => {});
+  }
+
+  res.json({
+    ...businessCase,
+    records: fullRecords,
+    snapshot: snapshot?.result || null,
+    projection: snapshot?.projection || "pending",
+    pendingReconciliation: !!(await BusinessJob.exists({ ...scope(req), caseId: businessCase.id, baseRevision: businessCase.revision, status: { $in: ['queued', 'running'] } })),
+    anomalies,
+    evidenceCompleteness: completeness
+  });
 }));
 router.post("/cases/:id/reconcile", handle(async (req, res) => {
   if (!writers.has(req.user.role)) throw fail(403, "Reconciliation requires an operations role");
@@ -89,9 +119,13 @@ router.post("/cases/:id/decisions", handle(async (req, res) => {
   if (!transition.valid) throw fail(409, transition.reason);
   // ── Self-approval segregation of duties ────────────────────────────
   if (action === 'APPROVE') {
-    const importRecord = await BusinessImport.findOne({ companyId: req.user.companyId, caseId: businessCase.id }).lean();
-    if (importRecord && String(importRecord.actorId) === String(req.user._id)) {
-      throw fail(403, 'The user who imported this case cannot approve it (segregation of duties)');
+    const sod = await checkSegregationOfDuties({
+      companyId: req.user.companyId,
+      caseId: businessCase.id,
+      userId: req.user._id
+    });
+    if (!sod.allowed) {
+      throw fail(403, sod.reason);
     }
   }
   if (!["APPROVE", "REQUEST_CLARIFICATION", "ESCALATE", "PLACE_ON_HOLD"].includes(action) || typeof reason !== "string" || reason.trim().length < 10 || reason.length > 2000) throw fail(422, "A permitted action and a meaningful reason are required");
@@ -178,7 +212,7 @@ router.post("/imports", handle(async (req, res) => {
     await engine("reconcile", { caseId, companyId, poId, records: normalized });
     if (!businessCase) {
       if (await BusinessRecord.exists({ companyId, id: { $in: normalized.map((record) => record.id) } })) throw fail(409, "Source record IDs already exist; do not create a new liability by reimporting them");
-      businessCase = await BusinessCase.create({ companyId, id: caseId, title, sector: "Imported", poId, supplier: normalized.find((record) => record.id === poId)?.supplier, sourceChecksum: checksum, inputRecords: normalized, recordIds: normalized.map((record) => record.id), status: "importing" });
+      businessCase = await BusinessCase.create({ companyId, id: caseId, title, sector: "Imported", poId, supplier: normalized.find((record) => record.id === poId)?.supplier, sourceChecksum: checksum, inputRecords: normalized, recordIds: normalized.map((record) => record.id), status: "importing", createdBy: String(req.user._id) });
     }
     for (const document of storedPreview?.documents || []) await SourceDocument.updateOne({ companyId, id: document.id }, { $setOnInsert: document }, { upsert: true });
     for (const record of normalized) await BusinessRecord.updateOne({ companyId, id: record.id }, { $setOnInsert: { caseId, kind: record.type, data: record, ...(record.amount ? { amount: record.amount } : {}), sourceChecksum: checksum } }, { upsert: true });
@@ -350,52 +384,345 @@ router.get("/dashboard/attention", handle(async (req, res) => {
   res.json({ items, scoringRules: "Priority is calculated from status, blocking findings, duplicates, unlinked payments, disputed exposure, age and decision history. Higher scores need attention first." });
 }));
 
-// ── Feature 8: Exception assignment ──────────────────────────────────
-// Assigns a case to a specific user for investigation. Stored in the decisions array.
-router.post("/cases/:id/assign", handle(async (req, res) => {
-  if (!managers.has(req.user.role)) throw fail(403, "Only managers can assign investigations");
-  const { assigneeId, assigneeName, reason } = req.body;
-  if (typeof assigneeId !== "string" || typeof assigneeName !== "string" || typeof reason !== "string" || reason.trim().length < 10) throw fail(422, "Assignee and a meaningful reason (10+ characters) are required");
-  const businessCase = await getCase(req);
-  if (businessCase.status === "reconciled") throw fail(409, "Cannot assign a reconciled case");
-  const assignment = { id: crypto.randomUUID(), action: "ASSIGN", reason: reason.trim(), actorId: String(req.user._id), actorName: req.user.name, actorRole: req.user.role, assigneeId, assigneeName, createdAt: new Date().toISOString(), effect: "internal_workflow_only_no_transfer_or_message", previousStatus: businessCase.status, newStatus: businessCase.status };
-  const updated = await BusinessCase.findOneAndUpdate({ ...scope(req), id: businessCase.id, revision: businessCase.revision }, { $set: { assigneeId, assigneeName }, $push: { decisions: assignment }, $inc: { revision: 1 } }, { returnDocument: "after" });
-  if (!updated) throw fail(409, "Another reviewer updated this case");
-  await recordAudit({ req, action: "business.assign", target: businessCase.id, meta: { assigneeId, assigneeName } });
-  res.status(201).json({ assignment });
+// ── Feature 3: Exception assignment & resolution workflow ─────────────
+// Get assignable users for the company
+router.get("/users/assignable", handle(async (req, res) => {
+  const users = await User.find({ companyId: req.user.companyId, active: true }).select("_id name email role").lean();
+  res.json(users.map(u => ({ id: String(u._id), name: u.name, email: u.email, role: u.role })));
 }));
 
-// ── Feature 11: Alerts — in-app notification log (no external provider) ─
-// Returns generated alerts based on case state. No external email/push — safe.
-router.get("/alerts", handle(async (req, res) => {
-  const cases = await BusinessCase.find(scope(req)).sort({ createdAt: 1 }).limit(200).lean();
-  const snapshotIds = cases.map((c) => c.latestSnapshotId).filter(Boolean);
-  const snapshots = await BusinessSnapshot.find({ ...scope(req), id: { $in: snapshotIds } }).select("id result.ledger result.findings result.duplicateCandidates result.unallocatedPayments").lean();
-  const snapshotMap = new Map(snapshots.map((s) => [s.id, s]));
-
-  const alerts = [];
-  for (const c of cases) {
-    if (c.status === "reconciled" || c.status === "importing") continue;
-    const snapshot = snapshotMap.get(c.latestSnapshotId);
-    const findings = snapshot?.result?.findings || [];
-    const blocking = findings.filter((f) => f.severity !== "info");
-    const duplicates = snapshot?.result?.duplicateCandidates?.length || 0;
-    const unallocated = snapshot?.result?.unallocatedPayments?.length || 0;
-    const disputed = parseFloat(snapshot?.result?.ledger?.disputedExposure || "0");
-
-    if (c.status === "escalated") alerts.push({ type: "escalated", severity: "high", caseId: c.id, poId: c.poId, supplier: c.supplier, message: `Case ${c.poId} has been escalated and requires manager review`, createdAt: c.updatedAt || c.createdAt });
-    if (blocking.length > 0) alerts.push({ type: "blocking_findings", severity: "medium", caseId: c.id, poId: c.poId, supplier: c.supplier, message: `${blocking.length} blocking issue${blocking.length > 1 ? "s" : ""} found in ${c.poId}`, createdAt: c.updatedAt || c.createdAt });
-    if (duplicates > 0) alerts.push({ type: "duplicate_candidates", severity: "high", caseId: c.id, poId: c.poId, supplier: c.supplier, message: `${duplicates} possible duplicate invoice${duplicates > 1 ? "s" : ""} in ${c.poId} — ${snapshot.result.ledger.currency} ${disputed.toFixed(2)} at risk`, createdAt: c.updatedAt || c.createdAt });
-    if (unallocated > 0) alerts.push({ type: "unlinked_payments", severity: "medium", caseId: c.id, poId: c.poId, supplier: c.supplier, message: `${unallocated} payment${unallocated > 1 ? "s" : ""} not linked to an invoice in ${c.poId}`, createdAt: c.updatedAt || c.createdAt });
-    if (c.status === "awaiting_evidence") alerts.push({ type: "awaiting_evidence", severity: "medium", caseId: c.id, poId: c.poId, supplier: c.supplier, message: `Case ${c.poId} is waiting for additional evidence`, createdAt: c.updatedAt || c.createdAt });
-
-    // Age-based alerts
-    const ageHours = (Date.now() - new Date(c.createdAt).getTime()) / 3600000;
-    if (ageHours > 168 && !c.decisions?.length) alerts.push({ type: "stale_no_action", severity: "high", caseId: c.id, poId: c.poId, supplier: c.supplier, message: `Case ${c.poId} has been open for ${Math.floor(ageHours / 24)} days with no recorded decisions`, createdAt: c.createdAt });
+// Assigns or reassigns a case with authoritative user validation
+router.post("/cases/:id/assign", handle(async (req, res) => {
+  if (!managers.has(req.user.role)) throw fail(403, "Only managers can assign investigations");
+  const { assigneeId, reason } = req.body;
+  if (!assigneeId || typeof assigneeId !== "string" || typeof reason !== "string" || reason.trim().length < 10) {
+    throw fail(422, "A valid assigneeId and reason (10+ characters) are required");
   }
 
-  alerts.sort((a, b) => (a.severity === "high" ? 0 : 1) - (b.severity === "high" ? 0 : 1));
-  res.json({ alerts, notice: "These are in-app alerts generated from case state. No external notifications (email, SMS, push) are configured." });
+  // Validate assignee exists, active, and belongs to user's company
+  const targetUser = await User.findOne({ _id: assigneeId, companyId: req.user.companyId, active: true }).lean();
+  if (!targetUser) throw fail(404, "Assignee not found in your organization or inactive");
+
+  const businessCase = await getCase(req);
+  if (businessCase.status === "reconciled") throw fail(409, "Cannot assign a reconciled case");
+
+  const prevAssignee = businessCase.assigneeName || "Unassigned";
+  const actionName = businessCase.assigneeId ? "REASSIGN" : "ASSIGN";
+  const nextExStatus = businessCase.exceptionStatus === "open" ? "assigned" : businessCase.exceptionStatus || "assigned";
+
+  const assignmentDecision = {
+    id: crypto.randomUUID(),
+    action: actionName,
+    reason: reason.trim(),
+    actorId: String(req.user._id),
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    assigneeId: String(targetUser._id),
+    assigneeName: targetUser.name,
+    createdAt: new Date().toISOString(),
+    effect: `Investigation assigned to ${targetUser.name} (previously ${prevAssignee})`,
+    previousStatus: businessCase.status,
+    newStatus: businessCase.status,
+    previousExceptionStatus: businessCase.exceptionStatus || "open",
+    newExceptionStatus: nextExStatus
+  };
+
+  const updated = await BusinessCase.findOneAndUpdate(
+    { ...scope(req), id: businessCase.id, revision: businessCase.revision },
+    {
+      $set: {
+        assigneeId: String(targetUser._id),
+        assigneeName: targetUser.name,
+        exceptionStatus: nextExStatus
+      },
+      $push: { decisions: assignmentDecision },
+      $inc: { revision: 1 }
+    },
+    { returnDocument: "after" }
+  );
+  if (!updated) throw fail(409, "Another reviewer updated this case; please refresh");
+
+  await recordAudit({
+    req,
+    action: `business.${actionName.toLowerCase()}`,
+    target: businessCase.id,
+    meta: { assigneeId: String(targetUser._id), assigneeName: targetUser.name, reason: reason.trim() }
+  });
+
+  res.status(201).json({ assignment: assignmentDecision, case: updated });
+}));
+
+// Update exception resolution status (in_progress, awaiting_evidence, resolved, reopened)
+router.post("/cases/:id/exception-status", handle(async (req, res) => {
+  const { status: targetStatus, notes, reason } = req.body;
+  if (!targetStatus || typeof targetStatus !== "string") throw fail(422, "Target exception status required");
+  const businessCase = await getCase(req);
+
+  const currentEx = businessCase.exceptionStatus || "open";
+  const permitted = EXCEPTION_TRANSITIONS.get(currentEx);
+  if (!permitted || !permitted.has(targetStatus)) {
+    throw fail(409, `Cannot transition exception from "${currentEx}" to "${targetStatus}"`);
+  }
+
+  // Authorization: assignee or manager can update status; resolve/reopen requires meaningful notes/reason
+  const isAssignee = businessCase.assigneeId && String(businessCase.assigneeId) === String(req.user._id);
+  const isManager = managers.has(req.user.role);
+  if (!isAssignee && !isManager) {
+    throw fail(403, "Only the assigned investigator or a manager can update exception status");
+  }
+
+  const commentary = (notes || reason || "").trim();
+  if ((targetStatus === "resolved" || targetStatus === "reopened") && commentary.length < 10) {
+    throw fail(422, `A note of at least 10 characters is required to mark an exception as ${targetStatus}`);
+  }
+
+  const decisionObj = {
+    id: crypto.randomUUID(),
+    action: `EXCEPTION_${targetStatus.toUpperCase()}`,
+    reason: commentary || `Exception marked ${targetStatus}`,
+    actorId: String(req.user._id),
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    createdAt: new Date().toISOString(),
+    effect: `Exception status transitioned from ${currentEx} to ${targetStatus}`,
+    previousStatus: businessCase.status,
+    newStatus: businessCase.status,
+    previousExceptionStatus: currentEx,
+    newExceptionStatus: targetStatus
+  };
+
+  const updateSet = { exceptionStatus: targetStatus };
+  if (targetStatus === "resolved") {
+    updateSet.resolutionNotes = commentary;
+  }
+
+  const updated = await BusinessCase.findOneAndUpdate(
+    { ...scope(req), id: businessCase.id, revision: businessCase.revision },
+    {
+      $set: updateSet,
+      $push: { decisions: decisionObj },
+      $inc: { revision: 1 }
+    },
+    { returnDocument: "after" }
+  );
+  if (!updated) throw fail(409, "Another reviewer updated this case; please refresh");
+
+  await recordAudit({
+    req,
+    action: `business.exception_${targetStatus}`,
+    target: businessCase.id,
+    meta: { previousStatus: currentEx, newStatus: targetStatus, commentary }
+  });
+
+  res.status(200).json({ status: targetStatus, case: updated });
+}));
+
+// ── Feature 4: Document Verification & Lifecycle ──────────────────────
+router.get("/cases/:id/documents", handle(async (req, res) => {
+  const businessCase = await getCase(req);
+  const documents = await SourceDocument.find({
+    ...scope(req),
+    $or: [{ caseId: businessCase.id }, { id: { $in: businessCase.recordIds } }]
+  }).select("id name source mediaType checksum documentType verificationStatus verifiedBy verifiedAt rejectionReason version supersededBy previousVersionId createdAt").lean();
+  res.json(documents);
+}));
+
+router.post("/documents/:id/verify", handle(async (req, res) => {
+  if (!managers.has(req.user.role)) throw fail(403, "Document verification requires a manager role");
+  const { status: targetStatus, reason, documentType } = req.body;
+  if (!["verified", "rejected"].includes(targetStatus)) {
+    throw fail(422, "Status must be 'verified' or 'rejected'");
+  }
+  if (targetStatus === "rejected" && (!reason || reason.trim().length < 5)) {
+    throw fail(422, "A rejection reason is required");
+  }
+
+  const doc = await SourceDocument.findOne({ ...scope(req), id: req.params.id });
+  if (!doc) throw fail(404, "Source document not found");
+
+  const currentStatus = doc.verificationStatus || "pending_verification";
+  const allowed = DOCUMENT_TRANSITIONS.get(currentStatus);
+  if (!allowed || !allowed.has(targetStatus)) {
+    throw fail(409, `Cannot transition document from ${currentStatus} to ${targetStatus}`);
+  }
+
+  doc.verificationStatus = targetStatus;
+  doc.verifiedBy = req.user.name;
+  doc.verifiedAt = new Date();
+  if (reason) doc.rejectionReason = reason.trim();
+  if (documentType) doc.documentType = documentType;
+  await doc.save();
+
+  await recordAudit({
+    req,
+    action: `document.${targetStatus}`,
+    target: doc.id,
+    meta: { previousStatus: currentStatus, newStatus: targetStatus, reason }
+  });
+
+  res.json({ document: doc });
+}));
+
+// ── Feature 5: Persistent Alerts Management & Reminders ───────────────
+router.get("/alerts", handle(async (req, res) => {
+  // Return persistent alerts from database
+  const alerts = await BusinessAlert.find(scope(req)).sort({ createdAt: -1 }).limit(100).lean();
+  res.json({ alerts, count: alerts.length });
+}));
+
+router.post("/alerts/:alertId/acknowledge", handle(async (req, res) => {
+  const alert = await BusinessAlert.findOneAndUpdate(
+    { ...scope(req), alertId: req.params.alertId },
+    { $set: { status: "acknowledged", acknowledgedBy: req.user.name, acknowledgedAt: new Date() } },
+    { returnDocument: "after" }
+  );
+  if (!alert) throw fail(404, "Alert not found");
+  await recordAudit({ req, action: "alert.acknowledge", target: alert.alertId, meta: { caseId: alert.caseId } });
+  res.json({ alert });
+}));
+
+router.post("/alerts/:alertId/dismiss", handle(async (req, res) => {
+  const { reason } = req.body;
+  const alert = await BusinessAlert.findOneAndUpdate(
+    { ...scope(req), alertId: req.params.alertId },
+    { $set: { status: "dismissed", dismissedBy: req.user.name, dismissedAt: new Date(), dismissalReason: (reason || "").trim() } },
+    { returnDocument: "after" }
+  );
+  if (!alert) throw fail(404, "Alert not found");
+  await recordAudit({ req, action: "alert.dismiss", target: alert.alertId, meta: { caseId: alert.caseId, reason } });
+  res.json({ alert });
+}));
+
+// Reminders
+router.get("/cases/:id/reminders", handle(async (req, res) => {
+  const reminders = await BusinessReminder.find({ ...scope(req), caseId: req.params.id, status: "active" }).sort({ dueAt: 1 }).lean();
+  res.json(reminders);
+}));
+
+router.post("/cases/:id/reminders", handle(async (req, res) => {
+  const { dueAt, reason, recipientId } = req.body;
+  if (!dueAt || isNaN(Date.parse(dueAt)) || !reason || reason.trim().length < 5) {
+    throw fail(422, "Valid due date and reason required");
+  }
+  const businessCase = await getCase(req);
+  let recipientName = null;
+  if (recipientId) {
+    const user = await User.findOne({ _id: recipientId, companyId: req.user.companyId, active: true }).lean();
+    if (user) recipientName = user.name;
+  }
+  const reminder = await BusinessReminder.create({
+    ...scope(req),
+    reminderId: `REM-${crypto.randomUUID()}`,
+    caseId: businessCase.id,
+    poId: businessCase.poId,
+    dueAt: new Date(dueAt),
+    reason: reason.trim(),
+    recipientId: recipientId || null,
+    recipientName: recipientName || businessCase.assigneeName || null,
+    createdBy: req.user.name,
+    status: "active"
+  });
+
+  await recordAudit({ req, action: "reminder.create", target: reminder.reminderId, meta: { caseId: businessCase.id, dueAt } });
+  res.status(201).json(reminder);
+}));
+
+// ── Feature 6: Audit-Ready, Evidence-Linked Reports (JSON & CSV) ──────
+router.get("/cases/:id/report", handle(async (req, res) => {
+  const format = req.query.format === "csv" ? "csv" : "json";
+  const businessCase = await getCase(req);
+  const snapshot = businessCase.latestSnapshotId ? await snapshotFor(req.user.companyId, businessCase.latestSnapshotId) : null;
+  const records = await BusinessRecord.find({ ...scope(req), id: { $in: businessCase.recordIds } }).lean();
+  const byId = new Map(records.map((r) => [r.id, r.data]));
+  const fullRecords = businessCase.inputRecords?.length ? businessCase.inputRecords : businessCase.recordIds.map((id) => byId.get(id));
+  const documents = await SourceDocument.find({ ...scope(req), $or: [{ caseId: businessCase.id }, { id: { $in: businessCase.recordIds } }] }).lean();
+
+  const anomalies = detectAnomalies({ businessCase, snapshot: snapshot?.result, records: fullRecords });
+  const completeness = evaluateEvidenceCompleteness({ records: fullRecords, documents });
+  const audits = await AuditLog.find({ ...scope(req), target: businessCase.id }).sort({ createdAt: -1 }).limit(50).lean();
+
+  const reportPayload = {
+    manifest: {
+      generatedAt: new Date().toISOString(),
+      requestedBy: { id: String(req.user._id), name: req.user.name, role: req.user.role },
+      companyId: req.user.companyId,
+      caseId: businessCase.id,
+      revision: businessCase.revision,
+      snapshotId: businessCase.latestSnapshotId || null,
+    },
+    caseSummary: {
+      id: businessCase.id,
+      poId: businessCase.poId,
+      title: businessCase.title,
+      supplier: businessCase.supplier,
+      workflowStatus: businessCase.status,
+      exceptionStatus: businessCase.exceptionStatus || "open",
+      assignee: businessCase.assigneeName || "Unassigned",
+      resolutionNotes: businessCase.resolutionNotes || null,
+      createdBy: businessCase.createdBy || "System/Import"
+    },
+    financialLedger: snapshot?.result?.ledger || null,
+    discrepancies: snapshot?.result?.findings || [],
+    financialAnomalies: anomalies,
+    evidenceCompleteness: completeness,
+    sourceDocuments: documents.map(d => ({
+      id: d.id,
+      name: d.name,
+      documentType: d.documentType || "other",
+      verificationStatus: d.verificationStatus || "pending_verification",
+      verifiedBy: d.verifiedBy || null,
+      checksum: d.checksum || null
+    })),
+    decisionsHistory: businessCase.decisions || [],
+    auditTrail: audits.map(a => ({
+      eventId: a.eventId,
+      action: a.action,
+      role: a.role,
+      createdAt: a.createdAt,
+      meta: a.meta
+    }))
+  };
+
+  // Record report generation audit
+  await recordAudit({ req, action: "report.export", target: businessCase.id, meta: { format } });
+
+  if (format === "json") {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Disposition", `attachment; filename="satya-report-${businessCase.poId || businessCase.id}.json"`);
+    return res.json(reportPayload);
+  }
+
+  // Generate safe CSV
+  const sanitize = (val) => {
+    if (val === null || val === undefined) return '""';
+    let s = String(val).replace(/"/g, '""');
+    if (/^[=\+\-@]/.test(s)) s = `'${s}`; // Prevent CSV formula injection
+    return `"${s}"`;
+  };
+
+  const rows = [
+    ["SECTION", "FIELD_1", "FIELD_2", "FIELD_3", "FIELD_4", "FIELD_5"],
+    ["METADATA", "Report ID", businessCase.id, "Generated", reportPayload.manifest.generatedAt, `Requester: ${req.user.name}`],
+    ["CASE", "PO ID", businessCase.poId, "Supplier", businessCase.supplier, `Status: ${businessCase.status}`],
+    ["LEDGER", "Currency", reportPayload.financialLedger?.currency || "N/A", "Supported Outstanding", reportPayload.financialLedger?.supportedOutstanding || "N/A", `Disputed: ${reportPayload.financialLedger?.disputedExposure || "0"}`],
+    ["---", "---", "---", "---", "---", "---"],
+    ["ANOMALIES", "Anomaly ID", "Type", "Severity", "Title", "Observed vs Baseline"],
+    ...anomalies.map(a => ["ANOMALY", a.id, a.type, a.severity, a.title, `${a.observedValue} vs ${a.baselineValue}`]),
+    ["---", "---", "---", "---", "---", "---"],
+    ["FINDINGS", "Finding ID", "Type", "Severity", "Action", "Title"],
+    ...(snapshot?.result?.findings || []).map(f => ["FINDING", f.id, f.type, f.severity, f.action, f.title]),
+    ["---", "---", "---", "---", "---", "---"],
+    ["DOCUMENTS", "Doc ID", "Name", "Type", "Verification Status", "Verified By"],
+    ...documents.map(d => ["DOCUMENT", d.id, d.name, d.documentType || "other", d.verificationStatus || "pending", d.verifiedBy || "N/A"]),
+    ["---", "---", "---", "---", "---", "---"],
+    ["DECISIONS", "Decision ID", "Action", "Actor", "Date", "Reason"],
+    ...(businessCase.decisions || []).map(d => ["DECISION", d.id, d.action, d.actorName, d.createdAt, d.reason])
+  ];
+
+  const csvContent = rows.map(r => r.map(sanitize).join(",")).join("\r\n");
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="satya-report-${businessCase.poId || businessCase.id}.csv"`);
+  return res.send(csvContent);
 }));
 
 // ── Feature 12: Enhanced audit with transition history ────────────────

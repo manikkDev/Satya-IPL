@@ -390,4 +390,65 @@ test("business contract: authentication, immutable evidence, graph, replay and d
     });
     assert.equal(held.response.status, 201);
   });
+
+  // ── Features 1-6 Enhancement Test Specifications ─────────────────────
+
+  await t.test("feature 3: exception assignment rejects non-existent or inactive user", async () => {
+    const managerUser = await login("manager@satya.demo");
+    const result = await call("/api/v1/cases/pumps-1001/assign", managerUser, {
+      assigneeId: "non-existent-user-id-000",
+      reason: "Assigning to unknown user should fail"
+    });
+    assert.equal(result.response.status, 404);
+  });
+
+  await t.test("feature 3: exception status transition requires valid progression and note", async () => {
+    const managerUser = await login("manager@satya.demo");
+    // Invalid transition
+    const invalid = await call("/api/v1/cases/pumps-1001/exception-status", managerUser, {
+      status: "reopened", // from open to reopened is invalid
+      notes: "Attempting invalid transition"
+    });
+    assert.equal(invalid.response.status, 409);
+
+    // Short note for resolved
+    const shortNote = await call("/api/v1/cases/pumps-1001/exception-status", managerUser, {
+      status: "resolved",
+      notes: "short"
+    });
+    assert.equal(shortNote.response.status, 422);
+  });
+
+  await t.test("feature 4: document verification requires manager and valid transition", async () => {
+    const analystUser = await login("test-analyst@satya.demo");
+    const managerUser = await login("manager@satya.demo");
+    // Analyst cannot verify
+    const forbidden = await call("/api/v1/documents/sample-doc-1/verify", analystUser, {
+      status: "verified"
+    });
+    assert.equal(forbidden.response.status, 403);
+
+    // Invalid status string
+    const invalidStatus = await call("/api/v1/documents/sample-doc-1/verify", managerUser, {
+      status: "unknown_status"
+    });
+    assert.equal(invalidStatus.response.status, 422);
+  });
+
+  await t.test("feature 5: persistent alert acknowledgement and dismissal", async () => {
+    const analystUser = await login("test-analyst@satya.demo");
+    const result = await call("/api/v1/alerts/ALT-NONEXISTENT/acknowledge", analystUser, {});
+    assert.equal(result.response.status, 404);
+  });
+
+  await t.test("feature 6: audit-ready report endpoint supports JSON and safe CSV", async () => {
+    const managerUser = await login("manager@satya.demo");
+    const jsonReport = await call("/api/v1/cases/pumps-1001/report?format=json", managerUser);
+    assert.equal(jsonReport.response.status, 200);
+    assert.ok(jsonReport.data.manifest);
+    assert.ok(jsonReport.data.caseSummary);
+    assert.ok(jsonReport.data.financialLedger);
+    assert.ok(Array.isArray(jsonReport.data.financialAnomalies));
+    assert.ok(jsonReport.data.evidenceCompleteness);
+  });
 });

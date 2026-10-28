@@ -1,325 +1,134 @@
 # SATYA AI — Implementation Handoff Document
 
-> **Branch:** `feature/satya-ai-enhancements`
+> **Branch:** `srl500/satya-ai-feature-implementation`
 > **Date:** 2026-10-29
-> **Author:** AI Engineering Assistant
-> **Status:** Implementation complete. Tests NOT RUN — deferred to teammate.
+> **Author:** AI Engineering Assistant (Satya Contributor)
+> **Status:** Implementation Complete. Runtime testing deferred to teammate.
 
 ---
 
 ## 1. Executive Summary
 
-This document describes all code changes made to the Satya AI repository to implement the 12 approved product enhancement features. The implementation prioritises reuse of existing functionality — the majority of features were already substantially present in the ML reconciliation engine, and the changes consist of new aggregation/presentation endpoints on the backend and enhanced frontend pages.
+This document describes all code changes made to the Satya AI repository (`manikkDev/Satya-IPL`) to complete the 12 approved features and implement the targeted gaps across the **six core feature areas**:
+1. **Complete Transaction Lifecycle State Machine**
+2. **Real Duplicate and Financial Anomaly Detection**
+3. **Complete Exception Assignment and Resolution Workflow**
+4. **Complete Document Management and Verification**
+5. **Persistent, Actionable Alerts and Reminders**
+6. **Audit-Ready, Evidence-Linked Reports**
 
-**No tests were executed.** The user's laptop cannot handle the Docker workload required to run MongoDB, Neo4j, and the ML service simultaneously. All test verification is deferred to a teammate with a more powerful machine.
-
-**No destructive operations were performed.** No existing financial calculations, reconciliation logic, ML models, or existing test expectations were modified.
+**No runtime tests or Docker stacks were started locally** on this machine due to resource limitations. All automated tests, integration suites, and Docker verification commands are deferred to a teammate on a more powerful laptop.
 
 ---
 
-## 2. Feature Implementation Summary
+## 2. Six Core Feature Enhancements Implemented
 
-| # | Feature | Status | What was done |
-|---|---------|--------|---------------|
-| 1 | Smart Obligation Tracking | **Enhanced** | New `GET /dashboard/summary` endpoint aggregates obligation data across all cases. Frontend dashboard upgraded. |
-| 2 | Evidence-Linked Reconciliation | **Already present** | Verified: evidence array with locators, field evidence from CSV, source documents all working. No changes needed. |
-| 3 | Discrepancy Explanation Engine | **Already present** | Verified: findings with title, detail, severity, action, certainty, evidenceIds, exposure all working. No changes needed. |
-| 4 | Transaction Lifecycle State Machine | **NEW** | FSM transition map, `validateTransition()`, self-approval block, transition audit metadata. 5 new test cases. |
-| 5 | Duplicate/Anomaly Detection | **Already present** | Verified: `duplicateCandidates`, `confirm_duplicate` review action, ML matching all working. No changes needed. |
-| 6 | Risk Dashboard | **Enhanced** | New `GET /dashboard/attention` endpoint with transparent priority scoring. Frontend attention table added. |
-| 7 | Connected Transaction Graph | **Already present** | Verified: Neo4j projection, `EVIDENCE_LINK` relationships, `graphFor()`, graph tab all working. No changes needed. |
-| 8 | Exception Resolution Workflow | **Enhanced** | New `POST /cases/:id/assign` endpoint. `assigneeId`/`assigneeName` fields added to model. Frontend assign panel added. |
-| 9 | Document Management | **Already present** | Verified: `SourceDocument` model, upload via CSV import, retrieval API all working. No changes needed. |
-| 10 | Financial Insights Dashboard | **Enhanced** | `/dashboard/summary` provides supplier balances, status distribution, attention items. Frontend dashboard upgraded. |
-| 11 | Smart Alerts | **NEW** | New `GET /alerts` endpoint generates in-app alerts from case state (escalated, blocking, duplicates, stale). Frontend alert table added. |
-| 12 | Audit Trail | **Enhanced** | New `GET /audit/detailed` endpoint returns audit entries enriched with case context. Frontend audit page upgraded with linked case context. |
+### Feature 1 — Complete Transaction Lifecycle State Machine
+- **Centralized Service:** `server/src/utils/lifecycleAndAnomalyService.js` provides authoritative transition validation (`validateTransition`) and segregation-of-duties enforcement (`checkSegregationOfDuties`).
+- **Segregation of Duties:** Ensures neither the original importer (`BusinessImport.actorId`) nor the case creator (`BusinessCase.createdBy`) can approve their own transaction. No administrator bypass is permitted.
+- **Optimistic Concurrency & Atomicity:** Preserved `expectedRevision` and `snapshotId` conditional updates in MongoDB to prevent stale overwrites.
+- **Audit Metadata:** Transitions record `previousStatus`, `newStatus`, `actorId`, `actorName`, `actorRole`, `action`, and reason in the case's decisions array and centralized `AuditLog`.
+
+### Feature 2 — Real Duplicate & Financial Anomaly Detection
+- **Deterministic Identifier & Normalization:** `normalizeInvoiceRef()` strips punctuation and canonicalizes invoice references; `normalizeSupplier()` strips corporate suffixes and normalizes case.
+- **Multi-signal Anomaly Detection (`detectAnomalies`):**
+  1. *Duplicate Invoices:* Repeated invoice references for the same supplier.
+  2. *Invoice Exceeds PO:* Cumulative billed amount exceeding approved PO commitment value.
+  3. *Over-Delivery:* Delivery receipt quantities (GRN) exceeding PO ordered quantities for any SKU.
+  4. *Excess Payments:* Unallocated payment amounts exceeding supported obligation.
+  5. *Incomplete Chains:* Invoices observed with missing goods receipts (missing GRNs).
+- **Explainable Findings Format:** Each anomaly includes `id`, `type`, `severity`, `title`, `detail`, `observedValue`, `baselineValue`, `confidence`, `action`, and `status`.
+
+### Feature 3 — Complete Exception Assignment & Resolution Workflow
+- **Authoritative Assignee Validation:** New `GET /api/v1/users/assignable` queries active users within the authenticated user's `companyId`. Arbitrary names in assignment requests are rejected; assignees must exist in `User`.
+- **Exception Lifecycle:** Formal state machine with `open` -> `assigned` -> `in_progress` -> `awaiting_evidence` -> `resolved` -> `reopened`.
+- **Endpoints:**
+  - `POST /api/v1/cases/:id/assign`: Assign/reassign to validated user.
+  - `POST /api/v1/cases/:id/exception-status`: Transition exception status with mandatory notes/reasons for `resolved` and `reopened`.
+- **Frontend Integration:** Assignee selector dropdown with verified company users and Exception Lifecycle action buttons on the Case detail page.
+
+### Feature 4 — Complete Document Management & Verification
+- **Model Enhancements:** `SourceDocument` schema augmented with `caseId`, `documentType`, `verificationStatus` (`uploaded`, `pending_verification`, `verified`, `rejected`, `superseded`), `verifiedBy`, `verifiedAt`, `rejectionReason`, and `version`.
+- **Verification Rule:** `POST /api/v1/documents/:id/verify` permits managers to verify or reject documents with controlled transitions.
+- **Evidence Completeness Service (`evaluateEvidenceCompleteness`):** Computes completeness ratios across expected documents (PO, GRN, Commercial Invoice, Remittance) and verifies if essential documents exist for whole-case approval.
+- **Frontend Integration:** "Documents" tab on Case page displaying document metadata, verification status, and Manager Verify/Reject controls.
+
+### Feature 5 — Persistent, Actionable Alerts & Reminders
+- **Persistent Alert Persistence:** Added `BusinessAlert` and `BusinessReminder` collections scoped by `companyId`.
+- **Idempotent Generation (`syncCaseAlerts`):** Case updates generate/update persistent alerts with unique deduplication keys (`dedupKey`), preventing duplicates upon page reloads.
+- **Lifecycle & Endpoints:**
+  - `GET /api/v1/alerts`: Returns persistent company alerts.
+  - `POST /api/v1/alerts/:alertId/acknowledge`: Marks alert acknowledged.
+  - `POST /api/v1/alerts/:alertId/dismiss`: Dismisses alert with recorded reason.
+  - `GET/POST /api/v1/cases/:id/reminders`: Schedules persistent in-app follow-up reminders.
+- **Frontend Integration:** Dashboard and Case detail pages updated with interactive Acknowledge, Dismiss, and Schedule Reminder controls.
+
+### Feature 6 — Audit-Ready, Evidence-Linked Reports
+- **Report Generation Endpoint:** `GET /api/v1/cases/:id/report?format=json` and `format=csv`.
+- **Comprehensive Traceability Payload:**
+  - Report manifest (timestamp, requesting actor identity and role, case ID, revision, snapshot ID).
+  - Case summary (workflow status, exception status, assignee, creator).
+  - Financial ledger (currency, supported outstanding, recorded, disputed).
+  - Financial anomalies and reconciliation discrepancies.
+  - Evidence completeness ratio and missing checklist items.
+  - Source documents and verification statuses.
+  - Complete decision and status transition history.
+  - Audit trail event logs with IP and event IDs.
+- **CSV Formula Injection Mitigation:** All CSV fields are escaped, quoted, and prefixed with `'` if starting with `=`, `+`, `-`, or `@`.
+- **Frontend Integration:** One-click "Export JSON" and "Export CSV" buttons embedded directly in the Case metadata bar.
 
 ---
 
 ## 3. Files Changed
 
-### Backend — `server/`
+### Backend (`server/`)
+1. `src/models/Business.js` — Added fields for exception status, creator, document verification, and defined `BusinessAlert` and `BusinessReminder` models.
+2. `src/utils/lifecycleAndAnomalyService.js` (NEW) — Core service for FSM transitions, segregation of duties, anomaly detection, evidence completeness, and alert synchronization.
+3. `src/routes/businessRoutes.js` — Wired all new endpoints (`/users/assignable`, `/cases/:id/assign`, `/cases/:id/exception-status`, `/cases/:id/documents`, `/documents/:id/verify`, `/alerts/:alertId/acknowledge`, `/alerts/:alertId/dismiss`, `/cases/:id/reminders`, `/cases/:id/report`).
+4. `test/business.test.mjs` — Added test specifications for exception assignment rejection, invalid exception transition, document verification permissions, and report exports.
 
-| File | Change type | Description |
-|------|-------------|-------------|
-| `src/utils/businessService.js` | Modified | Added `TRANSITIONS` Map (lines 6-39), `validateTransition()` function (lines 41-64). Both exported. |
-| `src/routes/businessRoutes.js` | Modified | Added transition validation (line 88-89), self-approval block (lines 91-96), `previousStatus`/`newStatus` on decisions (line 123). Added 6 new endpoints: `/dashboard/summary`, `/dashboard/attention`, `/cases/:id/assign`, `/alerts`, `/audit/detailed` (lines 199-414). |
-| `src/models/Business.js` | Modified | Added `assigneeId` and `assigneeName` fields to `BusinessCase` schema (line 12). Additive, nullable, no migration required. |
-| `test/business.test.mjs` | Modified | Added 5 new test cases for Feature 4 (lines 197-393): importing rejection, reconciled rejection, self-approval block, audit metadata, non-approve importer test. |
-
-### Frontend — `client/`
-
-| File | Change type | Description |
-|------|-------------|-------------|
-| `src/lib/business-api.ts` | Modified | Added types: `DashboardSummary`, `AttentionItem`, `Alert`, `DetailedAuditEntry`. Added API methods: `dashboardSummary`, `dashboardAttention`, `alerts`, `assign`, `auditDetailed`. Updated `BusinessCase` type with `previousStatus`, `newStatus`, `assigneeId`, `assigneeName`. |
-| `src/app/dashboard/page.tsx` | Modified | Upgraded to fetch `/dashboard/summary`, `/dashboard/attention`, `/alerts`. Displays aggregated totals, alert badge, attention table with priority scores, supplier balances table, in-app alerts. Preserves original featured investigation and case list. |
-| `src/app/cases/[id]/page.tsx` | Modified | Added `UserCheck` icon import. Added assignee display in case metadata. Added "Assign investigation" panel for managers. Enhanced "Review history" tab with `previousStatus → newStatus` transition display. |
-| `src/app/audit/page.tsx` | Modified | Upgraded to use `auditDetailed` endpoint with fallback to basic `audit`. Added case context column (poId, supplier, status, decision count) with clickable links to cases. |
-
-### Configuration (development-only)
-
-| File | Change type | Description |
-|------|-------------|-------------|
-| `server/.env` | Created | Development secrets — **DO NOT COMMIT TO VERSION CONTROL** |
-| `chatbot-backend/.env` | Created | Development secrets — **DO NOT COMMIT TO VERSION CONTROL** |
-| `ml-fl-service/.env` | Created | Development secrets — **DO NOT COMMIT TO VERSION CONTROL** |
-
-> **Note:** `.env` files are already in `.gitignore` and will not be committed. Your teammate needs to create their own `.env` files using the variables described in Section 10.
+### Frontend (`client/`)
+1. `src/lib/business-api.ts` — Updated TypeScript types (`AssignableUser`, `FinancialAnomaly`, `EvidenceCompleteness`, `CaseDocument`, `CaseReminder`, `BusinessCase`, `Alert`) and added API client methods.
+2. `src/app/cases/[id]/page.tsx` — Added "Anomalies & Evidence" tab, "Documents" tab with verify/reject, verified Assignee dropdown, Exception Status controls, Reminder scheduler, and Export JSON/CSV links.
+3. `src/app/dashboard/page.tsx` — Enhanced alert panel with Acknowledge/Dismiss action buttons.
 
 ---
 
-## 4. New API Endpoints
+## 4. Instructions for Teammate to Run Tests
 
-### `GET /api/v1/dashboard/summary` (Features 1 & 10)
+### Prerequisites
+- Docker Desktop or local MongoDB (port 27017) and Neo4j (port 7687)
+- Node.js 20+
+- Python 3.11+ (for `ml-fl-service`)
 
-- **Auth:** Any authenticated user
-- **Scope:** Company-isolated via `scope(req)`
-- **Response:** `{ currency, mixedCurrencyWarning, totals, statusCounts, findings, duplicateCandidates, unallocatedPayments, supplierBalances[], attentionItems[] }`
-- **Notes:** Aggregates from authoritative snapshots only. Does NOT independently calculate financial values — uses existing ledger data.
-
-### `GET /api/v1/dashboard/attention` (Feature 6)
-
-- **Auth:** Any authenticated user
-- **Scope:** Company-isolated, excludes reconciled/importing cases
-- **Response:** `{ items[], scoringRules }`
-- **Priority scoring:** Transparent integer-based rules: escalated (+30), awaiting_evidence (+15), on_hold (+10), per blocking finding (+5), per duplicate (+8), per unallocated payment (+6), disputed > 1000 (+20), age > 7 days (+15), age > 48h (+5), no decisions (+5)
-
-### `POST /api/v1/cases/:id/assign` (Feature 8)
-
-- **Auth:** Manager only (`ap_manager`, `admin`)
-- **Scope:** Company-isolated
-- **Body:** `{ assigneeId: string, assigneeName: string, reason: string (10+ chars) }`
-- **Response:** `{ assignment }` with 201 status
-- **Notes:** Stores assignee on case, records ASSIGN decision in decisions array, records audit log
-
-### `GET /api/v1/alerts` (Feature 11)
-
-- **Auth:** Any authenticated user
-- **Scope:** Company-isolated
-- **Response:** `{ alerts[], notice }`
-- **Alert types:** `escalated` (high), `blocking_findings` (medium), `duplicate_candidates` (high), `unlinked_payments` (medium), `awaiting_evidence` (medium), `stale_no_action` (high — > 7 days, no decisions)
-- **Notes:** In-app only. No external email/SMS/push configured.
-
-### `GET /api/v1/audit/detailed` (Feature 12)
-
-- **Auth:** Manager or auditor
-- **Scope:** Company-isolated
-- **Response:** Audit entries enriched with `caseContext: { poId, supplier, currentStatus, decisionCount }`
-
----
-
-## 5. Transaction Lifecycle State Machine (Feature 4)
-
-### Permitted Transitions
-
-| Current Status | APPROVE | PLACE_ON_HOLD | ESCALATE | REQUEST_CLARIFICATION |
-|---------------|---------|--------------|----------|----------------------|
-| `needs_review` | → `reconciled` | → `on_hold` | → `escalated` | → `awaiting_evidence` |
-| `on_hold` | → `reconciled` | → `on_hold` | → `escalated` | → `awaiting_evidence` |
-| `escalated` | → `reconciled` | → `on_hold` | → `escalated` | → `awaiting_evidence` |
-| `awaiting_evidence` | → `reconciled` | → `on_hold` | → `escalated` | → `awaiting_evidence` |
-| `reconciled` | ❌ blocked | ❌ blocked | ❌ blocked | ❌ blocked |
-| `importing` | ❌ blocked | ❌ blocked | ❌ blocked | ❌ blocked |
-
-### Guard Conditions
-
-1. **Transition validation:** Every decision passes through `validateTransition()` before proceeding
-2. **Self-approval:** The user who imported a case (`BusinessImport.actorId`) cannot APPROVE it. Other actions (hold, escalate, request clarification) are permitted.
-3. **Role checks:** Preserved from existing code — analysts can only escalate or request clarification; managers can perform all actions
-4. **Revision checks:** Existing optimistic concurrency control (`expectedRevision`, `snapshotId`) is preserved
-5. **Company isolation:** All queries use `scope(req)` for company-scoped access
-
-### Audit Metadata
-
-Each decision now records `previousStatus` and `newStatus` in the decisions array, providing a full transition audit trail.
-
----
-
-## 6. Database Changes
-
-### Schema Addition (non-breaking)
-
-```javascript
-// BusinessCase schema — added fields (server/src/models/Business.js line 12)
-assigneeId: { type: String, default: null }
-assigneeName: { type: String, default: null }
-```
-
-**No migration required.** These are additive nullable fields with defaults. Existing documents will return `null` for both fields, which is the expected behaviour for unassigned cases.
-
-### No other schema changes
-
-- No indexes added or removed
-- No collections added or removed
-- No existing fields modified or renamed
-
----
-
-## 7. Preservation Verification
-
-The following existing functionality was verified as preserved and untouched:
-
-| System | Status |
-|--------|--------|
-| Deterministic financial calculations (Decimal arithmetic via ML engine) | ✅ Preserved — no financial calculations added to server |
-| Evidence-linked reconciliation | ✅ Preserved |
-| ML-assisted matching and fallback | ✅ Preserved — not modified |
-| CSV import and field-level tracing | ✅ Preserved |
-| PO creation, verification and approval workflows | ✅ Preserved |
-| Company-scoped RBAC, JWT authentication | ✅ Preserved — all new endpoints use `scope(req)` and role checks |
-| Chatbot, RAG and ML integrations | ✅ Preserved — not modified |
-| Neo4j graph projection | ✅ Preserved |
-| Replay/time-travel functionality | ✅ Preserved |
-| What-if scenarios | ✅ Preserved |
-| Existing test expectations | ✅ Preserved — only new test cases added |
-| Frontend pages, navigation, API contracts | ✅ Preserved — additive changes only |
-| Existing user data and configuration | ✅ Preserved — no destructive operations |
-
----
-
-## 8. Security Review
-
-| Check | Result |
-|-------|--------|
-| All new endpoints use `protect` middleware (JWT auth) | ✅ |
-| All new endpoints use `scope(req)` for company isolation | ✅ |
-| `/cases/:id/assign` restricted to managers | ✅ |
-| `/audit/detailed` restricted to managers and auditors | ✅ |
-| Self-approval check uses server-side identity comparison | ✅ |
-| No credentials or secrets exposed in code | ✅ |
-| `.env` files in `.gitignore` | ✅ |
-| No direct financial calculations added to server | ✅ |
-| Input validation on assign endpoint (10+ char reason, string types) | ✅ |
-
----
-
-## 9. Test Cases (NOT RUN — Deferred)
-
-### Existing Tests (in `server/test/business.test.mjs`)
-
-All pre-existing tests are preserved unchanged. The 5 new test cases added:
-
-| Test | What it verifies |
-|------|-----------------|
-| `state machine: decision on importing case is rejected` | 409 when deciding on a case with status `importing` |
-| `state machine: decision on reconciled case is rejected` | Import → approve → reconciled → second decision → 409 |
-| `state machine: self-approval is blocked (importer cannot approve)` | Importer gets 403 on APPROVE; different manager gets 201 |
-| `state machine: decisions record previousStatus and newStatus` | Escalation decision includes `previousStatus: 'needs_review'`, `newStatus: 'escalated'` |
-| `state machine: non-approve actions allowed for importer` | Same importer can PLACE_ON_HOLD (self-approval only restricts APPROVE) |
-
-### Additional Test Scenarios for Teammate
-
-The following should be manually verified during testing:
-
-1. **Dashboard summary endpoint** — Returns correct totals across multiple cases
-2. **Attention endpoint** — Returns cases sorted by priority; excludes reconciled/importing
-3. **Alerts endpoint** — Generates appropriate alert types for each case state
-4. **Assign endpoint** — Only managers can assign; stores assignee on case; records audit
-5. **Assign on reconciled case** — Should return 409
-6. **Detailed audit endpoint** — Returns enriched entries with case context
-7. **Cross-company isolation** — All new endpoints respect company scope
-8. **Frontend rendering** — Dashboard loads summary/attention/alerts; case page shows assignee; audit page shows case context
-9. **Graceful degradation** — Dashboard still works if new endpoints fail (`.catch(() => null)` on optional fetches)
-
----
-
-## 10. Environment Variables
-
-Your teammate needs these environment variables in `.env` files. **Do not use these values in production.**
-
-### `server/.env`
-```
+### Environment Setup
+Create `server/.env`:
+```env
+PORT=5002
 MONGO_URI=mongodb://localhost:27017/satya
-JWT_SECRET=<generate-a-secure-random-string>
-NODE_INTERNAL_TOKEN=<generate-a-matching-internal-token>
+JWT_SECRET=satya-dev-jwt-secret-do-not-use-in-production
+NODE_INTERNAL_TOKEN=satya-dev-internal-token
 ML_API_URL=http://localhost:8000
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
-NEO4J_PASSWORD=<your-neo4j-password>
+NEO4J_PASSWORD=your_password
 ```
 
-### `chatbot-backend/.env`
-```
-JWT_SECRET=<same-as-server-jwt-secret>
-MONGO_URI=mongodb://localhost:27017/satya
-```
-
-### `ml-fl-service/.env`
-```
-INTERNAL_TOKEN=<same-as-node-internal-token>
-```
-
----
-
-## 11. How to Test
-
-### Prerequisites
-- Docker Desktop running
-- Node.js 20+
-- Python 3.11+ (for ml-fl-service)
-
-### Start services
+### Run Tests
 ```bash
-# Option 1: Docker Compose (recommended)
-docker compose up -d
-
-# Option 2: Manual
-mongod --dbpath ./data/db &
-# Start Neo4j separately
-cd ml-fl-service && pip install -r requirements.txt && uvicorn app:app --port 8000 &
-cd server && npm install && npm start &
-cd chatbot-backend && npm install && npm start &
-cd client && npm install && npm run dev &
-```
-
-### Run tests
-```bash
+# In server directory:
 cd server
+npm install
+
+# Run the complete test suite:
 npm test
-```
 
-### Verify specific Feature 4 tests
-```bash
-cd server
-node --test --test-name-pattern="state machine" test/business.test.mjs
+# Run specifically the new state machine & enhancement tests:
+node --test --test-name-pattern="state machine|feature 3|feature 4|feature 5|feature 6" test/business.test.mjs
 ```
 
 ---
 
-## 12. Known Limitations
-
-1. **Alerts are in-app only.** No email, SMS, or push notification provider is configured. The `/alerts` endpoint generates alerts from case state on each request.
-
-2. **Priority scoring is rule-based.** The attention scoring uses transparent integer-based rules, not ML-based risk scoring. This is intentional for auditability.
-
-3. **Assignee is a free-text field.** The assign endpoint accepts any `assigneeId`/`assigneeName` string. There is no user lookup or validation against existing user accounts. This keeps the implementation simple and avoids coupling to user management.
-
-4. **Dashboard totals may mix currencies.** If cases use different currencies, totals are summed numerically with a `mixedCurrencyWarning`. Individual case and supplier balances are authoritative.
-
-5. **No pagination on new endpoints.** Dashboard/attention/alerts use `.limit()` with reasonable caps (100-200). For very large deployments, pagination should be added.
-
-6. **Self-approval check uses `BusinessImport.actorId`.** This is the person who imported/created the case. If a case is created through a different mechanism in the future, the self-approval check may need to be extended.
-
-7. **Frontend graceful degradation.** The dashboard fetches summary/attention/alerts in parallel with `.catch(() => null)`. If the new endpoints fail (e.g., older backend), the dashboard still works with the original cases-based display.
-
----
-
-## 13. Git Commands for Teammate
-
-```bash
-# Fetch the branch
-git fetch origin feature/satya-ai-enhancements
-git checkout feature/satya-ai-enhancements
-
-# Or if working from the same machine
-git checkout feature/satya-ai-enhancements
-
-# Review changes
-git diff master..feature/satya-ai-enhancements --stat
-git diff master..feature/satya-ai-enhancements
-
-# After testing, merge to master
-git checkout master
-git merge feature/satya-ai-enhancements
-git push origin master
-```
+## 5. Remaining Limitations & Notes
+1. **Email / SMS Notifications:** Alerting and reminders remain strictly in-app to avoid unconfigured external notification service dependencies.
+2. **Document File Content:** Source document verification evaluates metadata and content checksums stored in Mongo. Physical PDF parsing or OCR extraction is deferred to specialized external microservices.
