@@ -10,6 +10,7 @@ import User from "./models/User.js";
 import { BusinessCase } from "./models/Business.js";
 import { verifyToken } from "./utils/jwt.js";
 import { startWorker } from "./utils/businessService.js";
+import { statusPage } from "./statusPage.js";
 
 // Connect to database
 await connectDB();
@@ -33,7 +34,10 @@ app.use((error, _req, res, _next) => {
 });
 
 // Base route
-app.get("/", (_req, res) => res.json({ service: "satya-business-api" }));
+app.get("/", (req, res) => {
+  if (req.accepts("text/html")) return res.type("html").send(statusPage());
+  res.json({ service: "satya-business-api" });
+});
 
 // Create HTTP server + Socket.io
 const httpServer = http.createServer(app);
