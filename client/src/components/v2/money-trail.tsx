@@ -52,9 +52,6 @@ const TYPE_TAG: Record<string, string> = {
   GSTR2B_ENTRY: "GSTR-2B", TDS_ENTRY: "TDS", BANK_LINE: "Bank",
 };
 
-const SEV_COLOR: Record<string, string> = {
-  critical: "var(--sev-critical)", high: "var(--sev-high)", medium: "var(--sev-medium)", low: "var(--sev-low)", info: "var(--sev-info)",
-};
 
 function nodeKeyValue(node: GraphNode): string {
   if (node.amount) return formatMoney(node.amount);

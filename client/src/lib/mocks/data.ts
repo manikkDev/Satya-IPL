@@ -1,8 +1,8 @@
 // Extended mock data for v2 screens (NEXT_PUBLIC_USE_MOCKS=1). Numbers for
 // PO-1001 mirror the flagship regression fixture (docs/plan/01 §4).
 
-import type { BusinessDocument, Case, Finding, Page } from "@/lib/api/types";
-import { flagshipFindings, mockCase, mockSnapshot, mockSupplier } from "@/lib/mocks/flagship";
+import type { BusinessDocument, Case, Page } from "@/lib/api/types";
+import { mockCase, mockSnapshot } from "@/lib/mocks/flagship";
 
 const INR = "INR";
 

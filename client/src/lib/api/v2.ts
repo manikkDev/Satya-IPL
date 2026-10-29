@@ -3,14 +3,19 @@
 
 import { fetchJson } from "@/lib/api/client";
 import { mocksEnabled } from "@/lib/flags";
-import type { Today, Case, Snapshot, GraphPayload, Page, Finding } from "@/lib/api/types";
-import { mockToday, mockCase, mockSnapshot, flagshipGraph, mockEntities } from "@/lib/mocks/flagship";
+import type { Today, GraphPayload, Page, Finding } from "@/lib/api/types";
+import { mockToday, flagshipGraph, mockEntities } from "@/lib/mocks/flagship";
 import {
   mockOrders, mockOrderDetail, mockInvestigations, mockCaseDetail,
   mockDrafts, mockDraftDetail, mockPayments, mockPaymentWorkbench,
   mockSuppliers, mockCompliance, mockCopilotAnswer,
-  type OrderDetail, type Draft, type DraftDetail,
+  type OrderDetail, type OrderListRow, type Draft, type DraftDetail,
 } from "@/lib/mocks/data";
+
+type SuppliersPage = typeof mockSuppliers;
+type PaymentsPage = typeof mockPayments;
+type Compliance = typeof mockCompliance;
+type InvestigationsPage = typeof mockInvestigations;
 
 const mock = <T>(value: T): Promise<T> => Promise.resolve(structuredClone(value));
 const qs = (params: Record<string, string>) => {
@@ -24,7 +29,7 @@ export const v2 = {
       ? mock(mockToday)
       : fetchJson<Today>(`/api/v2/dashboard/today${entityId ? `?entityId=${encodeURIComponent(entityId)}` : ""}`),
 
-  orders: (params: Record<string, string> = {}) =>
+  orders: (params: Record<string, string> = {}): Promise<Page<OrderListRow>> =>
     mocksEnabled()
       ? mock({ items: mockOrders, nextCursor: null, total: mockOrders.length })
       : fetchJson(`/api/v2/documents${qs({ type: "PO", ...params })}`),
@@ -32,7 +37,7 @@ export const v2 = {
   order: (id: string): Promise<OrderDetail> =>
     mocksEnabled() ? mock(mockOrderDetail) : fetchJson(`/api/v2/documents/${encodeURIComponent(id)}`),
 
-  cases: (params: Record<string, string> = {}) =>
+  cases: (params: Record<string, string> = {}): Promise<InvestigationsPage> =>
     mocksEnabled()
       ? mock(mockInvestigations)
       : fetchJson(`/api/v2/cases${qs(params)}`),
@@ -58,7 +63,7 @@ export const v2 = {
   draft: (id: string): Promise<DraftDetail> =>
     mocksEnabled() ? mock(mockDraftDetail) : fetchJson(`/api/v2/ingest/drafts/${encodeURIComponent(id)}`),
 
-  payments: (params: Record<string, string> = {}) =>
+  payments: (params: Record<string, string> = {}): Promise<PaymentsPage> =>
     mocksEnabled() ? mock(mockPayments) : fetchJson(`/api/v2/documents${qs({ type: "PAYMENT_OUT", ...params })}`),
 
   paymentWorkbench: (id: string): Promise<typeof mockPaymentWorkbench> =>
@@ -66,17 +71,17 @@ export const v2 = {
       ? mock(mockPaymentWorkbench)
       : fetchJson(`/api/v2/allocate/payment/${encodeURIComponent(id)}`),
 
-  suppliers: (params: Record<string, string> = {}) =>
+  suppliers: (params: Record<string, string> = {}): Promise<SuppliersPage> =>
     mocksEnabled() ? mock(mockSuppliers) : fetchJson(`/api/v2/suppliers${qs(params)}`),
 
-  compliance: (): Promise<typeof mockCompliance> =>
+  compliance: (): Promise<Compliance> =>
     mocksEnabled()
       ? mock(mockCompliance)
       : Promise.all([fetchJson(`/api/v2/compliance/msme`), fetchJson(`/api/v2/compliance/gstr2b`)]).then(
-          ([msme, gstr2b]) => ({ msme, gstr2b }) as typeof mockCompliance,
+          ([msme, gstr2b]) => ({ msme, gstr2b }) as Compliance,
         ),
 
-  entities: () =>
+  entities: (): Promise<{ entities: typeof mockEntities }> =>
     mocksEnabled() ? mock({ entities: mockEntities }) : fetchJson(`/api/v2/entities`),
 };
 
