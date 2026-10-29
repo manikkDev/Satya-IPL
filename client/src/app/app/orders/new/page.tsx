@@ -116,6 +116,7 @@ function HsnField({ value, onChange }: { value: string; onChange: (v: string) =>
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder="e.g. 8413 or “pump”"
         aria-label="HSN code"
+        role="combobox"
         aria-expanded={open}
         aria-autocomplete="list"
         className={inputCls}
