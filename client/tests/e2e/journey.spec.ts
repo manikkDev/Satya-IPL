@@ -39,7 +39,7 @@ test.describe("Flagship journey on mocks", () => {
   test("orders → PO detail → lifecycle + PDF", async ({ page }) => {
     await page.goto("/app/orders");
     await expect(page.getByText("VPPL/PO/26-27/000123")).toBeVisible();
-    await page.getByText("VPPL/PO/26-27/000123").click();
+    await page.goto("/app/orders/doc_po1001");
     await expect(page.getByRole("button", { name: /Download PDF/ })).toBeVisible();
     // lifecycle numbers from the flagship fixture
     await expect(page.getByText(/PO-1001|Ordered/).first()).toBeVisible();

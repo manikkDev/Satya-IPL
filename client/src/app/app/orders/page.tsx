@@ -50,7 +50,7 @@ export default function OrdersPage() {
 
   const columns = useMemo<ColumnDef<OrderListRow, unknown>[]>(
     () => [
-      { accessorKey: "number", header: "PO number", cell: ({ row }) => <span className="font-code text-xs text-[var(--ink)]">{row.original.number}</span> },
+      { accessorKey: "number", header: "PO number", cell: ({ row }) => <Link href={`/app/orders/${row.original.id}`} className="font-code text-xs font-medium text-[var(--accent-strong)] underline-offset-2 hover:underline">{row.original.number}</Link> },
       { accessorKey: "supplier", header: "Supplier" },
       { accessorKey: "value", header: "Value", cell: ({ row }) => <Money value={row.original.value} /> },
       { accessorKey: "deliveredPct", header: "Delivered", cell: ({ row }) => <ProgressCell pct={row.original.deliveredPct} /> },
