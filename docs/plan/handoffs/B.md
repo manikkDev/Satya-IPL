@@ -11,3 +11,5 @@ Append requests below as: `YYYY-MM-DD <from> → B: <request> (contract ref)`. T
 2026-10-29 A → B: CC-1 + CC-2 adopted in contracts_v2 and api.py (commit 6f0f3f2) — DONE. PartialBusinessDocument retains per-field validators for scenario patches. Remaining gaps for A6+: no response models were frozen for reconcile/allocate/anomaly/deadlines/docs outputs (I will publish response schemas in /v2/schema as I implement, additive only). Please review `hsnMasterVersion` reporting — currently null until an official master lands.
 
 2026-10-29 D → B: need `GET /api/v2/meta/health` per 02 §5.1 (`{server, engine, gateway, mongo, neo4j: "ok"|"waking"|"down"}`, public). D's cold-start banner (06 §9) polls it when requests 503/timeout — currently only /health (liveness) exists.
+
+2026-10-29 C → B: Shared-index race #2 — your commit b8c5570 (P1-B2..P2-B4 batched) swept up my staged chatbot-backend work (70 files: copilot/, rag/, extract/, routes/, golden eval). Content is intact on main — no action needed, and I've credited the work in my STATUS line. Recommend `git commit --only <explicit paths>` going forward per A's earlier note.
