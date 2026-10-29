@@ -75,7 +75,7 @@ export default function BusinessShell({ children, title, subtitle }: { children:
             <ThemeToggle />
           </div>
         </header>
-        <section className="satya-page"><div className="satya-page-heading"><div><h1>{title}</h1><p>{subtitle}</p></div><span className="satya-demo-badge">Demo workspace · no live payments</span></div>{children}</section>
+        <section className="satya-page"><div className="satya-page-heading"><div><h1>{title}</h1><p>{subtitle}</p></div><span className="satya-tag" style={{ border: '1px solid #0284c7', background: 'rgba(2, 132, 199, 0.08)', color: '#0284c7', fontWeight: 600, padding: '0.35rem 0.75rem', borderRadius: '6px' }}>Enterprise Workspace · Bharat Petroleum Procurement (BPCI Challenge)</span></div>{children}</section>
       </main>
     </div>
   </ProtectedRoute>;

@@ -141,7 +141,17 @@ export type PredictiveRiskView = {
 };
 
 // ── Outbox & Communications Types ───────────────────────────────────
-export type OutboxDeliveryReceipt = { messageId: string; deliveredAt: string; provider: string; status: string };
+export type OutboxDeliveryReceipt = {
+  messageId?: string;
+  deliveredAt?: string;
+  provider?: string;
+  status?: string;
+  previewUrl?: string;
+  actionUrl?: string;
+  hasPdfAttachment?: boolean;
+  pdfSizeKb?: number;
+  timestamp?: string;
+};
 export type OutboxMessage = {
   id: string;
   messageId: string;
@@ -152,8 +162,11 @@ export type OutboxMessage = {
   severity: "low" | "medium" | "high" | "critical";
   caseId?: string;
   status: "queued" | "quiet_hours_delayed" | "sent" | "failed";
-  retryCount: number;
-  scheduledFor: string;
+  attempts?: number;
+  retryCount?: number;
+  scheduledAt?: string;
+  scheduledFor?: string;
+  deliveredAt?: string;
   sentAt?: string;
   deliveryReceipt?: OutboxDeliveryReceipt;
   lastError?: string;
@@ -197,12 +210,16 @@ export const businessApi = {
   caseReminders: (id: string) => request<CaseReminder[]>(`/cases/${encodeURIComponent(id)}/reminders`),
   createReminder: (id: string, body: { dueAt: string; reason: string; recipientId?: string }) => request<CaseReminder>(`/cases/${encodeURIComponent(id)}/reminders`, body),
   auditDetailed: () => request<DetailedAuditEntry[]>("/audit/detailed"),
-  downloadReportUrl: (id: string, format: "json" | "csv" = "json") => `${SERVER_URL}/api/v1/cases/${encodeURIComponent(id)}/report?format=${format}`,
+  downloadReportUrl: (id: string, format: "json" | "csv" | "pdf" = "json") => `${SERVER_URL}/api/v1/cases/${encodeURIComponent(id)}/report?format=${format}`,
   // ── Contracts, Predictive Risk & Outbox Endpoints ──────────────────
   contracts: () => request<ContractView>("/contracts"),
+  reseedContracts: () => request<ContractView>("/contracts/seed", {}),
+  contractPdfReportUrl: () => `${SERVER_URL}/api/v1/contracts/report/pdf`,
   updateObligationStatus: (id: string, body: { status: string; notes?: string }) => request<{ obligation: ContractObligation }>(`/contracts/obligations/${encodeURIComponent(id)}/status`, body),
   predictiveRisk: () => request<PredictiveRiskView>("/predictive-risk"),
   outbox: () => request<OutboxView>("/outbox"),
+  reseedOutbox: () => request<{ message: string; count: number }>("/outbox/reseed", {}),
+  outboxPdfReportUrl: () => `${SERVER_URL}/api/v1/outbox/report/pdf`,
   processOutbox: () => request<{ processedCount: number; results: unknown[] }>("/outbox/process", {}),
   testSendNotification: (body: { channel: string; recipient: string; subject?: string; body: string; severity?: string }) => request<{ message: string; record: OutboxMessage }>("/outbox/test-send", body),
   chat: async (prompt: string, caseId?: string, conversationId?: string, onStatus?: (stage: string) => void): Promise<ChatAnswer> => {

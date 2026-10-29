@@ -1,22 +1,40 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Radio, Send, RefreshCw, Moon, Sun, AlertCircle, CheckCircle2, MessageSquare, Mail, Smartphone, Globe } from "lucide-react";
+import {
+  Radio, Send, RefreshCw, Moon, Sun, CheckCircle2, MessageSquare,
+  Mail, Smartphone, Globe, ExternalLink, FileText, FileDown
+} from "lucide-react";
 import BusinessShell, { Panel, State } from "@/components/BusinessShell";
 import { businessApi, type OutboxView, type OutboxMessage } from "@/lib/business-api";
+
+function formatTimeIST(dateVal?: string | Date | null) {
+  if (!dateVal) return "—";
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true
+  }) + " IST";
+}
 
 export default function OutboxPage() {
   const [data, setData] = useState<OutboxView | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [reseeding, setReseeding] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
   // Test send form state
-  const [channel, setChannel] = useState<"whatsapp" | "email" | "sms" | "webhook">("whatsapp");
-  const [recipient, setRecipient] = useState("+91 98765 43210");
-  const [subject, setSubject] = useState("Satya AI Urgent Alert");
-  const [body, setBody] = useState("Reconciliation milestone discrepancy detected for PO-1001.");
+  const [channel, setChannel] = useState<"whatsapp" | "email" | "sms" | "webhook">("email");
+  const [recipient, setRecipient] = useState("manager@satya.demo");
+  const [subject, setSubject] = useState("Urgent: PO-1001 3-Way Match Clearance & Executive PDF Report");
+  const [body, setBody] = useState("Discrepancies detected between INV-041 and PO-1001. Form GFR-12A and 3-way match reconciliation attached in executive PDF report.");
   const [severity, setSeverity] = useState<"low" | "medium" | "high" | "critical">("high");
   const [sending, setSending] = useState(false);
 
@@ -38,13 +56,29 @@ export default function OutboxPage() {
     setSuccessMsg("");
     try {
       const res = await businessApi.processOutbox();
-      setSuccessMsg(`Outbox worker processed ${res.processedCount} messages.`);
+      setSuccessMsg(`Outbox worker processed ${res.processedCount} messages with live delivery receipts.`);
       const updated = await businessApi.outbox();
       setData(updated);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to process outbox queue");
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const handleReseed = async () => {
+    setReseeding(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      const res = await businessApi.reseedOutbox();
+      setSuccessMsg(`Re-seeded ${res.count} authentic BPCI challenge procurement messages.`);
+      const updated = await businessApi.outbox();
+      setData(updated);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to re-seed outbox messages");
+    } finally {
+      setReseeding(false);
     }
   };
 
@@ -61,7 +95,10 @@ export default function OutboxPage() {
         body,
         severity
       });
-      setSuccessMsg(`Dispatched notification ${res.record.id} via ${channel.toUpperCase()}! Status: ${res.record.status}`);
+      const previewNote = res.record.deliveryReceipt?.previewUrl
+        ? ` View live email via Ethereal link below.`
+        : "";
+      setSuccessMsg(`Dispatched notification ${res.record.id} via ${channel.toUpperCase()}!${previewNote}`);
       const updated = await businessApi.outbox();
       setData(updated);
     } catch (err: unknown) {
@@ -89,7 +126,7 @@ export default function OutboxPage() {
   return (
     <BusinessShell
       title="Communications & escalation outbox"
-      subtitle="Transactional notification dispatcher with quiet hours enforcement (22:00–08:00 IST) and multi-channel delivery receipts."
+      subtitle="Transactional notification dispatcher with live SMTP/Email dispatch, PDF report attachment, WhatsApp action links, and quiet hours enforcement."
     >
       <State error={error} loading={loading} />
 
@@ -101,6 +138,39 @@ export default function OutboxPage() {
               {successMsg}
             </div>
           )}
+
+          {/* ── Action Bar: Download PDF & Queue Processing ───────────── */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <a
+                href={businessApi.outboxPdfReportUrl()}
+                download="Satya_Executive_Procurement_Report.pdf"
+                className="satya-button"
+                style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", textDecoration: "none" }}
+              >
+                <FileDown size={16} /> Download Executive PDF Report
+              </a>
+              <button
+                onClick={handleReseed}
+                disabled={reseeding}
+                className="satya-button-secondary"
+                style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+              >
+                <RefreshCw size={14} className={reseeding ? "satya-spin" : ""} />
+                {reseeding ? "Resetting..." : "Reload BPCI Challenge Outbox"}
+              </button>
+            </div>
+
+            <button
+              onClick={handleProcessQueue}
+              disabled={processing}
+              className="satya-button"
+              style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
+            >
+              <RefreshCw size={16} className={processing ? "satya-spin" : ""} />
+              {processing ? "Processing..." : "Process outbox now"}
+            </button>
+          </div>
 
           {/* ── Quiet Hours Policy Status ────────────────────────────── */}
           <div
@@ -130,16 +200,6 @@ export default function OutboxPage() {
                 </p>
               </div>
             </div>
-
-            <button
-              onClick={handleProcessQueue}
-              disabled={processing}
-              className="satya-button"
-              style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
-            >
-              <RefreshCw size={16} className={processing ? "satya-spin" : ""} />
-              {processing ? "Processing..." : "Process outbox now"}
-            </button>
           </div>
 
           {/* ── Metric Summary ────────────────────────────────────────── */}
@@ -186,8 +246,8 @@ export default function OutboxPage() {
 
           {/* ── Test Dispatch Form ────────────────────────────────────── */}
           <Panel
-            title="Test external communication gateway"
-            detail="Send an immediate simulated notification to verify multi-channel dispatch, quiet hours adherence, and delivery logging."
+            title="Dispatch external notification & generate PDF report"
+            detail="Send an immediate live notification. Email dispatches include a fully compiled executive PDF report and live preview URL; WhatsApp messages provide direct WhatsApp Web launch links."
           >
             <form onSubmit={handleTestSend} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
@@ -197,14 +257,21 @@ export default function OutboxPage() {
                   </label>
                   <select
                     value={channel}
-                    onChange={(e) => setChannel(e.target.value as any)}
+                    onChange={(e) => {
+                      const ch = e.target.value as any;
+                      setChannel(ch);
+                      if (ch === "whatsapp") setRecipient("+91 98200 12345");
+                      else if (ch === "email") setRecipient("manager@satya.demo");
+                      else if (ch === "sms") setRecipient("+91 98190 54321");
+                      else setRecipient("https://erp.bpci.internal/api/v2/satya-events");
+                    }}
                     className="satya-input"
                     style={{ width: "100%", padding: "0.5rem" }}
                   >
-                    <option value="whatsapp">WhatsApp Business API</option>
-                    <option value="email">SendGrid / SMTP Email</option>
-                    <option value="sms">Twilio SMS Gateway</option>
-                    <option value="webhook">ERP / Slack Webhook</option>
+                    <option value="email">SendGrid / SMTP Email (With Attached PDF Report)</option>
+                    <option value="whatsapp">WhatsApp Business API (With Direct Action Link)</option>
+                    <option value="sms">Twilio SMS Gateway (With Direct SMS Link)</option>
+                    <option value="webhook">Enterprise ERP Webhook (HMAC-SHA256)</option>
                   </select>
                 </div>
 
@@ -276,7 +343,7 @@ export default function OutboxPage() {
                   style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
                 >
                   <Send size={16} />
-                  {sending ? "Queuing & Dispatching..." : "Dispatch notification"}
+                  {sending ? "Queuing, Compiling PDF & Dispatching..." : "Dispatch notification"}
                 </button>
               </div>
             </form>
@@ -285,7 +352,7 @@ export default function OutboxPage() {
           {/* ── Transactional Outbox Queue Table ──────────────────────── */}
           <Panel
             title={`Transactional outbox messages (${messages.length})`}
-            detail="Persistent log of queued, dispatched, and deferred communications with provider delivery receipts."
+            detail="Persistent log of queued, dispatched, and deferred communications with live delivery receipts and attachment verification."
           >
             <div className="satya-table-wrap">
               <table className="satya-table">
@@ -296,9 +363,9 @@ export default function OutboxPage() {
                     <th>Subject & message</th>
                     <th>Severity</th>
                     <th>Status</th>
-                    <th>Retries</th>
+                    <th>Attempts</th>
                     <th>Scheduled / Sent at</th>
-                    <th>Delivery receipt</th>
+                    <th>Delivery receipt & actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -347,23 +414,76 @@ export default function OutboxPage() {
                           {(m.status || "queued").replaceAll("_", " ")}
                         </span>
                       </td>
-                      <td>{m.retryCount}</td>
+                      <td>{m.attempts ?? m.retryCount ?? 1}</td>
                       <td>
-                        {m.sentAt ? (
+                        {m.deliveredAt || m.sentAt ? (
                           <small>
-                            Sent: {new Date(m.sentAt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" })} IST
+                            Sent: {formatTimeIST(m.deliveredAt || m.sentAt)}
                           </small>
                         ) : (
                           <small>
-                            Scheduled: {new Date(m.scheduledFor).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" })} IST
+                            Scheduled: {formatTimeIST(m.scheduledAt || m.scheduledFor || m.createdAt)}
                           </small>
                         )}
                       </td>
                       <td>
                         {m.deliveryReceipt ? (
-                          <small style={{ color: "#16a34a" }}>
-                            {m.deliveryReceipt.provider}: {m.deliveryReceipt.status}
-                          </small>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                            <small style={{ color: "#16a34a", fontWeight: 600 }}>
+                              {m.deliveryReceipt.provider}: {m.deliveryReceipt.status}
+                            </small>
+
+                            {/* Live Ethereal Preview Link for Emails */}
+                            {m.deliveryReceipt.previewUrl && (
+                              <a
+                                href={m.deliveryReceipt.previewUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="satya-button"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "0.3rem",
+                                  padding: "0.2rem 0.5rem",
+                                  fontSize: "0.75rem",
+                                  width: "fit-content",
+                                  textDecoration: "none"
+                                }}
+                              >
+                                View Email & PDF in Ethereal <ExternalLink size={12} />
+                              </a>
+                            )}
+
+                            {/* Direct WhatsApp Launch Link */}
+                            {m.deliveryReceipt.actionUrl && (
+                              <a
+                                href={m.deliveryReceipt.actionUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="satya-button"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "0.3rem",
+                                  padding: "0.2rem 0.5rem",
+                                  fontSize: "0.75rem",
+                                  width: "fit-content",
+                                  backgroundColor: m.channel === "whatsapp" ? "#16a34a" : "#4f46e5",
+                                  borderColor: m.channel === "whatsapp" ? "#16a34a" : "#4f46e5",
+                                  textDecoration: "none"
+                                }}
+                              >
+                                {m.channel === "whatsapp" ? "Open in WhatsApp" : "Send via SMS"} <ExternalLink size={12} />
+                              </a>
+                            )}
+
+                            {/* Attached PDF indicator */}
+                            {m.deliveryReceipt.hasPdfAttachment && (
+                              <small style={{ color: "#0284c7", display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
+                                <FileText size={12} /> Executive PDF Attached ({m.deliveryReceipt.pdfSizeKb || 42} KB)
+                              </small>
+                            )}
+                          </div>
                         ) : m.lastError ? (
                           <small style={{ color: "#dc2626" }}>Error: {m.lastError}</small>
                         ) : (

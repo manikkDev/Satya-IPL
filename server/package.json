@@ -2,7 +2,9 @@
   "name": "server",
   "version": "1.0.0",
   "description": "Satya company-scoped procurement, evidence and decision API",
-  "overrides": { "qs": "6.16.0" },
+  "overrides": {
+    "qs": "6.16.0"
+  },
   "main": "src/index.js",
   "type": "module",
   "scripts": {
@@ -20,6 +22,8 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.3.0",
     "neo4j-driver": "^6.0.1",
+    "nodemailer": "^10.3.1",
+    "pdfkit": "^0.20.2",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {

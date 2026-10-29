@@ -3,11 +3,27 @@ import { evaluateContractContradictions, seedContractObligations } from "../util
 import { ContractAgreement, ContractObligation } from "../models/Business.js";
 import { protect } from "../middleware/authMiddleware.js";
 import { recordAudit } from "../utils/audit.js";
+import { generateExecutiveReportPdf } from "../utils/pdfReportService.js";
 
 const router = express.Router();
 router.use(protect);
 
 const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
+
+router.get("/report/pdf", handle(async (req, res) => {
+  const companyId = req.user.companyId;
+  const result = await evaluateContractContradictions(companyId);
+  const pdfBuffer = await generateExecutiveReportPdf({
+    title: "BPCI Legal Clause Contradiction & Compliance Brief",
+    subtitle: "Formal Contract Supersession Analysis — BPCI-MOU-2026-ENG & ADDENDUM-BPCI-2026-01",
+    contractData: result,
+    companyName: req.user.companyId === "satya-demo" ? "Bharat Petroleum Procurement & Infrastructure (BPCI)" : req.user.companyId
+  });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="BPCI_Legal_MOU_Clearance_Report_${Date.now()}.pdf"`);
+  res.send(pdfBuffer);
+}));
 
 router.get("/", handle(async (req, res) => {
   const companyId = req.user.companyId;

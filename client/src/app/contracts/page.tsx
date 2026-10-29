@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { FileSignature, AlertTriangle, CheckCircle2, ShieldCheck, GitCommit, ArrowRight, Clock, FileText } from "lucide-react";
+import { FileSignature, AlertTriangle, CheckCircle2, ShieldCheck, GitCommit, ArrowRight, Clock, FileText, FileDown, RefreshCw } from "lucide-react";
 import BusinessShell, { Panel, State } from "@/components/BusinessShell";
 import { businessApi, type ContractView, type ContractObligation, type ContractAgreement } from "@/lib/business-api";
 
 export default function ContractsPage() {
   const [data, setData] = useState<ContractView | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reseeding, setReseeding] = useState(false);
   const [error, setError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -24,6 +25,20 @@ export default function ContractsPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleReseedContracts = async () => {
+    setReseeding(true);
+    setActionSuccess("");
+    try {
+      const res = await businessApi.reseedContracts();
+      setData(res);
+      setActionSuccess(`Loaded ${res.agreements.length} authentic BPCI challenge contracts and ${res.obligations.length} compliance obligations.`);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to reload BPCI contracts");
+    } finally {
+      setReseeding(false);
+    }
+  };
 
   const handleUpdateStatus = async (obligationId: string, status: "satisfied" | "pending" | "disputed_superseded" | "waived") => {
     setUpdatingId(obligationId);
@@ -68,6 +83,29 @@ export default function ContractsPage() {
               {actionSuccess}
             </div>
           )}
+
+          {/* ── Action Bar: Download PDF & Reload Contracts ───────────── */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <a
+                href={businessApi.contractPdfReportUrl()}
+                download="BPCI_Legal_MOU_Clearance_Report.pdf"
+                className="satya-button"
+                style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", textDecoration: "none" }}
+              >
+                <FileDown size={16} /> Download Legal MOU Clearance PDF Report
+              </a>
+              <button
+                onClick={handleReseedContracts}
+                disabled={reseeding}
+                className="satya-button-secondary"
+                style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+              >
+                <RefreshCw size={14} className={reseeding ? "satya-spin" : ""} />
+                {reseeding ? "Reloading..." : "Reload BPCI Challenge Contracts"}
+              </button>
+            </div>
+          </div>
 
           {/* ── Metric Summary ────────────────────────────────────────── */}
           <div className="satya-metric-grid">

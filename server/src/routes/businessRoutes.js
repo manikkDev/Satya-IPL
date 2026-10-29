@@ -15,6 +15,7 @@ import {
 } from "../utils/lifecycleAndAnomalyService.js";
 import { recordAudit } from "../utils/audit.js";
 import AuditLog from "../models/AuditLog.js";
+import { generateExecutiveReportPdf } from "../utils/pdfReportService.js";
 
 const router = express.Router();
 const handle = (handler) => (req, res, next) => Promise.resolve(handler(req, res)).catch(next);
@@ -627,9 +628,9 @@ router.post("/cases/:id/reminders", handle(async (req, res) => {
   res.status(201).json(reminder);
 }));
 
-// ── Feature 6: Audit-Ready, Evidence-Linked Reports (JSON & CSV) ──────
+// ── Feature 6: Audit-Ready, Evidence-Linked Reports (JSON, CSV & PDF) ──────
 router.get("/cases/:id/report", handle(async (req, res) => {
-  const format = req.query.format === "csv" ? "csv" : "json";
+  const format = req.query.format === "csv" ? "csv" : req.query.format === "pdf" ? "pdf" : "json";
   const businessCase = await getCase(req);
   const snapshot = businessCase.latestSnapshotId ? await snapshotFor(req.user.companyId, businessCase.latestSnapshotId) : null;
   const records = await BusinessRecord.find({ ...scope(req), id: { $in: businessCase.recordIds } }).lean();
@@ -685,6 +686,22 @@ router.get("/cases/:id/report", handle(async (req, res) => {
 
   // Record report generation audit
   await recordAudit({ req, action: "report.export", target: businessCase.id, meta: { format } });
+
+  if (format === "pdf") {
+    const pdfBuffer = await generateExecutiveReportPdf({
+      title: `BPCI Case Reconciliation Brief: ${businessCase.poId || businessCase.id}`,
+      subtitle: `${businessCase.supplier} · Procurement Investigation Report`,
+      caseData: {
+        poId: businessCase.poId,
+        id: businessCase.id,
+        ledger: reportPayload.financialLedger
+      },
+      companyName: req.user.companyId === "satya-demo" ? "Bharat Petroleum Procurement & Infrastructure (BPCI)" : req.user.companyId
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="satya-report-${businessCase.poId || businessCase.id}.pdf"`);
+    return res.send(pdfBuffer);
+  }
 
   if (format === "json") {
     res.setHeader("Content-Type", "application/json");

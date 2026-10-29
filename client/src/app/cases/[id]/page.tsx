@@ -113,6 +113,7 @@ export default function CasePage() {
         <span className="satya-tag">Exception: {data.exceptionStatus || "open"}</span>
         <span>Records available at {new Date(view.observedBefore).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST</span>
         <button disabled={busy || user?.role === "auditor"} className="satya-button secondary" onClick={() => run(async () => { const job = await businessApi.reconcile(id); await waitForJob(job.id); await load(true); })}><RefreshCw size={16} className={busy ? "satya-spin" : undefined} />Check records again</button>
+        <a className="satya-button" href={businessApi.downloadReportUrl(id, "pdf")} target="_blank" rel="noreferrer"><Download size={15} />Export PDF</a>
         <a className="satya-button secondary" href={businessApi.downloadReportUrl(id, "json")} target="_blank" rel="noreferrer"><Download size={15} />Export JSON</a>
         <a className="satya-button secondary" href={businessApi.downloadReportUrl(id, "csv")} target="_blank" rel="noreferrer"><Download size={15} />Export CSV</a>
         <Link className="satya-button secondary" href={`/chat?case=${encodeURIComponent(id)}`}><MessageSquare size={16} />Ask Satya</Link>

@@ -196,6 +196,63 @@ export async function seedContractObligations(companyId = "satya-demo") {
       clauses: [
         { clauseId: "Clause 4.2", topic: "QUALITY_SLA", title: "Quarterly Calibration Audit", text: "Vendor shall provide quarterly NABL-accredited meter calibration certificates for all installed substation nodes." }
       ]
+    },
+    {
+      companyId,
+      id: "AGR-APEX-VALVES-2026",
+      agreementNumber: "BPCI-CTR-VALVES-4001",
+      title: "High-Pressure Rotary Butterfly Valves Procurement Contract",
+      category: "PURCHASE_AGREEMENT",
+      counterparty: "Apex Fluid Controls Pvt Ltd",
+      effectiveDate: new Date("2026-06-01T00:00:00+05:30"),
+      expiryDate: new Date("2027-05-31T23:59:59+05:30"),
+      status: "active",
+      governingLaw: "Public Procurement (Preference to Make in India) Order 2017",
+      signatures: [
+        { party: "Bharat Petroleum Infrastructure (BPCI)", signatory: "K. Murali (Head Procurement - Pipelines)", date: new Date("2026-05-28"), verified: true },
+        { party: "Apex Fluid Controls Pvt Ltd", signatory: "N. Sharma (Chief Operating Officer)", date: new Date("2026-05-30"), verified: true }
+      ],
+      clauses: [
+        { clauseId: "Clause 6.1", topic: "STATUTORY_GST", title: "GST E-Way Bill Reconciliation", text: "Physical delivery must match GST portal E-Way bill IRN data prior to invoice clearance." }
+      ]
+    },
+    {
+      companyId,
+      id: "AGR-POWERGRID-SLA-2026",
+      agreementNumber: "BPCI-SLA-SUBSTATION-01",
+      title: "SCADA Substation Automation 99.8% Availability SLA Agreement",
+      category: "FRAMEWORK_MSA",
+      counterparty: "PowerGrid Systems Ltd",
+      effectiveDate: new Date("2026-07-01T00:00:00+05:30"),
+      expiryDate: new Date("2027-06-30T23:59:59+05:30"),
+      status: "active",
+      governingLaw: "Indian Electricity Act & CERC Regulations",
+      signatures: [
+        { party: "Bharat Petroleum Infrastructure (BPCI)", signatory: "S. Swaminathan (Chief Electrical Engineer)", date: new Date("2026-06-25"), verified: true },
+        { party: "PowerGrid Systems Ltd", signatory: "V. K. Nair (Executive Director Services)", date: new Date("2026-06-27"), verified: true }
+      ],
+      clauses: [
+        { clauseId: "Clause 5.3", topic: "UPTIME_PENALTY", title: "Penalty for SCADA Outages", text: "Penalties of 1% monthly contract value apply per 0.1% uptime shortfall below 99.8%." }
+      ]
+    },
+    {
+      companyId,
+      id: "AGR-MOPNG-UC-2026",
+      agreementNumber: "BPCI-STATUTORY-UC-2026",
+      title: "Ministry of Petroleum & Natural Gas Statutory Capital Grant Mandate",
+      category: "MOU",
+      counterparty: "Ministry of Petroleum & Natural Gas (MoPNG)",
+      effectiveDate: new Date("2026-01-01T00:00:00+05:30"),
+      expiryDate: new Date("2026-12-31T23:59:59+05:30"),
+      status: "active",
+      governingLaw: "General Financial Rules (GFR) 2017 - Rule 238(1)",
+      signatures: [
+        { party: "Bharat Petroleum Infrastructure (BPCI)", signatory: "T. C. Joshi (Director Finance)", date: new Date("2025-12-28"), verified: true },
+        { party: "MoPNG Internal Audit Directorate", signatory: "Joint Secretary (Refineries)", date: new Date("2025-12-30"), verified: true }
+      ],
+      clauses: [
+        { clauseId: "Clause 2.1", topic: "STATUTORY_UC", title: "Form GFR-12A Submission", text: "Statutory Utilization Certificate in Form GFR-12A must be verified and submitted annually." }
+      ]
     }
   ];
 
@@ -214,6 +271,7 @@ export async function seedContractObligations(companyId = "satya-demo") {
       obligationId: "OBL-EXPIRY-MOU-1001",
       agreementId: "AGR-BPCI-MOU-2026",
       caseId: "pumps-1001",
+      poId: "PO-1001",
       title: "MOU Expiry & Annual Performance Renewal",
       type: "EXPIRY_RENEWAL",
       dueDate: new Date("2026-11-30T23:59:59+05:30"),
@@ -231,6 +289,7 @@ export async function seedContractObligations(companyId = "satya-demo") {
       obligationId: "OBL-RECON-3WAY-1001",
       agreementId: "AGR-BPCI-MOU-2026",
       caseId: "pumps-1001",
+      poId: "PO-1001",
       title: "Mandatory 3-Way Reconciliation Sign-Off Prior to Payment",
       type: "THREE_WAY_MATCH",
       dueDate: new Date("2026-10-30T18:00:00+05:30"),
@@ -243,10 +302,28 @@ export async function seedContractObligations(companyId = "satya-demo") {
     },
     {
       companyId,
+      id: "OBL-DELIV-PUMPS",
+      obligationId: "OBL-DELIV-PUMPS-01",
+      agreementId: "AGR-BPCI-MOU-2026",
+      caseId: "pumps-1001",
+      poId: "PO-1001",
+      title: "Milestone 1 Physical Delivery & Inspection Certificate (60 Slurry Pumps)",
+      type: "DELIVERY_MILESTONE",
+      dueDate: new Date("2026-10-10T18:00:00+05:30"),
+      status: "satisfied",
+      authorityStatus: "authoritative",
+      disputeReason: null,
+      sourceClauseRef: "Clause 3.1 & PO-1001 Schedule",
+      assignedRole: "ops_analyst",
+      evidenceIds: ["GRN-A", "GRN-B"]
+    },
+    {
+      companyId,
       id: "OBL-CALIBRATION-Q3",
       obligationId: "OBL-CALIB-Q3-2001",
       agreementId: "AGR-HELIOS-GRID-2026",
       caseId: "meters-2001",
+      poId: "PO-2001",
       title: "NABL Third-Party Meter Calibration Certificate Submission",
       type: "AUDIT_REPORT",
       dueDate: new Date("2026-11-15T18:00:00+05:30"),
@@ -255,6 +332,74 @@ export async function seedContractObligations(companyId = "satya-demo") {
       sourceClauseRef: "Clause 4.2",
       assignedRole: "ops_analyst",
       evidenceIds: ["INV-2001"]
+    },
+    {
+      companyId,
+      id: "OBL-LD-ASSESSMENT",
+      obligationId: "OBL-LD-ASSESS-1001",
+      agreementId: "AGR-BPCI-MOU-2026",
+      caseId: "pumps-1001",
+      poId: "PO-1001",
+      title: "Liquidated Damages (0.5% per week) Assessment for Milestone 2 Shortfall",
+      type: "LIQUIDATED_DAMAGES",
+      dueDate: new Date("2026-11-05T18:00:00+05:30"),
+      status: "pending",
+      authorityStatus: "provisional",
+      disputeReason: "40 units open beyond 15 Oct deadline; vendor claims supply-chain force majeure.",
+      sourceClauseRef: "Clause 14.2 (Liquidated Damages)",
+      assignedRole: "ap_manager",
+      evidenceIds: ["PO-1001", "GRN-B"]
+    },
+    {
+      companyId,
+      id: "OBL-STATUTORY-UC",
+      obligationId: "OBL-STATUTORY-UC-2026",
+      agreementId: "AGR-MOPNG-UC-2026",
+      caseId: "pumps-1001",
+      poId: "PO-1001",
+      title: "Statutory Utilization Certificate (Form GFR-12A) Sign-Off",
+      type: "UTILIZATION_CERTIFICATE",
+      dueDate: new Date("2026-12-31T18:00:00+05:30"),
+      status: "pending",
+      authorityStatus: "authoritative",
+      disputeReason: "Requires physical verification of installed capital assets before submitting to ministry.",
+      sourceClauseRef: "GFR 2017 Rule 238(1)",
+      assignedRole: "ap_manager",
+      evidenceIds: ["DOC-BPCI-CTR-1001"]
+    },
+    {
+      companyId,
+      id: "OBL-BG-EXTENSION",
+      obligationId: "OBL-BG-EXT-4001",
+      agreementId: "AGR-APEX-VALVES-2026",
+      caseId: "valves-4001",
+      poId: "PO-4001",
+      title: "Bank Guarantee (BG) Validity Extension for Advance Mobilization",
+      type: "BANK_GUARANTEE",
+      dueDate: new Date("2026-11-20T18:00:00+05:30"),
+      status: "satisfied",
+      authorityStatus: "authoritative",
+      disputeReason: null,
+      sourceClauseRef: "Clause 7.1",
+      assignedRole: "ap_manager",
+      evidenceIds: ["PO-4001"]
+    },
+    {
+      companyId,
+      id: "OBL-EWAY-RECON",
+      obligationId: "OBL-EWAY-RECON-4001",
+      agreementId: "AGR-APEX-VALVES-2026",
+      caseId: "valves-4001",
+      poId: "PO-4001",
+      title: "GST E-Way Bill Physical Movement Reconciliation for Valve Consignment",
+      type: "STATUTORY_COMPLIANCE",
+      dueDate: new Date("2026-11-02T18:00:00+05:30"),
+      status: "satisfied",
+      authorityStatus: "authoritative",
+      disputeReason: null,
+      sourceClauseRef: "Clause 6.1",
+      assignedRole: "ops_analyst",
+      evidenceIds: ["INV-4001"]
     }
   ];
 

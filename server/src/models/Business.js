@@ -68,6 +68,7 @@ export const OutboxMessage = make("OutboxMessage", {
   idempotencyKey: { type: String, required: true, index: true },
   attempts: { type: Number, default: 0 },
   maxAttempts: { type: Number, default: 3 },
+  scheduledAt: { type: Date, default: () => new Date() },
   nextAttemptAt: { type: Date, default: () => new Date() },
   lastAttemptAt: { type: Date, default: null },
   deliveredAt: { type: Date, default: null },
