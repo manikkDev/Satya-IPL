@@ -6,7 +6,8 @@ from fastapi.responses import HTMLResponse
 from .business_matching import evaluation
 from .auth import internal
 from .compat_v1 import router as legacy_router
-from .contracts_v2 import schemas
+from .contracts_v2 import GstinValidateRequest, schemas
+from .india.gstin import validate_gstin
 from .status_page import status_page
 from .version import ENGINE_VERSION
 
@@ -41,5 +42,9 @@ def create_app():
     @app.get("/v2/schema", dependencies=[Depends(require_v2), Depends(internal)])
     def schema():
         return {"engineVersion": ENGINE_VERSION, "schemas": schemas()}
+
+    @app.post("/v2/validate/gstin", dependencies=[Depends(require_v2), Depends(internal)])
+    def gstin(request: GstinValidateRequest):
+        return validate_gstin(request.gstin)
 
     return app

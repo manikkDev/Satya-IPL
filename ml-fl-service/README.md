@@ -38,3 +38,9 @@ published as permissive dictionaries.
 
 The matching model uses constructed data, not real-world accuracy evidence.
 Missing artifacts do not disable deterministic reconciliation.
+
+India helpers and their verification limits are documented in
+`INDIA_REFERENCES.md`. `/v2/validate/gstin` is internal and gated with the same
+default-off flag as schema discovery; it checks ordinary GSTIN shape/checksum
+only, not registry status. Official HSN/rate ingestion remains blocked; see
+`HSN_SOURCES.md` for the bounded local-file builder and required human inputs.

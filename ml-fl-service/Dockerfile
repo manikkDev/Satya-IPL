@@ -8,6 +8,7 @@ RUN python -m pip install --no-cache-dir -r requirements-business.txt
 COPY pyproject.toml ./
 COPY app.py business_contracts.py business_demo.py business_reconcile.py business_matching.py business_training.py business_imports.py status_page.py ./
 COPY satya_engine ./satya_engine
+COPY assets ./assets
 COPY runs/satya-linkage ./runs/satya-linkage
 RUN mkdir -p /app/runs && useradd --create-home --uid 10001 satya && chown -R satya:satya /app
 USER satya
