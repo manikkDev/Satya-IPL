@@ -228,6 +228,22 @@ def parse(file_bytes, mime):
             issues.append({"code": "TEXT_LAYER_MISSING", "severity": "warning",
                            "message": "No extractable text layer; up to 3 page images returned for model fallback"})
         method = "pdf_text" if text.strip() else "pdf_render"
+    elif "csv" in mime or file_bytes[:50].lstrip(b"\xef\xbb\xbf")[:1].isalnum() and b"," in file_bytes[:2000] and b"\n" in file_bytes[:2000]:
+        try:
+            text = file_bytes.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            raise DocParseError("CSV is not valid UTF-8")
+        import csv
+        rows = list(csv.reader(text.splitlines()))
+        headers = rows[0] if rows else []
+        gstins = GSTIN_RE.findall(text)
+        extracted = {"seller": {"gstin": gstins[0] if gstins else None}} if gstins else None
+        detected_type = _detect_type(text)
+        issues.append({"code": "CSV_STRUCTURED", "severity": "info",
+                       "message": f"CSV detected ({len(rows) - 1} data rows). Use the column-mapped import path (business_imports) rather than LLM extraction"})
+        needs_llm = False
+        method = "csv"
+        pages = 1
     elif mime.startswith("image/") or file_bytes[:4] in (b"\x89PNG", b"\xff\xd8\xff\xe0", b"\xff\xd8\xff\xe1"):
         import zxingcpp
         from PIL import Image

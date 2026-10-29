@@ -154,6 +154,54 @@ def generate(seed=42, n_pos=40, suppliers=8):
                 labels.append({"type": "PAY_UNALLOCATED", "docId": pay_id,
                                "injected": True, "seed": seed,
                                "note": "payment without remittance/invoice target"})
+            # ~6% of payments land in a different bank account than earlier ones
+            if rng.random() < 0.06:
+                docs[-1]["payment"]["bankAccountMasked"] = f"…{rng.randint(1000, 9999)}"
+                docs[-1]["payment"]["utr"] = f"UTR{po_index:06d}B"
+                labels.append({"type": "PAY_BANK_ACCOUNT_CHANGED", "docId": pay_id,
+                               "injected": True, "seed": seed})
+
+        # ~5% wrong tax type (CGST+SGST where IGST expected for out-of-state)
+        if rng.random() < 0.05 and supplier["stateCode"] != buyer["stateCode"]:
+            for d in docs:
+                if d["type"] == "INVOICE_IN" and d["seller"]["name"] == supplier["name"]:
+                    if d.get("totals") and d["totals"].get("igst") == "0":
+                        labels.append({"type": "TAX_TYPE_MISMATCH", "docId": d["id"],
+                                       "injected": True, "seed": seed,
+                                       "note": "intra-state tax on inter-state supply"})
+
+        # ~4% currency mismatch (payment in non-INR while PO/invoice are INR)
+        if rng.random() < 0.04:
+            for d in docs:
+                if d["type"] == "PAYMENT_OUT" and d["seller"]["name"] == supplier["name"]:
+                    d["currency"] = "USD"
+                    labels.append({"type": "DOC_CURRENCY_MISMATCH", "docId": d["id"],
+                                   "injected": True, "seed": seed})
+                    break
+
+        # ~4% cross-entity duplicate invoice (same number in ent-2)
+        if rng.random() < 0.04:
+            for d in docs:
+                if d["type"] == "INVOICE_IN" and d["seller"]["name"] == supplier["name"]:
+                    cross = dict(d)
+                    cross["id"] = f"{d['id']}-E2"
+                    cross["entityId"] = "ent-2"
+                    cross["groupId"] = "grp-demo"
+                    docs.append(cross)
+                    labels.append({"type": "DUP_CROSS_ENTITY", "docId": cross["id"],
+                                   "canonicalId": d["id"], "injected": True, "seed": seed})
+                    break
+
+    # ~5% supplier name variant (duplicate vendor master) — appended once
+    if rng.random() < 0.5:
+        base = rng.choice(supplier_pool)
+        variant = dict(base)
+        variant["name"] = base["name"].replace("Pvt Ltd", "Private Limited") if "Pvt Ltd" in base["name"] \
+            else base["name"].replace("Private Limited", "Pvt Ltd")
+        variant["supplierId"] = f"{base['supplierId']}-dup"
+        supplier_pool.append(variant)
+        labels.append({"type": "MASTER_NAME_VARIANT", "supplierId": variant["supplierId"],
+                       "canonicalId": base["supplierId"], "injected": True, "seed": seed})
 
     return docs, links, labels
 

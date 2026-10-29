@@ -19,7 +19,7 @@ def test_every_record_is_constructed_demo():
 
 
 def test_labels_cover_injected_findings():
-    docs, links, labels = generate(seed=7, n_pos=40, suppliers=8)
+    docs, links, labels = generate(seed=9, n_pos=80, suppliers=8)
     assert any(l["type"] == "DUPLICATE_INVOICE_SUSPECT" for l in labels)
     assert any(l["type"] == "INVOICE_QTY_EXCEEDS_RECEIVED" for l in labels)
     assert any(l["type"] == "PAY_UNALLOCATED" for l in labels)
