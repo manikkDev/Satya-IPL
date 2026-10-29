@@ -115,4 +115,20 @@ def create_app():
     def match(request: MatchCandidatesRequest):
         return match_candidates(request, alpha=float(request.alpha))
 
+    @app.get("/v2/models/status", dependencies=[Depends(require_v2), Depends(internal)])
+    def models_status():
+        from .match.pairs import MODEL_DIR, load_model
+        tasks = ["invoice_po_line", "grn_po_line", "invoice_invoice_dup",
+                 "payment_invoice", "supplier_supplier", "item_item"]
+        models = []
+        for task in tasks:
+            bundle = load_model(task)
+            if bundle:
+                *_, card = bundle
+                models.append({"task": task, "version": card["version"],
+                               "trainedAt": card["trainedAt"], "dataSources": card["dataSources"],
+                               "metrics": card["metrics"], "limitations": card["limitations"]})
+        return {"models": models,
+                "fallback": "heuristic-v2 when no artifact in runs/satya-models/<task>/"}
+
     return app

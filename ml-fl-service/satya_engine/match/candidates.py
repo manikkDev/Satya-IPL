@@ -8,6 +8,14 @@ from .blocking import block
 from .features import contributions, features
 
 
+def _model_bundle(task):
+    try:
+        from .pairs import load_model
+        return load_model(task)
+    except Exception:
+        return None
+
+
 def _score(f):
     """Heuristic probability — deterministic, explainable, conservative."""
     if f.get("explicit_ref"):
@@ -33,17 +41,30 @@ def _certainty(probability, set_size):
 
 
 def candidates(request, alpha=0.05, threshold=0.4):
-    """Return {anchorId → predictionSet, certainty, abstainReason}."""
+    """Return {anchorId → predictionSet, certainty, abstainReason}.
+
+    Uses the trained pair model + conformal quantile when an artifact exists;
+    otherwise the deterministic heuristic scorer (same output contract).
+    """
+    bundle = _model_bundle(request.task)
     results = []
     for anchor in request.anchors:
         scored = []
         for candidate, _reasons in block(anchor, request.pool):
             f = features(anchor, candidate, request.task)
-            p = _score(f)
-            if p >= threshold:
+            if bundle:
+                model, q_hat, keys, _card = bundle
+                import numpy as np
+                vec = np.array([[f.get(k) if f.get(k) is not None else 0.0 for k in keys]])
+                p = float(model.predict_proba(vec)[0][1])
+                inside = (1 - p) <= q_hat
+            else:
+                p = _score(f)
+                inside = p >= threshold
+            if inside:
                 scored.append({
                     "candidateId": candidate.id,
-                    "probability": str(p),
+                    "probability": str(round(p, 4)),
                     "contributions": contributions(f),
                 })
         scored.sort(key=lambda s: -float(s["probability"]))
@@ -55,5 +76,7 @@ def candidates(request, alpha=0.05, threshold=0.4):
             "certainty": _certainty(top_p, set_size),
             **({"abstainReason": "no candidate above threshold"} if set_size == 0 else {}),
         })
-    return {"results": results, "modelVersion": "heuristic-v2",
-            "method": "deterministic_features+heuristic_score (conformal-set shape)"}
+    version = bundle[3]["version"] if bundle else "heuristic-v2"
+    method = ("xgboost+split-conformal" if bundle
+              else "deterministic_features+heuristic_score (conformal-set shape)")
+    return {"results": results, "modelVersion": version, "method": method}
