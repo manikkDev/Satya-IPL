@@ -1,14 +1,9 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import http from "http";
-import { Server } from "socket.io";
 import connectDB from "./config/db.js";
 import routes from "./routes/index.js";
 import seedDemoUsers from "./seedDemoUsers.js";
-import User from "./models/User.js";
-import { BusinessCase } from "./models/Business.js";
-import { verifyToken } from "./utils/jwt.js";
 import { startWorker } from "./utils/businessService.js";
 import { statusPage } from "./statusPage.js";
 
@@ -39,29 +34,5 @@ app.get("/", (req, res) => {
   res.json({ service: "satya-business-api" });
 });
 
-// Create HTTP server + Socket.io
-const httpServer = http.createServer(app);
-const io = new Server(httpServer, { cors: corsOptions });
-
-// Track active sockets for direct call notifications
-app.set("io", io);
-io.use(async (socket, next) => {
-  try {
-    const decoded = verifyToken(socket.handshake.auth.token);
-    const user = await User.findById(decoded.id).select("companyId active");
-    if (!user?.active || !user.companyId || user.companyId !== decoded.companyId || decoded.domain !== "satya-business-v1") throw new Error("Membership required");
-    socket.data.companyId = user.companyId;
-    next();
-  } catch { next(new Error("Authentication required")); }
-});
-io.on("connection", (socket) => {
-  socket.on("case:subscribe", async ({ caseId } = {}) => {
-    if (typeof caseId !== "string" || caseId.length > 80 || socket.rooms.size > 10) return;
-    try {
-      if (await BusinessCase.exists({ companyId: socket.data.companyId, id: caseId })) socket.join(`company:${socket.data.companyId}:case:${caseId}`);
-    } catch { socket.emit("case:error", { message: "Case subscription unavailable" }); }
-  });
-});
-
 // Start server
-httpServer.listen(PORT, () => console.log(`Satya business API listening on port ${PORT}`));
+app.listen(PORT, () => console.log(`Satya business API listening on port ${PORT}`));

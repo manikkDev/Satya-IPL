@@ -12,6 +12,8 @@ Append one line per milestone: `YYYY-MM-DD <agent>: <task id> <what> (commit <sh
 
 2026-10-29 B: P0-B0 done — lib/flags.js + GET /api/v2/meta/flags (off in prod, on in dev); docker-compose resource limits (engine 2g/2, server+gateway 768m/1, client 1.5g/2, mongo 1g, neo4j 1.5g + 512m heap/256m pagecache). tests 15/15 green (business.test.mjs).
 
+2026-10-29 B: P1-B1 done (pending commit) — removed all unmounted legacy code: routes {consentRoutes, graph, userRoutes, auditRoutes, authRoutes(old), flProgress}, controllers/, models {Consent, ErasureRequest}, middleware {requireRole, index barrel}; dropped deps googleapis + socket.io (nothing emitted, client has no socket.io-client); index.js simplified to plain app.listen; env.example GOOGLE_* removed; statusPage paths corrected. Verified client never calls these on the business API (they 404'd already) — logged dead-path list to D. tests 15/15 green.
+
 2026-10-29 B: A handoffs resolved (commit f2f37e3), tests 15/15. FL env vars removed from render.yaml + compose files (validated via `docker compose config`); dead fl/progress route deleted; `make test-python` uses compose.owner.yml test target. CC-1 landed: §6.1 shared engine types + semantics frozen (DocumentLink, EntityPolicy, Reviews, Scenario, MatchRecord, tax policy/UTGST/cess/rounding/placeOfSupply, nullable flags, tds194q rename). render.yaml gained GATEWAY_API_URL + GEMINI_API_KEYS (sync:false). P1 next: v2 org/RBAC + collections.
 **QUESTION FOR HUMAN (auto-deploys): Render + Vercel deploy on every push to main. For the 30 Oct pitch: (a) pause auto-deploys until after the pitch, or (b) accept every push deploys live (all v2 work is behind FEATURE_V2_* flags, default off in prod)? Please reply in STATUS.**
 
