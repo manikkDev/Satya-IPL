@@ -6,7 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import ProtectedRoute from "@/components/auth/protected-route";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { LayoutDashboard, Files, GitBranch, MessageSquare, Upload, ShieldCheck, FlaskConical, LogOut, Menu, X, LoaderCircle, ClipboardList } from "lucide-react";
+import { LayoutDashboard, Files, GitBranch, MessageSquare, Upload, ShieldCheck, FlaskConical, LogOut, Menu, X, LoaderCircle, ClipboardList, Bell } from "lucide-react";
+import { businessApi } from "@/lib/business-api";
 
 const links = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -27,7 +28,19 @@ export default function BusinessShell({ children, title, subtitle }: { children:
   const { user, logout } = useAuth();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [alertCount, setAlertCount] = useState(0);
   const menuButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    businessApi.alerts().then((res) => {
+      if (active && res?.alerts) {
+        setAlertCount(res.alerts.filter((a) => a.status !== "dismissed").length);
+      }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [pathname]);
+
   useEffect(() => {
     if (!menuOpen) return;
     const close = (event: KeyboardEvent) => { if (event.key === "Escape") { setMenuOpen(false); menuButton.current?.focus(); } };
@@ -48,7 +61,17 @@ export default function BusinessShell({ children, title, subtitle }: { children:
         <div className="satya-sidebar-bottom"><div className="satya-trust-note"><ShieldCheck size={20} /><p>Every answer starts with your records. Missing information is never guessed.</p></div><div className="satya-profile"><span className="satya-avatar">{(user?.name || user?.email || "S").charAt(0).toUpperCase()}</span><span><strong>{user?.name || "Your account"}</strong><small>{user?.role === "ap_manager" ? "Finance manager" : user?.role === "ops_analyst" ? "Operations analyst" : user?.role === "admin" ? "Administrator" : "Auditor"}</small></span><button onClick={logout} aria-label="Sign out" title="Sign out"><LogOut size={19} /></button></div></div>
       </aside>
       <main className="satya-main" id="workspace-content" tabIndex={-1}>
-        <header className="satya-topbar"><span>Workspace <span aria-hidden="true">/</span> <strong>{title}</strong></span><div className="satya-topbar-tools"><span className="satya-tag">INR · India time</span><ThemeToggle /></div></header>
+        <header className="satya-topbar">
+          <span>Workspace <span aria-hidden="true">/</span> <strong>{title}</strong></span>
+          <div className="satya-topbar-tools">
+            <Link href="/dashboard" className="satya-evidence-chip" title={`${alertCount} active system alerts`} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none' }}>
+              <Bell size={14} className={alertCount > 0 ? "text-amber-500" : "text-muted-foreground"} />
+              <span>{alertCount} {alertCount === 1 ? 'alert' : 'alerts'}</span>
+            </Link>
+            <span className="satya-tag">INR · India time</span>
+            <ThemeToggle />
+          </div>
+        </header>
         <section className="satya-page"><div className="satya-page-heading"><div><h1>{title}</h1><p>{subtitle}</p></div><span className="satya-demo-badge">Demo workspace · no live payments</span></div>{children}</section>
       </main>
     </div>

@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import User from "./models/User.js";
 import { BusinessCase, BusinessRecord } from "./models/Business.js";
 import { engine, inputFor, publish } from "./utils/businessService.js";
+import seedDocumentsAndAlerts from "./seedDocumentsAndAlerts.js";
 
 export default async function seedDemoUsers() {
   if (process.env.DEMO_MODE !== "1") return;
@@ -35,4 +36,5 @@ export default async function seedDemoUsers() {
     const input = await inputFor(businessCase);
     await publish(businessCase, input, await engine("reconcile", input));
   }
+  await seedDocumentsAndAlerts(bundle?.company?.id || "satya-demo");
 }
