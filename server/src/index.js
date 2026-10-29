@@ -1,6 +1,8 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import crypto from "node:crypto";
 import connectDB from "./config/db.js";
 import routes from "./routes/index.js";
 import seedDemoUsers from "./seedDemoUsers.js";
@@ -24,8 +26,15 @@ const PORT = process.env.PORT || 5002;
 // Middleware
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:3000,http://127.0.0.1:3000").split(",");
 const corsOptions = { origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin)), credentials: true, methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"], allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key"] };
+app.use(helmet());
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "2mb" }));
+// request id for error envelopes + audit trail (02 §2)
+app.use((req, res, next) => {
+  req.id = crypto.randomUUID();
+  res.set("x-request-id", req.id);
+  next();
+});
 
 // API Routes
 app.use("/api", routes);

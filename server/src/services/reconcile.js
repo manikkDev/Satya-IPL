@@ -5,6 +5,7 @@ import Snapshot from "../models/Snapshot.js";
 import Finding from "../models/Finding.js";
 import { enginePost } from "./engine.js";
 import { ensurePolicy } from "./policies.js";
+import { projectGraph } from "./graphProjection.js";
 import { newId } from "../lib/ids.js";
 
 // Reconcile orchestration (04 P2-B6): collect the case's document set, run
@@ -38,7 +39,7 @@ const strip = (v) => {
     if (v._bsontype === "ObjectID" || v._bsontype === "ObjectId") return String(v);
     return Object.fromEntries(Object.entries(v)
       .filter(([k]) => ![
-        "_id", "__v",
+        "_id", "__v", "supplierId",
         "approvals", "requiredApprovers", "contentHash", "issuedAt",
         "caseId", "taxSummary", "taxWarnings",
       ].includes(k) && v[k] !== undefined)
@@ -49,6 +50,12 @@ const strip = (v) => {
 
 const toEntityPolicy = (_p, kase) => ({ entityId: kase.entityId });
 
+// links are stricter than documents: no groupId/createdAt/updatedAt allowed.
+const stripLink = (l) => {
+  const { groupId, createdAt, updatedAt, ...rest } = strip(l);
+  return rest;
+};
+
 export const runReconcile = async (payload, job) => {
   const { caseId, scenario } = payload;
   const kase = await Case.findOne({ id: caseId });
@@ -57,7 +64,7 @@ export const runReconcile = async (payload, job) => {
   const entityPolicy = toEntityPolicy(await ensurePolicy(kase.entityId, kase.groupId), kase);
   const result = await enginePost("/v2/reconcile/case", {
     caseId, entityPolicy, ...(payload.knowledgeTime ? { knowledgeTime: payload.knowledgeTime } : {}),
-    documents: strip(documents), links: strip(links), reviews: payload.reviews || {},
+    documents: strip(documents), links: links.map(stripLink), reviews: payload.reviews || {},
     ...(scenario ? { scenario } : {}),
   }, { timeoutMs: 60000 });
 
@@ -76,6 +83,10 @@ export const runReconcile = async (payload, job) => {
       })));
     }
     await Case.updateOne({ id: caseId }, { $set: { latestSnapshotId: snapshot.id }, $inc: { revision: 1 } });
+    // Neo4j is a derived store — projection failure must never fail the job;
+    // /cases/:id/graph falls back to snapshot.graph.
+    try { if (result.graph) await projectGraph(kase.groupId, snapshot.id, result.graph); }
+    catch (e) { console.warn("graph projection skipped:", e.message); }
   }
   return { snapshotId: snapshot.id, scenario: Boolean(scenario), findings: result.findings?.length || 0 };
 };

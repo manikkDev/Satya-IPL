@@ -7,6 +7,7 @@ import Document from "../../models/Document.js";
 import { newId } from "../../lib/ids.js";
 import { scopeAllows } from "../../auth/rbac.js";
 import { enqueue } from "../../jobs/runner.js";
+import { caseGraph } from "../../services/graphProjection.js";
 import { fail, handle, assertPlainInput } from "./util.js";
 
 const router = express.Router();
@@ -38,6 +39,19 @@ router.get("/:id", handle(async (req, res) => {
   res.json({ ...kase.toObject(), snapshot: snapshot?.result || null, snapshotId: snapshot?.id || null, findings, decisions, documents });
 }));
 
+// GET /cases/:id/graph — Neo4j first, snapshot.graph fallback (never blocks).
+router.get("/:id/graph", handle(async (req, res) => {
+  const kase = await loadCase(req);
+  const snapshot = await Snapshot.findOne({ caseId: kase.id, scenario: false }).sort({ createdAt: -1 }).lean();
+  try {
+    const g = await caseGraph(kase.groupId, snapshot?.id);
+    return res.json({ ...g, snapshotId: snapshot?.id || null });
+  } catch {
+    if (snapshot?.result?.graph) return res.json({ ...snapshot.result.graph, source: "snapshot", snapshotId: snapshot.id });
+    throw fail(503, "UPSTREAM_UNAVAILABLE", "Graph store unavailable", { service: "neo4j", retryAfterMs: 15000 });
+  }
+}));
+
 router.post("/:id/reconcile", handle(async (req, res) => {
   const kase = await loadCase(req);
   const job = await enqueue("reconcile", { caseId: kase.id, knowledgeTime: req.body?.knowledgeTime, reviews: req.body?.reviews }, req.scope.groupId);
@@ -52,6 +66,28 @@ router.post("/:id/scenarios", handle(async (req, res) => {
   if (!Array.isArray(req.body?.changes)) throw fail(422, "VALIDATION_FAILED", "changes[] required");
   const job = await enqueue("reconcile", { caseId: kase.id, scenario: { changes: req.body.changes } }, req.scope.groupId);
   res.status(202).json({ job: { id: job.id, status: job.status } });
+}));
+
+// GET /cases/:id/evidence-pack — single JSON bundle: snapshot, findings,
+// decisions, subject docs, links, audit slice (04 P3-B9).
+router.get("/:id/evidence-pack", handle(async (req, res) => {
+  const kase = await loadCase(req);
+  const { default: Audit } = await import("../../models/Audit.js");
+  const { default: DocumentLink } = await import("../../models/DocumentLink.js");
+  const snapshot = await Snapshot.findOne({ caseId: kase.id, scenario: false }).sort({ createdAt: -1 }).lean();
+  const [findings, decisions, documents, audit] = await Promise.all([
+    Finding.find({ caseId: kase.id }).lean(),
+    Decision.find({ caseId: kase.id }).sort({ createdAt: -1 }).lean(),
+    Document.find({ groupId: kase.groupId, id: { $in: kase.subjectIds } }).lean(),
+    Audit.find({ groupId: kase.groupId, action: { $regex: kase.id } }).sort({ createdAt: 1 }).limit(100).lean(),
+  ]);
+  const docIds = documents.map((d) => d.id);
+  const links = await DocumentLink.find({ groupId: kase.groupId, $or: [{ fromId: { $in: docIds } }, { toId: { $in: docIds } }] }).lean();
+  res.json({
+    packVersion: "1", generatedAt: new Date().toISOString(), case: kase,
+    snapshot: snapshot?.result || null, findings, decisions, documents, links, auditTrail: audit,
+    note: "Supplied tax and e-invoice fields are not independently verified against government systems.",
+  });
 }));
 
 router.post("/:id/decisions", handle(async (req, res) => {

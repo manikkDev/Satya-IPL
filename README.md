@@ -87,3 +87,23 @@ The frontend still uses `output: 'standalone'`. The Docker image copies static a
 - General optimization over many-to-many remittance amounts, company-wide balance bounds and a full accounting ledger remain roadmap items.
 - Local MongoDB is standalone. Immutable case inputs/snapshots, compare-and-swap and worker leases are used; no distributed transaction guarantee is claimed. Imports are serialized per company in the single API process; multi-instance import locking is a deployment extension.
 - Existing optional/legacy frontend libraries and development dependencies still have audit advisories requiring further reviewed upgrades. No lint/type/security checks were bypassed and no forced breaking audit upgrades were run. Treat this as a local prototype, not a security-certified deployment.
+
+## v2 architecture (FEATURE_V2_* flagged)
+
+The v2 platform layer is additive on `/api/v2/*` and ships dark by default. Conventions: prefixed-ULID ids, money/quantity as decimal strings, date-only business fields in IST, cursor pagination, `Idempotency-Key` on mutating POSTs, `expectedRevision` concurrency, `{error:{code,message,details,requestId}}` envelopes, prefixed `FEATURE_V2_*` flags (set `FEATURE_V2_RECON_V2=1` on the engine to enable its v2 surface — already on for local compose).
+
+| Area | Endpoint | Permission |
+|---|---|---|
+| Identity | `POST /v2/auth/{login,signup,switch-group}`, `GET /me` | — |
+| Masters | `/suppliers`, `/items`, `/entities`, `/policies`, `/hsn/search` | `master.manage`, `policy.manage` |
+| Documents | `/documents` draft→compute→submit→approve→issue→amend/short-close/cancel, `GET /documents/:id/render-model`, public `GET /verify/:hash` | `po.create`, `po.approve`, `doc.upload` |
+| Ingestion | `POST /files` (magic-byte sniff, GridFS, dedupe), `POST /ingest/files/:id/extract`, `PATCH/confirm /ingest/drafts/:id` | `doc.upload` |
+| Cases | `GET /cases`, `POST /cases/:id/reconcile|scenarios|decisions`, `GET /cases/:id/graph|evidence-pack`, `GET /jobs/:id` | `finding.decide` for decisions |
+| Graph | `GET /graph/neighborhood`, `POST /admin/graph/rebuild` | `group.manage` for rebuild |
+| Ops | `GET /dashboard/summary`, `GET /compliance/summary`, `GET /audit` + `/audit/verify`, `GET /research/model-info|evaluations` | `audit.read` for audit |
+
+Cross-cutting: Mongo job runner (lease+backoff+dead-letter), hash-chained audit on every mutation, hash-verified issued documents, Neo4j derived graph with snapshot fallback, GridFS file storage. See `docs/plan/` for the full contract.
+
+## Demo data
+
+`scripts/seed-demo-v2.mjs` adds a linked PO→GRN→INVOICE→PAYMENT case to the demo group; reconcile via `POST /api/v2/cases/case_seed__po2/reconcile`. CI runs engine pytest, server `node --test`, gateway tests (LLM mocked) and client lint+tests — see `.github/workflows/ci.yml`.

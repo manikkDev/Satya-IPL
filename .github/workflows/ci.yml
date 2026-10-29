@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install engine deps
+        run: pip install -r ml-fl-service/requirements-business.txt -r ml-fl-service/requirements-test.txt 2>/dev/null || pip install -r ml-fl-service/requirements-business.txt
+        working-directory: ml-fl-service
+      - name: Engine tests (no LLM, no network)
+        run: python -m pytest tests -x -q
+        working-directory: ml-fl-service
+
+  server:
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports: ["27017:27017"]
+      neo4j:
+        image: neo4j:5
+        ports: ["7687:7687"]
+        env:
+          NEO4J_AUTH: neo4j/password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+        working-directory: server
+      - name: Boot server
+        run: |
+          MONGO_URI=mongodb://localhost:27017/satya \
+          NEO4J_URI=bolt://localhost:7687 NEO4J_USER=neo4j NEO4J_PASSWORD=password \
+          JWT_SECRET=ci-secret NODE_INTERNAL_TOKEN=ci-internal \
+          npm start & sleep 15
+        working-directory: server
+      - name: Server tests
+        run: npm test
+        working-directory: server
+        env:
+          SERVER_URL: http://localhost:5002
+          MONGO_URI: mongodb://localhost:27017/satya
+
+  gateway:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+        working-directory: chatbot-backend
+      - name: Gateway tests (LLM mocked)
+        run: npm test
+        working-directory: chatbot-backend
+
+  client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+        working-directory: client
+      - run: npm run lint && npm test
+        working-directory: client
