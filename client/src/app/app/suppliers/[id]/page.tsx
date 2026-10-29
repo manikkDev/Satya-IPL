@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
-import { Money, ErrorState, Term } from "@/components/ui/v2";
+import { Money, ErrorState } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function SupplierDetailPage() {
@@ -32,8 +32,8 @@ export default function SupplierDetailPage() {
         <p className="font-code mt-1 text-xs text-[var(--muted)]">GSTIN {supplier.gstin} · well-formed</p>
         <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
-            ["Open value", <Money key="a" value={supplier.openValue} />],
-            ["Overdue (<Term of='MSME'>MSME</Term>)", supplier.overdue ? <Money key="b" value={supplier.overdue} /> : "—"],
+            ["Open value", supplier.openValue ? <Money key="a" value={supplier.openValue} /> : "—"],
+            ["Overdue MSME", supplier.overdue ? <Money key="b" value={supplier.overdue} /> : "—"],
             ["Open issues", String(supplier.issueCount)],
             ["Duplicate-vendor alerts", "None found"],
           ].map(([label, value], i) => (

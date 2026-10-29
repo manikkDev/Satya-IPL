@@ -5,11 +5,14 @@
 // step 5 calls POST /documents/:id/compute (mocked here) and shows the
 // "Calculating…" state while waiting.
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, FileDown, CircleCheck, LoaderCircle, TriangleAlert, Plus, Trash2 } from "lucide-react";
 import { useSession } from "@/components/v2/session";
 import { mockEntities, mockSupplier } from "@/lib/mocks/flagship";
+import { v2 } from "@/lib/api/v2";
+import { mocksEnabled } from "@/lib/flags";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -87,8 +90,10 @@ export default function NewOrderPage() {
   const [computing, setComputing] = useState(false);
   const [issued, setIssued] = useState(false);
 
+  const { data: supplierPage } = useQuery({ queryKey: ["suppliers"], queryFn: () => v2.suppliers() });
+  const supplierList = mocksEnabled() ? SUPPLIERS : supplierPage?.items?.length ? supplierPage.items : SUPPLIERS;
   const entity = entities.find((e) => e.id === entityId) ?? mockEntities[0];
-  const supplier = SUPPLIERS.find((s) => s.id === supplierId);
+  const supplier = supplierList.find((s) => s.id === supplierId);
   const intraState = supplier ? stateOf(supplier.gstin) === entity.stateCode : true;
   const canNext =
     (step === 0 && !!entityId) ||
@@ -164,7 +169,7 @@ export default function NewOrderPage() {
             <fieldset>
               <legend className="text-base font-semibold text-[var(--ink)]">Who is the supplier?</legend>
               <div className="mt-4 space-y-2">
-                {SUPPLIERS.map((s) => (
+                {supplierList.map((s) => (
                   <label key={s.id} className={cn("flex cursor-pointer items-start gap-3 rounded-[var(--radius-sm)] border p-3", supplierId === s.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]")}>
                     <input type="radio" name="supplier" checked={supplierId === s.id} onChange={() => setSupplierId(s.id)} className="mt-1 accent-[var(--accent)]" />
                     <span>

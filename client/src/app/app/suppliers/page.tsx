@@ -52,7 +52,9 @@ export default function SuppliersPage() {
                   )}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-[var(--muted)]">
-                  <span>Open: <Money value={supplier.openValue} className="font-medium text-[var(--ink)]" /></span>
+                  {supplier.openValue ? (
+                    <span>Open: <Money value={supplier.openValue} className="font-medium text-[var(--ink)]" /></span>
+                  ) : null}
                   {supplier.overdue && <span className="text-[var(--sev-high)]">Overdue MSME: <Money value={supplier.overdue} /></span>}
                   {supplier.issueCount > 0 && <span className="text-[var(--sev-high)]">{supplier.issueCount} issue{supplier.issueCount === 1 ? "" : "s"}</span>}
                 </div>

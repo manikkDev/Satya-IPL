@@ -12,10 +12,44 @@ import {
   type OrderDetail, type OrderListRow, type Draft, type DraftDetail,
 } from "@/lib/mocks/data";
 
-type SuppliersPage = typeof mockSuppliers;
+/** Uniform supplier row for the UI — covers both mock and real API shapes. */
+export type SupplierRow = {
+  id: string; name: string; legalName?: string; gstin: string;
+  msme?: string; udyam?: { number: string; category: string; verifiedAt?: string };
+  paymentTermsDays?: number;
+  openValue?: { amount: string; currency: string };
+  overdue?: { amount: string; currency: string };
+  issueCount: number;
+};
+type SuppliersPage = Page<SupplierRow>;
 type PaymentsPage = typeof mockPayments;
 type Compliance = typeof mockCompliance;
 type InvestigationsPage = typeof mockInvestigations;
+
+/** Shape returned by GET /api/v2/suppliers (B). */
+type SupplierApi = {
+  id: string; legalName: string; tradeNames?: string[];
+  gstins?: { gstin: string; stateCode?: string; status?: string }[];
+  pan?: string; udyam?: { number: string; category: "micro" | "small" | "medium"; verifiedAt?: string };
+  msme?: boolean; paymentTermsDays?: number;
+};
+
+/** Shape returned by GET /api/v2/me (B). */
+export type MeResponse = {
+  user: { id: string; name: string; email: string; platformRole?: string };
+  memberships: { groupId: string; entityId: string; roles: string[] }[];
+  activeGroup: { id: string; name: string; plan?: string };
+  entities: typeof mockEntities;
+  permissions: Record<string, string[]>;
+};
+
+/** Shape returned by GET /api/v2/hsn/search (B). */
+export type HsnResult = {
+  code: string; description: string; chapter?: string;
+  rate: string | null; cessRate?: string | null;
+  effectiveFrom: string | null; notificationRef: string | null;
+  conditional?: boolean;
+};
 
 const mock = <T>(value: T): Promise<T> => Promise.resolve(structuredClone(value));
 const qs = (params: Record<string, string>) => {
@@ -72,7 +106,31 @@ export const v2 = {
       : fetchJson(`/api/v2/allocate/payment/${encodeURIComponent(id)}`),
 
   suppliers: (params: Record<string, string> = {}): Promise<SuppliersPage> =>
-    mocksEnabled() ? mock(mockSuppliers) : fetchJson(`/api/v2/suppliers${qs(params)}`),
+    mocksEnabled()
+      ? mock(mockSuppliers)
+      : fetchJson<{ items: SupplierApi[]; nextCursor: string | null }>(`/api/v2/suppliers${qs(params)}`).then(
+          (page) => ({
+            items: page.items.map((s) => ({
+              id: s.id,
+              name: s.legalName,
+              legalName: s.legalName,
+              gstin: s.gstins?.[0]?.gstin ?? "",
+              msme: s.udyam?.category,
+              udyam: s.udyam,
+              paymentTermsDays: s.paymentTermsDays,
+              openValue: undefined,
+              overdue: undefined,
+              issueCount: 0,
+            })),
+            nextCursor: page.nextCursor,
+            total: page.items.length,
+          }),
+        ),
+
+  me: (): Promise<MeResponse> => fetchJson(`/api/v2/me`),
+
+  hsnSearch: (q: string, date?: string): Promise<{ items: HsnResult[] }> =>
+    fetchJson(`/api/v2/hsn/search${qs({ q, ...(date ? { date } : {}) })}`),
 
   compliance: (): Promise<Compliance> =>
     mocksEnabled()
