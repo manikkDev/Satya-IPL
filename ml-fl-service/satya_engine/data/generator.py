@@ -7,12 +7,43 @@ learning and evaluation can be measured honestly.
 import json
 import random
 from datetime import date, timedelta
+from pathlib import Path
 
 HSN_CHAPTERS = ["73", "84", "85", "40", "90"]
 FIRST_NAMES = ["Shree", "Siddhi", "Bharat", "Kaveri", "National", "Precision"]
 LAST_NAMES = ["Equipments", "Industries", "Engineering", "Traders", "Components"]
 LEGAL_SUFFIXES = ["Pvt Ltd", "Private Limited", "& Sons", "Corporation"]
 STATES = ["27", "29", "07", "06", "24", "33", "09", "19"]
+
+LAG_FILE = Path(__file__).resolve().parents[2] / "assets" / "bpi_lag_distributions.json"
+_lag_cache = None
+
+
+def _lags():
+    global _lag_cache
+    if _lag_cache is None:
+        try:
+            _lag_cache = json.loads(LAG_FILE.read_text())["flows"] if LAG_FILE.exists() else {}
+        except Exception:
+            _lag_cache = {}
+    return _lag_cache
+
+
+def _sample_lag(flow, rng, fallback_lo, fallback_hi):
+    """Inverse-CDF sample from BPI percentile table; randint fallback."""
+    table = (_lags().get(flow) or {}).get("percentiles")
+    if not table:
+        return rng.randint(fallback_lo, fallback_hi)
+    u = rng.uniform(0, 99)
+    points = sorted((float(k[1:]), v) for k, v in table.items())
+    if u <= points[0][0]:
+        return int(round(points[0][1]))
+    if u >= points[-1][0]:
+        return int(round(points[-1][1]))
+    for (p1, v1), (p2, v2) in zip(points, points[1:]):
+        if p1 <= u <= p2:
+            return int(round(v1 + (v2 - v1) * (u - p1) / (p2 - p1)))
+    return int(round(points[-1][1]))
 
 
 def _doc(doc_id, doc_type, number, doc_date, seller, buyer, lines, **kw):
@@ -66,7 +97,7 @@ def generate(seed=42, n_pos=40, suppliers=8):
 
         # ~80% of POs get a GRN (delivery may be partial)
         if rng.random() < 0.8:
-            grn_date = (date.fromisoformat(po_date) + timedelta(days=rng.randint(3, 21))).isoformat()
+            grn_date = (date.fromisoformat(po_date) + timedelta(days=_sample_lag("po_to_grn", rng, 3, 21))).isoformat()
             grn_lines = []
             for ln in po_lines:
                 received = int(ln["qty"]) if rng.random() < 0.7 else max(1, int(ln["qty"]) - rng.randint(1, 4))
@@ -77,7 +108,7 @@ def generate(seed=42, n_pos=40, suppliers=8):
 
         # ~70% get an invoice against delivered
         if rng.random() < 0.7:
-            inv_date = (date.fromisoformat(po_date) + timedelta(days=rng.randint(5, 30))).isoformat()
+            inv_date = (date.fromisoformat(po_date) + timedelta(days=_sample_lag("grn_to_invoice", rng, 5, 30))).isoformat()
             inv_lines = [dict(l) for l in po_lines]
             taxable = sum(int(l["qty"]) * float(l["rate"]) for l in inv_lines)
             tax = round(taxable * 0.18, 2)
@@ -113,7 +144,7 @@ def generate(seed=42, n_pos=40, suppliers=8):
 
         # ~40% get a payment
         if rng.random() < 0.4:
-            pay_date = (date.fromisoformat(po_date) + timedelta(days=rng.randint(20, 60))).isoformat()
+            pay_date = (date.fromisoformat(po_date) + timedelta(days=_sample_lag("invoice_to_clear", rng, 20, 60))).isoformat()
             pay_id = f"PAY-{3000 + po_index}"
             pay_amount = round(sum(int(l["qty"]) * float(l["rate"]) for l in po_lines) * 1.18, 2)
             docs.append(_doc(pay_id, "PAYMENT_OUT", f"PAY/{po_index + 1:04d}", pay_date, supplier, buyer,

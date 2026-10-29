@@ -42,3 +42,24 @@ def test_write_jsonl_roundtrip(tmp_path):
     assert json.loads(lines[0])["provenance"] == "CONSTRUCTED_DEMO"
     label_lines = (tmp_path / "demo.labels.jsonl").read_text().strip().split("\n")
     assert len(label_lines) == len(labels) + len(links)
+
+
+def test_lag_sampling_uses_bpi_distribution():
+    import random
+    from satya_engine.data.generator import _sample_lag, _lags
+    assert _lags(), "bpi_lag_distributions.json should load"
+    rng = random.Random(7)
+    samples = [_sample_lag("invoice_to_clear", rng, 20, 60) for _ in range(100)]
+    # real BPI: p10=8.18, p99=126.08 — samples must sit inside the fitted range
+    assert all(0 <= s <= 200 for s in samples)
+    assert sum(samples) / len(samples) > 5  # not degenerate
+
+
+def test_lag_fallback_without_file(tmp_path, monkeypatch):
+    import random
+    import satya_engine.data.generator as g
+    monkeypatch.setattr(g, "LAG_FILE", tmp_path / "missing.json")
+    monkeypatch.setattr(g, "_lag_cache", None)
+    rng = random.Random(1)
+    sample = g._sample_lag("po_to_grn", rng, 3, 21)
+    assert 3 <= sample <= 21  # randint fallback
