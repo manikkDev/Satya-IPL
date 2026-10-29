@@ -6,7 +6,11 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "node --test test/business.test.mjs test/questions.test.mjs"
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "eval": "node scripts/eval.mjs",
+    "eval:live": "node scripts/eval.mjs --live",
+    "golden:gen": "node test/golden/generate.mjs",
+    "smoke:live": "node scripts/smokeLive.mjs"
   },
   "author": "",
   "license": "ISC",
@@ -16,12 +20,17 @@
     "dotenv": "^17.2.3",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
-    "openai": "^5.22.0"
+    "minisearch": "^7.2.0",
+    "mongodb": "^6.21.0",
+    "ulid": "^3.0.2",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "eslint": "^9.39.1",
     "nodemon": "^2.0.22"
   },
-  "overrides": { "qs": "6.16.0" },
+  "overrides": {
+    "qs": "6.16.0"
+  },
   "description": "Satya evidence copilot with authorized business retrieval and Neo4j tools"
 }

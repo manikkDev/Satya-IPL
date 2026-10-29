@@ -45,7 +45,7 @@ Rules:
 | Money | `{ "amount": "70800.00", "currency": "INR" }`; amount = decimal string, max 6 dp internally, displayed 2 dp. Never a JSON number. |
 | Quantity | decimal string `"40"`, `"2.500"`; `uom` from allowed list (EA/NOS, BOX, SET, M, KG, L, PAIR, ROLL, LOT, plus UQC codes from GST master). |
 | Percent | decimal string `"18"` meaning 18%. |
-| Dates | ISO-8601 with offset, e.g. `2026-10-01T10:00:00+05:30`. Date-only business fields (invoice date) as `YYYY-MM-DD` plus `tz: "Asia/Kolkata"` implied. |
+| Dates | **Date-only `YYYY-MM-DD`** (IST-implied) for legal/business dates: `date`, `ackDate`, `scheduleDate`, `valueDate`, `dueDate`, `effectiveFrom/To`, `validFrom/To`, deadline `dueDate`. **Timestamps ISO-8601 with offset** for system events: `observedAt`, `createdAt`, `updatedAt`, `knowledgeTime`, `asOf`, graph `timeline[].at`, `cooldownUntil`, `resetsAt`. |
 | FY | string `"2026-27"`; helper `fyOf(date)` (April start). |
 | Errors | HTTP status + body `{ "error": { "code": "SNAKE_CASE", "message": "Plain-language message", "details": {...}, "requestId": "..." } }`. Codes listed per endpoint; common: `UNAUTHENTICATED` 401, `FORBIDDEN` 403 (with `details.reason`), `NOT_FOUND` 404, `VALIDATION_FAILED` 422 (with `details.fields[]`), `CONFLICT` 409 (stale revision/idempotency), `RATE_LIMITED` 429, `UPSTREAM_UNAVAILABLE` 503 (with `details.service`, `retryAfterMs`). |
 | Pagination | `?limit=25&cursor=<opaque>` → `{ items:[], nextCursor: string|null, total?: number }`. |
@@ -80,7 +80,7 @@ type Address = { line1: string; line2?: string; city: string; stateCode: string;
 type DocLine = {
   lineNo: number; itemId?: string; sku?: string; description: string; specs?: Record<string,string>;
   hsn?: string; uom: string; qty: string; rate?: string; discountPct?: string;
-  taxableValue?: string; gstRate?: string; cgst?: string; sgst?: string; igst?: string; cess?: string; lineTotal?: string;
+  taxableValue?: string; gstRate?: string; cgst?: string; sgst?: string; utgst?: string; igst?: string; cess?: string; lineTotal?: string;
   scheduleDate?: string;               // PO delivery schedule for this line/batch
   refs?: { poId?: string; poLineNo?: number; grnId?: string; grnLineNo?: number; invoiceId?: string; invoiceLineNo?: number };
   acceptedQty?: string; rejectedQty?: string; rejectReason?: string;   // QC
@@ -100,7 +100,7 @@ type BusinessDocument = {
   currency: string; fx?: { rate: string; source: string; date: string };
   lines: DocLine[];
   charges?: { kind: "freight"|"packing"|"insurance"|"other"; description: string; amount: string; hsnOrSac?: string; gstRate?: string }[];
-  totals?: { taxable: string; cgst: string; sgst: string; igst: string; cess: string; roundOff: string; grand: string };
+  totals?: { taxable: string; cgst: string; sgst: string; utgst?: string; igst: string; cess: string; roundOff: string; grand: string };
   payment?: { utr?: string; mode?: "NEFT"|"RTGS"|"IMPS"|"UPI"|"CHEQUE"|"OTHER"; amount: string; valueDate?: string;
               bankAccountMasked?: string; allocations?: { documentId: string; amount: string; basis: "reference"|"reviewer"|"remittance" }[];
               tdsAmount?: string; reversalOf?: string };
@@ -236,21 +236,98 @@ Base `http://ml-fl-service:8000`. All money/qty as decimal strings. Request/resp
 
 | Endpoint | Purpose | Request → Response (summary) |
 |---|---|---|
-| `GET /health`, `GET /ready` | liveness/readiness | `{ok, service:"satya-engine", engineVersion, modelVersion, hsnMasterVersion}` |
-| `POST /v2/tax/compute` | GST computation for a document | `{seller:{gstin?,stateCode}, buyer:{gstin?,stateCode}, placeOfSupply, docDate, supplyType, reverseCharge, lut?, currency, lines:[{lineNo,hsn,qty,rate,discountPct?,uom,gstRateOverride?}], charges[], roundOff:true}` → `{lines:[{lineNo,taxableValue,gstRate,rateSource:{hsn,effectiveFrom,notificationRef}|"override",cgst,sgst,igst,cess,lineTotal}], charges[], taxSummary:[{hsn,gstRate,taxable,cgst,sgst,igst,cess}], totals, amountInWords, warnings:[{code,message}], flags:{ewayBillRequired, einvoiceExpected, hsnDigitsRequired, tds393Applicable?}}` |
-| `POST /v2/reconcile/case` | Deterministic reconstruction + findings | `{caseId, entityPolicy, knowledgeTime?, documents: BusinessDocument[], links: DocumentLink[], reviews:{confirmedDuplicates:{}, paymentAllocations:{}, acceptedVariances:{}}, scenario?}` → `{snapshotId, engineVersion, modelVersion, ledger, lines:[lifecycle per PO line], findings: Finding[], links:[proposed+confirmed], ambiguities[], recommendation:{action, scope, reasons[]}, graph: GraphPayload}` |
-| `POST /v2/match/candidates` | Blocking + scoring + conformal sets | `{task:"invoice_po_line"|"grn_po_line"|"invoice_invoice_dup"|"payment_invoice"|"supplier_supplier"|"item_item", anchors:[...], pool:[...], alpha?:"0.05"}` → `{results:[{anchorId, predictionSet:[{candidateId, probability, contributions:[{feature,value,impact}]}], certainty, abstainReason?}]}` |
-| `POST /v2/allocate/payment` | Exact subset-sum allocation | `{payment, openInvoices[], credits[], tdsPolicy}` → `{solutions:[{allocations[], residual}], unique:boolean, certainty}` |
-| `POST /v2/anomaly/score` | Price/amount anomaly | `{documents[], history[]}` → `{scores:[{documentId, lineNo?, score, method, baseline, explanation}]}` |
-| `POST /v2/compliance/deadlines` | MSME 45d, Rule 37, e-invoice 30d, delivery schedule | `{documents[], suppliers[], payments[], asOf}` → `{deadlines[]}` |
+| `GET /health`, `GET /ready` | liveness/readiness | `{ok, service, engineVersion, modelVersion, hsnMasterVersion}` — `service` is `"satya-engine"` when `FEATURE_V2_RECON_V2=1`, otherwise the legacy identity |
+| `POST /v2/tax/compute` | GST computation for a document | `{seller:{gstin?,stateCode}, buyer:{gstin?,stateCode}, placeOfSupply?, docDate, supplyType?, reverseCharge?, lut?, currency, policy?: TaxPolicyInput, lines:[{lineNo,hsn,qty,rate,discountPct?,uom,gstRateOverride?,cessRateOverride?}], charges[], roundOff:true}` → `{lines:[{lineNo,taxableValue,gstRate,rateSource:{hsn,effectiveFrom,notificationRef}|"override"|"assumed",cgst,sgst,utgst?,igst,cess,lineTotal}], charges[], taxSummary:[{hsn,gstRate,taxable,cgst,sgst,utgst?,igst,cess}], totals, amountInWords, warnings:[{code,message}], flags:{ewayBillRequired:boolean\|null, einvoiceExpected:boolean\|null, hsnDigitsRequired:4\|6\|null, tds194qApplicable:boolean\|null}}` |
+| `POST /v2/reconcile/case` | Deterministic reconstruction + findings | `{caseId, entityPolicy: EntityPolicy, knowledgeTime?, documents: BusinessDocument[], links: DocumentLink[], reviews?: Reviews, scenario?: Scenario}` → `{snapshotId, engineVersion, modelVersion, ledger, lines:[lifecycle per PO line], findings: Finding[], links:[proposed+confirmed], ambiguities[], recommendation:{action, scope, reasons[]}, graph: GraphPayload}`. **Live-schema deltas verified (B, 30 Oct)**: `entityPolicy` currently accepts `{entityId}` only; `documents` requires `createdAt`/`updatedAt`/`createdBy` ISO strings; `links` forbid `groupId`/`createdAt`/`updatedAt`; `findings[]` carry no `id` (server assigns `fnd_`). |
+| `POST /v2/match/candidates` | Blocking + scoring + conformal sets | `{task:"invoice_po_line"|"grn_po_line"|"invoice_invoice_dup"|"payment_invoice"|"supplier_supplier"|"item_item", anchors: MatchRecord[], pool: MatchRecord[], alpha?:"0.05"}` → `{results:[{anchorId, predictionSet:[{candidateId, probability:decimal-string, contributions:[{feature,value,impact}]}], certainty, abstainReason?}]}` |
+| `POST /v2/allocate/payment` | Exact subset-sum allocation | `{payment: PaymentInput, openInvoices: OpenInvoice[], credits?: CreditInput[], tdsPolicy?: TdsPolicy}` → `{solutions:[{allocations:[{documentId, amount:Money}], residual:Money}], unique:boolean, certainty}` |
+| `POST /v2/anomaly/score` | Price/amount anomaly | `{documents: MatchRecord[], history: MatchRecord[]}` → `{scores:[{documentId, lineNo?, score, method:"robust_z"|"isolation_forest"|"benford", baseline, explanation}]}` |
+| `POST /v2/compliance/deadlines` | MSME 45d, Rule 37, e-invoice 30d, delivery schedule | `{documents: BusinessDocument[], suppliers?: SupplierRef[], policy?: DeadlinePolicy, asOf?}` → `{deadlines: Deadline[]}` |
 | `POST /v2/docs/parse` | Deterministic doc parse | multipart file or `{fileBase64, mime}` → `{detectedType?, method, pages, textLayer:{present, chars}, qr:{found, verified, keyId?, fields?}, extracted?: partial BusinessDocument, needsLlm:boolean, pageImages?: [{page, pngBase64}] (≤3 pages, ≤1600px), issues[]}` |
-| `POST /v2/docs/validate` | Validate extracted fields | `{draft: partial BusinessDocument, qrFields?, textLayer?}` → `{fields:{name:{value, confidence, issues[]}}, lines[], issues:[{code,severity,message,field?}], suggestions:{supplierMatch?, poMatch?}}` |
+| `POST /v2/docs/validate` | Validate extracted fields | `{draft: partial BusinessDocument, qrFields?: Record<string,string>, textLayer?: string}` → `{fields:{[name]:{value, confidence, issues[]}}, lines[], issues:[{code,severity:"info"|"warning"|"error",message,field?}], suggestions:{supplierMatch?:{supplierId,confidence,matchedOn[]}, poMatch?:{documentId,confidence}}}` |
 | `POST /v2/validate/gstin` | Checksum + state | `{gstin}` → `{wellFormed, checksumValid, stateCode, panEmbedded, entityTypeHint}` |
 | `GET /v2/models/status` | Model cards | `{models:[{task, version, trainedAt, dataSources[], metrics:{prAuc, rocAuc, ece, conformalCoverage, avgSetSize, abstentionRate}, limitations[]}]}` |
 | `GET /v2/evaluation/report` | Full evaluation report (for `/research` page) | JSON report |
 | `POST /v2/train` (admin, internal, disabled in prod) | Retrain from labelled decisions | job descriptor |
 
 Legacy `/reconcile`, `/import/preview`, etc. stay until B switches over (flag `RECON_V2`).
+
+### 6.1 Shared engine request/response types (frozen via CC-1)
+
+```ts
+type DocumentLink = {
+  id?: string; fromId: string; toId: string;          // document ids; from bills/receives/settles → to
+  kind: "FULFILS"|"RECEIVES"|"INSPECTS"|"BILLS"|"SETTLES"|"ADJUSTS"|"AMENDS"|"RETURNS"
+      |"REPORTED_IN"|"DUPLICATE_OF"|"SAME_AS";
+  lineRefs?: { fromLineNo?: number; toLineNo?: number }[];
+  certainty: Certainty; confidence?: string;          // decimal 0..1, required when basis="model"
+  amount?: Money; qty?: string;                       // e.g. SETTLES amount, RECEIVES qty
+  basis: "reference"|"reviewer"|"model"|"rule";
+  createdBy?: string; decisionId?: string;            // "engine:<detectorVersion>" when system-made
+};
+
+type EntityPolicy = {                                  // engine-relevant slice of `policies` (§4)
+  entityId: string;                                   // REQUIRED — and, as shipped by A today, the ONLY
+                                                      // accepted field: the strict pydantic schema rejects
+                                                      // all extras. The optional keys below are the agreed
+                                                      // TARGET shape; send none until A lands CC-3.
+  aatoBand?: "<5cr"|"5-10cr"|">=10cr";                 // drives HSN-digit + e-invoice flags
+  einvoiceApplicable?: boolean;                        // explicit override when band unknown
+  tolerance?: { priceAbs?: Money; pricePct?: string; qtyPctByUom?: Record<string,string> };
+  msme?: { defaultDays?: number };                     // default 45
+  tds194q?: { buyerTurnoverAbove10Cr?: boolean; supplierYtdPurchases?: Money; rate?: string }; // default "0.1"
+};
+
+type Reviews = {                                       // reviewer rulings applied before reconstruction
+  confirmedDuplicates?: Record<string, string[]>;      // canonicalDocId → duplicate docIds (original preserved)
+  paymentAllocations?: Record<string, { documentId: string; amount: string; basis: "reference"|"reviewer"|"remittance" }[]>; // paymentDocId → splits
+  acceptedVariances?: Record<string, { findingCode: string; amount?: Money; reason: string }[]>; // docId → accepted findings
+};
+
+type ScenarioChange =
+  | { op: "add_document";    document: BusinessDocument }
+  | { op: "remove_document"; documentId: string }
+  | { op: "patch_document";  documentId: string; patch: Partial<BusinessDocument> }
+  | { op: "add_link";        link: DocumentLink }
+  | { op: "remove_link";     fromId: string; toId: string; kind?: DocumentLink["kind"] }
+  | { op: "set_reviews";     reviews: Reviews };
+type Scenario = { label?: string; changes: ScenarioChange[] };   // never persists to live records
+
+type MatchRecord = {                                   // match-relevant projection of a document/party/item
+  id: string; type: DocType | "SUPPLIER" | "ITEM";
+  number?: string; externalRef?: string; date?: string; fy?: string;
+  amount?: Money; qty?: string; uom?: string;
+  party?: Party; description?: string; specs?: Record<string,string>; hsn?: string;
+  refs?: DocLine["refs"];                              // stated references, e.g. invoice→poId
+  payment?: { utr?: string; amount?: Money; valueDate?: string };
+  status?: string;
+};
+
+type PaymentInput = { id: string; amount: Money; date?: string; utr?: string; tdsAmount?: Money };
+type OpenInvoice  = { id: string; number?: string; date?: string; openAmount: Money; dueDate?: string };
+type CreditInput  = { id: string; amount: Money; date?: string };
+type TdsPolicy    = { deductOnPayment?: boolean; rate?: string };   // allocation is TDS-aware (net matched)
+
+type TaxPolicyInput = {                                // entity context for compliance flags
+  aatoBand?: "<5cr"|"5-10cr"|">=10cr";
+  einvoiceApplicable?: boolean;
+  tds194q?: { buyerTurnoverAbove10Cr?: boolean; supplierYtdPurchases?: Money };
+};
+
+type SupplierRef    = { id: string; msme?: boolean; udyam?: Party["udyam"] };
+type DeadlinePolicy = { msmeDays?: number; rule37Days?: number; einvoiceDays?: number }; // defaults 45/180/30
+type Deadline       = { kind: "MSME_45"|"RULE_37_180"|"EINVOICE_30"|"PO_DELIVERY";
+                        documentId: string; supplierId?: string; dueDate: string;  // date-only
+                        daysLeft: number; amount?: Money; basis: string };
+```
+
+Semantics frozen with CC-1:
+- **placeOfSupply**: when absent, derive from `buyer.stateCode` (intra if equal to `seller.stateCode` → CGST+SGST/UTGST, inter → IGST). If `buyer.stateCode` is also absent, assume intra-state to `seller.stateCode` and emit warning `PLACE_OF_SUPPLY_ASSUMED`. Explicit `placeOfSupply`/`supplyType`/`reverseCharge`/`lut` always win.
+- **UTGST**: for union-territory supplies where UTGST applies (not SGST), `utgst` is populated and `sgst` stays `"0.00"` — additive field on line, taxSummary, and totals.
+- **Cess**: computed per line from the HSN master's `cessRate` effective on `docDate` (or `cessRateOverride`), then aggregated into taxSummary/totals; `"0.00"` when none applies.
+- **Rounding**: all money outputs `ROUND_HALF_UP` to 2 dp; per-line taxes round individually before aggregation; `roundOff` (request flag `roundOff:true`) is the paise difference between the computed grand total and the nearest whole rupee, included in `grand`.
+- **Flags are nullable**: `ewayBillRequired`, `einvoiceExpected`, `hsnDigitsRequired`, `tds194qApplicable` return `null` when the required input (consignment value, `aatoBand`/`einvoiceApplicable`, TDS context) was not supplied — never guessed.
+- **`reviews` and `scenario` are optional**; absent `reviews` = no reviewer rulings applied.
 
 ## 7. AI Gateway & Copilot API (owner: C) — `https://<chat>/`
 

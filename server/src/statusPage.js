@@ -18,7 +18,6 @@ const ENDPOINT_GROUPS = [
       ["POST", "/api/auth/signup", "Create an account (invite-gated roles)"],
       ["POST", "/api/auth/login", "Issue a session token"],
       ["GET", "/api/auth/profile", "Current user profile and role"],
-      ["GET", "/api/users", "Company membership directory"],
     ],
   },
   {
@@ -57,7 +56,7 @@ const ENDPOINT_GROUPS = [
     routes: [
       ["POST", "/api/v1/cases/:id/decisions", "Record an approve/escalate/hold decision"],
       ["GET", "/api/v1/evaluation", "Matching-model evaluation report"],
-      ["GET", "/api/audit", "Immutable audit trail"],
+      ["GET", "/api/v1/audit", "Immutable audit trail"],
     ],
   },
   {
@@ -66,7 +65,7 @@ const ENDPOINT_GROUPS = [
     routes: [
       ["GET", "/api/health", "Liveness probe"],
       ["GET", "/api/conversations", "Copilot conversation history"],
-      ["POST", "/api/fl/progress", "Engine progress webhook (internal)"],
+      ["GET", "/api/v2/meta/flags", "Feature flags"],
       ["WS", "/socket.io", "Realtime workspace events"],
     ],
   },

@@ -1,0 +1,256 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string"
+    },
+    "number": {
+      "type": "string",
+      "description": "document number exactly as printed, empty if absent"
+    },
+    "date": {
+      "type": "string",
+      "description": "as printed + ISO in quotes"
+    },
+    "seller": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "gstin": {
+          "type": "string"
+        },
+        "pan": {
+          "type": "string"
+        },
+        "stateCode": {
+          "type": "string"
+        },
+        "address": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "buyer": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "gstin": {
+          "type": "string"
+        },
+        "pan": {
+          "type": "string"
+        },
+        "stateCode": {
+          "type": "string"
+        },
+        "address": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "placeOfSupply": {
+      "type": "string"
+    },
+    "currency": {
+      "type": "string"
+    },
+    "lines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "lineNo": {
+            "type": "number"
+          },
+          "description": {
+            "type": "string"
+          },
+          "hsn": {
+            "type": "string"
+          },
+          "uom": {
+            "type": "string"
+          },
+          "qty": {
+            "type": "string"
+          },
+          "rate": {
+            "type": "string"
+          },
+          "discountPct": {
+            "type": "string"
+          },
+          "taxableValue": {
+            "type": "string"
+          },
+          "gstRate": {
+            "type": "string"
+          },
+          "cgst": {
+            "type": "string"
+          },
+          "sgst": {
+            "type": "string"
+          },
+          "igst": {
+            "type": "string"
+          },
+          "lineTotal": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "qty"
+        ]
+      }
+    },
+    "totals": {
+      "type": "object",
+      "properties": {
+        "taxable": {
+          "type": "string"
+        },
+        "cgst": {
+          "type": "string"
+        },
+        "sgst": {
+          "type": "string"
+        },
+        "igst": {
+          "type": "string"
+        },
+        "cess": {
+          "type": "string"
+        },
+        "roundOff": {
+          "type": "string"
+        },
+        "grand": {
+          "type": "string"
+        }
+      }
+    },
+    "gst": {
+      "type": "object",
+      "properties": {
+        "irn": {
+          "type": "string"
+        },
+        "ackNo": {
+          "type": "string"
+        },
+        "ackDate": {
+          "type": "string"
+        },
+        "ewayBillNo": {
+          "type": "string"
+        },
+        "reverseCharge": {
+          "type": "boolean"
+        }
+      }
+    },
+    "payment": {
+      "type": "object",
+      "properties": {
+        "utr": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "string"
+        },
+        "valueDate": {
+          "type": "string"
+        },
+        "bankAccountMasked": {
+          "type": "string"
+        }
+      }
+    },
+    "terms": {
+      "type": "object",
+      "properties": {
+        "paymentTerms": {
+          "type": "string"
+        },
+        "creditDays": {
+          "type": "number"
+        },
+        "advancePct": {
+          "type": "string"
+        },
+        "deliveryTerms": {
+          "type": "string"
+        },
+        "warranty": {
+          "type": "string"
+        }
+      }
+    },
+    "poReference": {
+      "type": "string",
+      "description": "PO number if the doc references one"
+    },
+    "bankDetails": {
+      "type": "object",
+      "properties": {
+        "accountMasked": {
+          "type": "string"
+        },
+        "ifsc": {
+          "type": "string"
+        },
+        "bankName": {
+          "type": "string"
+        }
+      }
+    },
+    "fieldConfidence": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "quotes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number"
+          },
+          "quote": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "quote"
+        ]
+      },
+      "description": "{field:{page,quote}} verbatim snippet per field"
+    }
+  },
+  "required": [
+    "type",
+    "number",
+    "date",
+    "quotes",
+    "lines"
+  ],
+  "x-schemaVersion": "v1"
+}

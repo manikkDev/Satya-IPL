@@ -1,4 +1,4 @@
-.PHONY: up down logs health train test test-python test-api build
+.PHONY: up down logs health train test test-python test-api test-client build seed e2e migrate
 up:
 	docker compose up -d --build
 down:
@@ -13,11 +13,19 @@ health:
 train:
 	docker compose run --rm --no-deps ml-fl-service python business_training.py
 	docker compose restart ml-fl-service
+migrate:
+	node --env-file=server/.env scripts/migrate-v1-users.mjs
+seed:
+	docker compose exec server node -e "import('./src/seedDemoUsers.js').then(m=>m.default())"
 test-python:
-	docker compose exec -T ml-fl-service python -m unittest discover -s tests -p 'test_business*.py' -v
+	docker compose -f docker-compose.yml -f ml-fl-service/compose.owner.yml run --rm --no-deps ml-fl-service python -m pytest tests -q
 test-api:
 	cd server && npm test
 	cd chatbot-backend && npm test
-test: test-python test-api
+test-client:
+	cd client && npm test
+e2e:
+	cd client && npm run test:browser
+test: test-python test-api test-client
 build:
 	cd client && npm run build

@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
+import { newId } from '../lib/ids.js';
 
 const userSchema = new mongoose.Schema(
     {
@@ -27,6 +28,16 @@ const userSchema = new mongoose.Schema(
             index: true,
         },
         companyId: { type: String, required: true, index: true },
+        // v2 identity (02 §4): prefixed ULID, group memberships per entity,
+        // platform role and session revocation version.
+        v2id: { type: String, unique: true, sparse: true },
+        memberships: {
+            type: [{ groupId: String, entityId: String, roles: [String] }],
+            default: [],
+        },
+        platformRole: { type: String, enum: ["platform_admin"], default: null },
+        activeGroupId: { type: String },
+        tokenVersion: { type: Number, default: 0 },
         active: { type: Boolean, default: true },
         institutionId: {
             type: Number,
@@ -53,9 +64,10 @@ const userSchema = new mongoose.Schema(
 
 // Hash password before saving
 userSchema.pre('save', async function () {
+    if (this.isNew && !this.v2id) this.v2id = newId("usr");
     if (!this.isModified('password')) return;
 
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
 });
 

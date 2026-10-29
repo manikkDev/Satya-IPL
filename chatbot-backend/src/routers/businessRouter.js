@@ -2,6 +2,8 @@ import express from 'express';
 import { retrieveCases } from '../helpers/businessAnswer.js';
 import { answerQuestion, compact, resolveRecords } from '../helpers/businessQuestions.js';
 import { narrateQuestion } from '../helpers/businessNarrator.js';
+import { getMeter } from '../llm/index.js';
+import { featureOn } from '../llm/config.js';
 
 const router = express.Router();
 const base = () => process.env.GRAPH_API_URL || 'http://localhost:5002';
@@ -84,6 +86,10 @@ router.post('/stream', async (req, res) => {
   try {
     const result = await answer(req, (stage) => send('status', { stage }), controller.signal);
     if (result) send('answer', result);
+    if (featureOn('AI_USAGE_METER')) {
+      try { send('usage', (await getMeter()).abbreviated()); } catch { /* meter optional */ }
+    }
+    send('done', { messageId: result?.conversationId || null });
   } catch (error) { send('error', { message: error.status && error.status < 500 ? error.message : 'The evidence service could not complete this question. Please retry.' }); }
   finally { clearInterval(heartbeat); res.end(); }
 });

@@ -21,7 +21,7 @@ export const apiLimiter = rateLimit({
     skip: (req) => req.method === 'OPTIONS',
 });
 
-// Consent + rights workflows: write-heavy, keep modest.
+// Business writes (imports, decisions, reconcile): keep modest.
 export const writeLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: Number(process.env.RATE_LIMIT_WRITES || 200),

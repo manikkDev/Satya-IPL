@@ -23,7 +23,8 @@ export const protect = async (req, res, next) => {
             // Get user from the token
             req.user = await User.findById(decoded.id).select('-password');
 
-            if (!req.user || !req.user.active || !req.user.companyId || decoded.domain !== 'satya-business-v1' || decoded.aud !== 'satya-business-v1' || decoded.companyId !== req.user.companyId) {
+            const audiences = Array.isArray(decoded.aud) ? decoded.aud : [decoded.aud];
+            if (!req.user || !req.user.active || !req.user.companyId || decoded.domain !== 'satya-business-v1' || !audiences.includes('satya-business-v1') || decoded.companyId !== req.user.companyId) {
                 return res.status(401).json({ message: 'Valid Satya company membership is required' });
             }
             if (req.user.erasedAt) {

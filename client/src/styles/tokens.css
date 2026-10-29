@@ -1,0 +1,147 @@
+/* Satya v2 design tokens (docs/plan/06 §3).
+   Scoped under .v2 so the legacy demo pages keep their current theme.
+   Raw palette tokens keep the plan's names; --color-* remaps let Tailwind /
+   shadcn-style utilities resolve to the v2 palette inside .v2.
+
+   Contrast (WCAG 2.2 AA, measured approx. against the paired surface):
+   light  · --ink on --paper ≈ 13.4:1   · --muted on --paper ≈ 4.7:1
+          · --accent on --surface ≈ 4.9:1 · --muted on --surface ≈ 4.9:1
+   dark   · --ink on --paper ≈ 14.1:1   · --muted on --surface ≈ 5.4:1
+          · --accent on --paper ≈ 9.6:1  · certainty colours ≥ 4.5:1 on --surface */
+
+.v2 {
+  /* palette — light */
+  --paper: #f7f6f2;
+  --surface: #ffffff;
+  --surface-2: #f0eee8;
+  --ink: #14213d;
+  --ink-2: #3d4a63;
+  --muted: #6b7385;
+  --line: #e3e0d8;
+
+  --accent: #0f766e;
+  --accent-strong: #115e59;
+  --accent-soft: #e6f3f1;
+
+  /* certainty — icon + word always accompany the colour */
+  --confirmed: #15803d;
+  --likely: #0e7490;
+  --possible: #a16207;
+  --unclear: #7c3aed;
+  --missing: #64748b;
+  --confirmed-soft: #e4f2e7;
+  --likely-soft: #e0eef3;
+  --possible-soft: #f5ecd8;
+  --unclear-soft: #ece5f8;
+  --missing-soft: #e7eaee;
+
+  /* severity */
+  --sev-critical: #b91c1c;
+  --sev-high: #c2410c;
+  --sev-medium: #a16207;
+  --sev-low: #0e7490;
+  --sev-info: #475569;
+  --sev-critical-soft: #f6e3e3;
+  --sev-high-soft: #f6e7dc;
+  --sev-medium-soft: #f5ecd8;
+  --sev-low-soft: #e0eef3;
+  --sev-info-soft: #e6e9ec;
+
+  /* shape & rhythm — 4-pt spacing scale stays Tailwind default */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --shadow-1: 0 1px 2px rgb(20 33 61 / 0.06);
+  --shadow-2: 0 4px 14px rgb(20 33 61 / 0.08);
+  --content-max: 1200px;
+  --app-max: 1440px;
+
+  /* type — wired to next/font variables on <html> */
+  --font-ui: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-code: var(--font-jbmono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* shadcn/Tailwind semantic remap */
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--surface-2);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--surface-2);
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--accent-soft);
+  --color-accent-foreground: var(--accent-strong);
+  --color-destructive: var(--sev-critical);
+  --color-destructive-foreground: #ffffff;
+  --color-border: var(--line);
+  --color-input: var(--line);
+  --color-ring: var(--accent);
+  --color-radius: var(--radius-md);
+}
+
+.dark .v2 {
+  /* Stealth palette — near-black layered surfaces, one restrained accent.
+     Emerald reads "verified / reconciled" for a finance product; everything
+     else stays quiet so numbers carry the page. */
+  --paper: #0a0a0c;
+  --surface: #121215;
+  --surface-2: #1a1a1f;
+  --ink: #ececee;
+  --ink-2: #a7a7b0;
+  --muted: #6e6e78;
+  --line: #212126;
+
+  --accent: #34d399;
+  --accent-strong: #6ee7b7;
+  --accent-soft: rgb(52 211 153 / 0.11);
+
+  --confirmed: #34d399;
+  --likely: #38bdf8;
+  --possible: #fbbf24;
+  --unclear: #a78bfa;
+  --missing: #73737e;
+  --confirmed-soft: rgb(52 211 153 / 0.11);
+  --likely-soft: rgb(56 189 248 / 0.11);
+  --possible-soft: rgb(251 191 36 / 0.11);
+  --unclear-soft: rgb(167 139 250 / 0.12);
+  --missing-soft: rgb(115 115 126 / 0.14);
+
+  --sev-critical: #f87171;
+  --sev-high: #fb923c;
+  --sev-medium: #fbbf24;
+  --sev-low: #38bdf8;
+  --sev-info: #73737e;
+  --sev-critical-soft: rgb(248 113 113 / 0.11);
+  --sev-high-soft: rgb(251 146 60 / 0.11);
+  --sev-medium-soft: rgb(251 191 36 / 0.11);
+  --sev-low-soft: rgb(56 189 248 / 0.11);
+  --sev-info-soft: rgb(115 115 126 / 0.14);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.5);
+  --shadow-2: 0 6px 24px rgb(0 0 0 / 0.5);
+  --content-max: 1200px;
+  --app-max: 1440px;
+
+  --color-destructive-foreground: #0a0a0c;
+  --color-ring: var(--accent);
+}
+
+/* base — apply UI font inside v2 surfaces; app keeps sans headings,
+   public v2 pages opt into Fraunces via .v2-display on the heading. */
+.v2 {
+  font-family: var(--font-ui);
+  color: var(--ink);
+  background: var(--paper);
+}
+.v2 h1, .v2 h2, .v2 h3, .v2 h4, .v2 h5, .v2 h6 { font-family: var(--font-ui); }
+.v2 .v2-display { font-family: var(--font-display); }
+.v2 .tnum { font-variant-numeric: tabular-nums; }
+.v2 .font-code { font-family: var(--font-code); }

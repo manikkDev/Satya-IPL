@@ -1,0 +1,59 @@
+{
+  "source": "BPI Challenge 2019 (van Dongen), CC BY 4.0",
+  "file": "/tmp/bpi2019-random.xml",
+  "traces": 10848,
+  "flows": {
+    "po_to_grn": {
+      "count": 10371,
+      "meanDays": 19.3,
+      "percentiles": {
+        "p10": 0.0,
+        "p25": 0.01,
+        "p50": 11.04,
+        "p75": 26.82,
+        "p90": 49.73,
+        "p95": 67.14,
+        "p99": 127.13
+      }
+    },
+    "grn_to_invoice": {
+      "count": 7392,
+      "meanDays": 24.24,
+      "percentiles": {
+        "p10": 1.22,
+        "p25": 5.02,
+        "p50": 13.75,
+        "p75": 31.22,
+        "p90": 56.11,
+        "p95": 84.54,
+        "p99": 182.53
+      }
+    },
+    "invoice_to_clear": {
+      "count": 7464,
+      "meanDays": 44.43,
+      "percentiles": {
+        "p10": 8.18,
+        "p25": 21.04,
+        "p50": 39.4,
+        "p75": 64.11,
+        "p90": 83.85,
+        "p95": 100.89,
+        "p99": 126.08
+      }
+    },
+    "vendor_inv_to_receipt": {
+      "count": 8376,
+      "meanDays": 32.42,
+      "percentiles": {
+        "p10": 1.45,
+        "p25": 4.52,
+        "p50": 11.75,
+        "p75": 29.75,
+        "p90": 53.38,
+        "p95": 73.52,
+        "p99": 158.46
+      }
+    }
+  }
+}

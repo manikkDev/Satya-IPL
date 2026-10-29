@@ -1,10 +1,14 @@
 services:
   neo4j:
     image: neo4j:5.26-community
+    mem_limit: 1.5g
+    cpus: 1
     environment:
       NEO4J_AUTH: neo4j/password
       NEO4J_PLUGINS: '["graph-data-science"]'
       NEO4J_dbms_security_procedures_unrestricted: gds.*
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
     ports:
       - "127.0.0.1:7474:7474"
       - "127.0.0.1:7687:7687"
@@ -19,6 +23,8 @@ services:
 
   mongo:
     image: mongo:7
+    mem_limit: 1g
+    cpus: 1
     ports:
       - "127.0.0.1:27017:27017"
     volumes:
@@ -31,6 +37,8 @@ services:
 
   ml-fl-service:
     build: ./ml-fl-service
+    mem_limit: 2g
+    cpus: 2
     env_file:
       - path: ./ml-fl-service/.env
         required: false
@@ -39,11 +47,10 @@ services:
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: password
-      PROGRESS_WEBHOOK: http://server:5002/api/fl/progress
-      # env_file carries a host-local FLOWER_PYTHON path that does not exist
-      # inside the container; an empty override makes the runner fall back to
-      # the container interpreter (/usr/local/bin/python, space-free).
-      FLOWER_PYTHON: ""
+      # Local dev only: expose the engine's additive v2 endpoints (tax
+      # compute, gstin validate, reconcile). Production keeps this unset
+      # until launch — render.yaml has no FEATURE_V2_* keys.
+      FEATURE_V2_RECON_V2: "1"
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -60,6 +67,8 @@ services:
 
   server:
     build: ./server
+    mem_limit: 768m
+    cpus: 1
     env_file:
       - ./server/.env
     environment:
@@ -90,6 +99,8 @@ services:
 
   chatbot-backend:
     build: ./chatbot-backend
+    mem_limit: 768m
+    cpus: 1
     env_file:
       - ./chatbot-backend/.env
     environment:
@@ -111,17 +122,21 @@ services:
       retries: 10
 
   client:
+    mem_limit: 1.5g
+    cpus: 2
     build:
       context: ./client
       args:
         NEXT_PUBLIC_MAIN_API_URL: http://localhost:5001
         NEXT_PUBLIC_GRAPH_API_URL: http://localhost:5002
         NEXT_PUBLIC_ML_API_URL: http://localhost:8000
+        NEXT_PUBLIC_APP_V2: "1"
     environment:
       PORT: 3000
       NEXT_PUBLIC_MAIN_API_URL: http://localhost:5001
       NEXT_PUBLIC_GRAPH_API_URL: http://localhost:5002
       NEXT_PUBLIC_ML_API_URL: http://localhost:8000
+      NEXT_PUBLIC_APP_V2: "1"
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:

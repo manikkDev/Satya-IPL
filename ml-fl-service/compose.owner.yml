@@ -1,0 +1,11 @@
+# Owner-test image only; production never installs test dependencies.
+services:
+  ml-fl-service:
+    build:
+      target: test
+    mem_limit: 2g
+    cpus: 2
+    environment:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"

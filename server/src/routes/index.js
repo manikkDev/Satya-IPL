@@ -6,6 +6,7 @@ import conversationRoutes from "./conversationRoutes.js";
 import contractRoutes from "./contractRoutes.js";
 import predictiveRiskRoutes from "./predictiveRiskRoutes.js";
 import outboxRoutes from "./outboxRoutes.js";
+import v2Routes from "./v2/index.js";
 
 const router = express.Router();
 
@@ -22,6 +23,7 @@ router.use('/v1/contracts', writeLimiter, contractRoutes);
 router.use('/v1/predictive-risk', writeLimiter, predictiveRiskRoutes);
 router.use('/v1/outbox', writeLimiter, outboxRoutes);
 router.use('/v1', writeLimiter, businessRoutes);
+router.use('/v2', v2Routes);
 router.use('/conversations', conversationRoutes);
 // Add your resource routes here
 
