@@ -62,13 +62,23 @@ def build_pairs(docs, links, task="invoice_po_line"):
     return X, y, meta
 
 
-def train(task="invoice_po_line", seed=42, n_pos=60, out_dir=None):
-    """Train an XGBoost pair model + isotonic-free conformal quantile."""
+def train(task="invoice_po_line", seed=42, n_pos=60, out_dir=None, labelled_pairs=None):
+    """Train an XGBoost pair model + conformal quantile.
+
+    labelled_pairs = reviewer-exported [{anchor: MatchRecord, candidate: MatchRecord,
+    label: 0|1}] — B's decisions data; merged with generator pairs.
+    """
     import numpy as np
     import xgboost as xgb
 
     docs, links, _ = generate(seed=seed, n_pos=n_pos, suppliers=max(6, n_pos // 5))
     X_dicts, y, meta = build_pairs(docs, links, task)
+    for pair in labelled_pairs or []:
+        anchor = MatchRecord.model_validate(pair["anchor"])
+        candidate = MatchRecord.model_validate(pair["candidate"])
+        X_dicts.append(features(anchor, candidate, task))
+        y.append(int(pair["label"]))
+        meta.append((anchor.id, candidate.id, "reviewer"))
     if len(set(y)) < 2:
         raise ValueError(f"Insufficient class variety for {task}: {len(y)} pairs")
     keys = sorted(X_dicts[0].keys())

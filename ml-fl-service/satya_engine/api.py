@@ -138,16 +138,17 @@ def create_app():
 
     @app.post("/v2/train", dependencies=[Depends(require_v2), Depends(internal)])
     def train_model(request: dict):
-        if os.environ.get("ALLOW_ENGINE_TRAIN") != "1":
+        if not (os.environ.get("ALLOW_ENGINE_TRAIN") == "1" or os.environ.get("ALLOW_TRAIN") == "1"):
             return JSONResponse(status_code=403, content={
                 "error": {"code": "TRAINING_DISABLED",
-                          "message": "Engine training is disabled in this environment (ALLOW_ENGINE_TRAIN != 1)",
+                          "message": "Engine training is disabled (ALLOW_TRAIN/ALLOW_ENGINE_TRAIN != 1)",
                           "requestId": uuid.uuid4().hex}})
         from .match.pairs import train
         try:
             return train(task=request.get("task", "invoice_po_line"),
                          seed=int(request.get("seed", 42)),
-                         n_pos=int(request.get("n_pos", 60)))
+                         n_pos=int(request.get("n_pos", 60)),
+                         labelled_pairs=request.get("labelledPairs"))
         except ValueError as error:
             return JSONResponse(status_code=422, content={
                 "error": {"code": "VALIDATION_FAILED", "message": str(error),
