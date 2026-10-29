@@ -5,7 +5,10 @@ from pydantic import TypeAdapter, ValidationError
 
 from satya_engine.api import create_app
 from satya_engine.business_demo import demo_bundle
-from satya_engine.contracts_v2 import BusinessDocument, DecimalString, GraphPayload, Money, TaxComputeRequest
+from satya_engine.contracts_v2 import (
+    BusinessDocument, DecimalString, DocumentLink, GraphPayload, Money,
+    ReconcileCaseRequest, Scenario, TaxComputeRequest,
+)
 from tests.test_engine_api import call
 
 
@@ -119,3 +122,38 @@ def test_schema_feature_flag_and_auth(monkeypatch, auth):
 
 def test_only_one_root_handler():
     assert sum(route.path == "/" for route in create_app().routes) == 1
+
+
+def test_cc1_reconcile_reviews_and_scenario_shapes():
+    document = next(flagship_documents())
+    request = dict(
+        caseId="case_fixture", entityPolicy={"entityId": "ent_fixture"},
+        documents=[document], links=[],
+        reviews={"confirmedDuplicates": {"INV-041": ["AP-992"]},
+                 "paymentAllocations": {"BANK-T01": [
+                     {"documentId": "INV-041", "amount": "30000.00", "basis": "reviewer"}
+                 ]}},
+        scenario={"changes": [{"op": "patch_document", "documentId": "PO-1001",
+                               "patch": {"number": "preview-only"}}]},
+    )
+    assert ReconcileCaseRequest.model_validate(request).model_dump(exclude_unset=True) == request
+    request["reviews"]["paymentAllocations"]["BANK-T01"][0]["amount"] = 30000.0
+    with pytest.raises(ValidationError):
+        ReconcileCaseRequest.model_validate(request)
+
+
+def test_cc1_partial_documents_retain_decimal_and_date_validators():
+    for patch in ({"observedAt": "2026-10-01T10:00:00"}, {"lines": [{"lineNo": 1, "description": "Bad", "uom": "EA", "qty": 1.0}]}):
+        with pytest.raises(ValidationError):
+            Scenario.model_validate({"changes": [{"op": "patch_document", "documentId": "PO-1001", "patch": patch}]})
+    with pytest.raises(ValidationError):
+        Scenario.model_validate({"changes": [{"op": "unrecognised"}]})
+
+
+def test_model_links_require_bounded_decimal_confidence():
+    payload = dict(fromId="INV-041", toId="PO-1001", kind="BILLS", certainty="PROBABLE", basis="model")
+    with pytest.raises(ValidationError):
+        DocumentLink.model_validate(payload)
+    assert DocumentLink.model_validate({**payload, "confidence": "0.95"}).confidence == "0.95"
+    with pytest.raises(ValidationError):
+        DocumentLink.model_validate({**payload, "confidence": "1.1"})

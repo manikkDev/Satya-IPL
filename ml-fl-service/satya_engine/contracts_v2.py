@@ -5,9 +5,10 @@ published only when their nested structures have been agreed with Agent B.
 """
 import re
 from datetime import date, datetime
-from typing import Annotated, Literal
+from decimal import Decimal
+from typing import Annotated, Literal, Optional, Union
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints, create_model, model_validator
 
 
 def business_date(value: str) -> str:
@@ -337,6 +338,22 @@ class TaxParty(Contract):
     stateCode: str
 
 
+class TaxBuyer(Contract):
+    gstin: str | None = None
+    stateCode: str | None = None
+
+
+class TaxTdsContext(Contract):
+    buyerTurnoverAbove10Cr: bool | None = None
+    supplierYtdPurchases: Money | None = None
+
+
+class TaxPolicyInput(Contract):
+    aatoBand: Literal["<5cr", "5-10cr", ">=10cr"] | None = None
+    einvoiceApplicable: bool | None = None
+    tds194q: TaxTdsContext | None = None
+
+
 class TaxLine(Contract):
     lineNo: int
     hsn: str
@@ -345,17 +362,19 @@ class TaxLine(Contract):
     discountPct: DecimalString | None = None
     uom: str
     gstRateOverride: DecimalString | None = None
+    cessRateOverride: DecimalString | None = None
 
 
 class TaxComputeRequest(Contract):
     seller: TaxParty
-    buyer: TaxParty
-    placeOfSupply: str
+    buyer: TaxBuyer
+    placeOfSupply: str | None = None
     docDate: DateOnly
-    supplyType: Literal["B2B", "EXPWP", "EXPWOP", "SEZWP", "SEZWOP"]
-    reverseCharge: bool
+    supplyType: Literal["B2B", "EXPWP", "EXPWOP", "SEZWP", "SEZWOP"] = "B2B"
+    reverseCharge: bool = False
     lut: Lut | None = None
     currency: str
+    policy: TaxPolicyInput | None = None
     lines: list[TaxLine] = Field(min_length=1, max_length=2000)
     charges: list[Charge]
     roundOff: bool
@@ -365,9 +384,262 @@ class GstinValidateRequest(Contract):
     gstin: str
 
 
+class LinkLineRefs(Contract):
+    fromLineNo: int | None = None
+    toLineNo: int | None = None
+
+
+LinkKind = Literal[
+    "FULFILS", "RECEIVES", "INSPECTS", "BILLS", "SETTLES", "ADJUSTS", "AMENDS",
+    "RETURNS", "REPORTED_IN", "DUPLICATE_OF", "SAME_AS",
+]
+
+
+class DocumentLink(Contract):
+    id: str | None = None
+    fromId: str
+    toId: str
+    kind: LinkKind
+    lineRefs: list[LinkLineRefs] | None = None
+    certainty: Certainty
+    confidence: DecimalString | None = None
+    amount: Money | None = None
+    qty: DecimalString | None = None
+    basis: Literal["reference", "reviewer", "model", "rule"]
+    createdBy: str | None = None
+    decisionId: str | None = None
+
+    @model_validator(mode="after")
+    def model_confidence(self):
+        if self.basis == "model" and self.confidence is None:
+            raise ValueError("A model link must carry calibrated confidence")
+        if self.confidence is not None and not 0 <= Decimal(self.confidence) <= 1:
+            raise ValueError("Link confidence must be within 0..1")
+        return self
+
+
+class Tolerance(Contract):
+    priceAbs: Money | None = None
+    pricePct: DecimalString | None = None
+    qtyPctByUom: dict[str, DecimalString] | None = None
+
+
+class MsmePolicy(Contract):
+    defaultDays: int | None = None
+
+
+class EntityTdsPolicy(TaxTdsContext):
+    rate: DecimalString | None = None
+
+
+class EntityPolicy(Contract):
+    entityId: str
+    aatoBand: Literal["<5cr", "5-10cr", ">=10cr"] | None = None
+    einvoiceApplicable: bool | None = None
+    tolerance: Tolerance | None = None
+    msme: MsmePolicy | None = None
+    tds194q: EntityTdsPolicy | None = None
+
+
+class AcceptedVariance(Contract):
+    findingCode: str
+    amount: Money | None = None
+    reason: str
+
+
+class Reviews(Contract):
+    confirmedDuplicates: dict[str, list[str]] | None = None
+    paymentAllocations: dict[str, list[PaymentAllocation]] | None = None
+    acceptedVariances: dict[str, list[AcceptedVariance]] | None = None
+
+
+# Retain each field's constraints, not only its underlying Python type.
+PartialBusinessDocument = create_model(
+    "PartialBusinessDocument", __base__=Contract,
+    **{name: (
+        Annotated[Optional[field.annotation], *field.metadata] if field.metadata else Optional[field.annotation],
+        None,
+    ) for name, field in BusinessDocument.model_fields.items()},
+)
+
+
+class AddDocument(Contract):
+    op: Literal["add_document"]
+    document: BusinessDocument
+
+
+class RemoveDocument(Contract):
+    op: Literal["remove_document"]
+    documentId: str
+
+
+class PatchDocument(Contract):
+    op: Literal["patch_document"]
+    documentId: str
+    patch: PartialBusinessDocument
+
+
+class AddLink(Contract):
+    op: Literal["add_link"]
+    link: DocumentLink
+
+
+class RemoveLink(Contract):
+    op: Literal["remove_link"]
+    fromId: str
+    toId: str
+    kind: LinkKind | None = None
+
+
+class SetReviews(Contract):
+    op: Literal["set_reviews"]
+    reviews: Reviews
+
+
+ScenarioChange = Annotated[
+    Union[AddDocument, RemoveDocument, PatchDocument, AddLink, RemoveLink, SetReviews],
+    Field(discriminator="op"),
+]
+
+
+class Scenario(Contract):
+    label: str | None = None
+    changes: list[ScenarioChange] = Field(max_length=2000)
+
+
+class ReconcileCaseRequest(Contract):
+    caseId: str
+    entityPolicy: EntityPolicy
+    knowledgeTime: OffsetDateTime | None = None
+    documents: list[BusinessDocument] = Field(min_length=1, max_length=2000)
+    links: list[DocumentLink]
+    reviews: Reviews | None = None
+    scenario: Scenario | None = None
+
+
+class MatchPayment(Contract):
+    utr: str | None = None
+    amount: Money | None = None
+    valueDate: DateOnly | None = None
+
+
+class MatchRecord(Contract):
+    id: str
+    type: DocType | Literal["SUPPLIER", "ITEM"]
+    number: str | None = None
+    externalRef: str | None = None
+    date: DateOnly | None = None
+    fy: FinancialYear | None = None
+    amount: Money | None = None
+    qty: DecimalString | None = None
+    uom: str | None = None
+    party: Party | None = None
+    description: str | None = None
+    specs: dict[str, str] | None = None
+    hsn: str | None = None
+    refs: LineRefs | None = None
+    payment: MatchPayment | None = None
+    status: str | None = None
+
+
+class MatchCandidatesRequest(Contract):
+    task: Literal["invoice_po_line", "grn_po_line", "invoice_invoice_dup", "payment_invoice", "supplier_supplier", "item_item"]
+    anchors: list[MatchRecord] = Field(max_length=2000)
+    pool: list[MatchRecord] = Field(max_length=2000)
+    alpha: DecimalString = "0.05"
+
+    @model_validator(mode="after")
+    def valid_alpha(self):
+        if not 0 < Decimal(self.alpha) < 1:
+            raise ValueError("alpha must lie strictly between 0 and 1")
+        return self
+
+
+class PaymentInput(Contract):
+    id: str
+    amount: Money
+    date: DateOnly | None = None
+    utr: str | None = None
+    tdsAmount: Money | None = None
+
+
+class OpenInvoice(Contract):
+    id: str
+    number: str | None = None
+    date: DateOnly | None = None
+    openAmount: Money
+    dueDate: DateOnly | None = None
+
+
+class CreditInput(Contract):
+    id: str
+    amount: Money
+    date: DateOnly | None = None
+
+
+class TdsPolicy(Contract):
+    deductOnPayment: bool | None = None
+    rate: DecimalString | None = None
+
+
+class AllocatePaymentRequest(Contract):
+    payment: PaymentInput
+    openInvoices: list[OpenInvoice] = Field(max_length=2000)
+    credits: list[CreditInput] | None = None
+    tdsPolicy: TdsPolicy | None = None
+
+
+class AnomalyScoreRequest(Contract):
+    documents: list[MatchRecord] = Field(max_length=2000)
+    history: list[MatchRecord] = Field(max_length=2000)
+
+
+class SupplierRef(Contract):
+    id: str
+    msme: bool | None = None
+    udyam: Udyam | None = None
+
+
+class DeadlinePolicy(Contract):
+    msmeDays: int | None = None
+    rule37Days: int | None = None
+    einvoiceDays: int | None = None
+
+
+class Deadline(Contract):
+    kind: Literal["MSME_45", "RULE_37_180", "EINVOICE_30", "PO_DELIVERY"]
+    documentId: str
+    supplierId: str | None = None
+    dueDate: DateOnly
+    daysLeft: int
+    amount: Money | None = None
+    basis: str
+
+
+class ComplianceDeadlinesRequest(Contract):
+    documents: list[BusinessDocument] = Field(max_length=2000)
+    suppliers: list[SupplierRef] | None = None
+    policy: DeadlinePolicy | None = None
+    asOf: DateOnly | None = None
+
+
+class DocsParseRequest(Contract):
+    fileBase64: str = Field(max_length=14000000)
+    mime: str
+
+
+class DocsValidateRequest(Contract):
+    draft: PartialBusinessDocument
+    qrFields: dict[str, str] | None = None
+    textLayer: str | None = None
+
+
 def schemas():
     """Each entry is a self-contained JSON Schema, including nested $defs."""
     return {model.__name__: model.model_json_schema() for model in (
         Money, Address, Party, DocLine, BusinessDocument, Evidence, Finding,
-        GraphPayload, TaxComputeRequest, GstinValidateRequest,
+        GraphPayload, TaxComputeRequest, GstinValidateRequest, DocumentLink,
+        EntityPolicy, Reviews, Scenario, ReconcileCaseRequest, PartialBusinessDocument,
+        MatchRecord, MatchCandidatesRequest, AllocatePaymentRequest, AnomalyScoreRequest,
+        ComplianceDeadlinesRequest, Deadline, DocsParseRequest, DocsValidateRequest,
     )}

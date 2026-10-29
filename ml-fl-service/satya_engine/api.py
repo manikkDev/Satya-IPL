@@ -1,15 +1,28 @@
 import os
+import uuid
 
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from .business_matching import evaluation
 from .auth import internal
 from .compat_v1 import router as legacy_router
-from .contracts_v2 import GstinValidateRequest, schemas
+from .contracts_v2 import GstinValidateRequest, TaxComputeRequest, schemas
 from .india.gstin import validate_gstin
+from .india.hsn_master import HsnMaster
+from .india.tax import TaxInputError, compute_tax
 from .status_page import status_page
 from .version import ENGINE_VERSION
+
+HSN_MASTER_PATH = os.environ.get("HSN_MASTER_PATH", "assets/hsn_master.json.gz")
+_hsn_master = None
+
+
+def hsn_master():
+    global _hsn_master
+    if _hsn_master is None:
+        _hsn_master = HsnMaster.load(HSN_MASTER_PATH)
+    return _hsn_master
 
 
 def create_app():
@@ -25,7 +38,7 @@ def create_app():
         report = evaluation()
         return {
             "ok": True,
-            "service": "satya-reconciliation",
+            "service": "satya-engine" if os.environ.get("FEATURE_V2_RECON_V2") == "1" else "satya-reconciliation",
             "rulesReady": True,
             "modelReady": report.get("ready", False),
             "engineVersion": ENGINE_VERSION,
@@ -46,5 +59,14 @@ def create_app():
     @app.post("/v2/validate/gstin", dependencies=[Depends(require_v2), Depends(internal)])
     def gstin(request: GstinValidateRequest):
         return validate_gstin(request.gstin)
+
+    @app.post("/v2/tax/compute", dependencies=[Depends(require_v2), Depends(internal)])
+    def tax(request: TaxComputeRequest):
+        try:
+            return compute_tax(request, master=hsn_master())
+        except TaxInputError as error:
+            return JSONResponse(status_code=422, content={
+                "error": {"code": "VALIDATION_FAILED", "message": str(error),
+                          "details": {"fields": error.fields}, "requestId": uuid.uuid4().hex}})
 
     return app
