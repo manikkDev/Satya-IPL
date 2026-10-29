@@ -10,6 +10,6 @@ export const signToken = (payload, options = {}) => {
     return jwt.sign(payload, getJwtSecret(), options);
 };
 
-export const verifyToken = (token) => {
-    return jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'], audience: 'satya-business-v1' });
+export const verifyToken = (token, audience = 'satya-business-v1') => {
+    return jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'], audience });
 };
