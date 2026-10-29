@@ -255,7 +255,7 @@ export default function CasePage() {
             </table>
           </div>
           {documents.length === 0 && <p className="text-muted-foreground mt-3">No source documents uploaded for this case.</p>}
-        </>}
+        </Panel>}
 
         {tab === "Review history" && <Panel title="Decisions recorded for this order">{data.decisions?.length ? data.decisions.map((decision) => <article className="satya-finding" key={decision.id}><h3>{actions.find((action) => action.value === decision.action)?.label || decision.action.replaceAll("_", " ")}</h3><p>{decision.reason}</p>{decision.previousStatus && decision.newStatus && <p className="text-xs"><span className={`satya-status ${decision.previousStatus === "reconciled" ? "ok" : "review"}`}>{decision.previousStatus.replaceAll("_", " ")}</span> → <span className={`satya-status ${decision.newStatus === "reconciled" ? "ok" : "review"}`}>{decision.newStatus.replaceAll("_", " ")}</span></p>}<small>{decision.actorName} · {new Date(decision.createdAt).toLocaleString("en-IN", { timeZone:"Asia/Kolkata" })} IST · Internal review only</small></article>) : <p className="text-muted-foreground">No decisions have been saved yet. Finance managers can record a decision from the Summary tab.</p>}</Panel>}
       </div>
