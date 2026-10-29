@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { GitBranch } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
-import { StatusBadge, SeverityBadge, ErrorState, EmptyState } from "@/components/ui/v2";
+import { StatusBadge, SeverityBadge, ErrorState, EmptyState, PageHeader, FadeIn } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function InvestigationsPage() {
@@ -15,13 +15,11 @@ export default function InvestigationsPage() {
   const items = data?.items ?? [];
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-[22px] font-semibold text-[var(--ink)]">Investigations</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          One check per order, supplier or payment — what Satya found, the evidence, and what to do next.
-        </p>
-      </div>
+    <FadeIn className="space-y-5">
+      <PageHeader
+        title="Investigations"
+        description="One check per order, supplier or payment — what Satya found, the evidence, and what to do next."
+      />
 
       {error ? (
         <ErrorState message={error instanceof Error ? error.message : "Something went wrong."} onRetry={() => refetch()} />
@@ -41,7 +39,7 @@ export default function InvestigationsPage() {
               <button
                 type="button"
                 onClick={() => router.push(`/app/investigations/${item.id}`)}
-                className="flex w-full items-center justify-between gap-4 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 text-left hover:border-[var(--accent)]"
+                className="flex w-full items-center justify-between gap-4 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--accent)]/50 hover:bg-[var(--surface-2)]/40"
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius-sm)] bg-[var(--accent-soft)] text-[var(--accent-strong)]">
@@ -64,6 +62,6 @@ export default function InvestigationsPage() {
           ))}
         </ul>
       )}
-    </div>
+    </FadeIn>
   );
 }

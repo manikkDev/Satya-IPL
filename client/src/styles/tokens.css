@@ -85,44 +85,53 @@
 }
 
 .dark .v2 {
-  --paper: #0f1420;
-  --surface: #171e2e;
-  --surface-2: #1f2939;
-  --ink: #e8edf6;
-  --ink-2: #b9c3d6;
-  --muted: #93a0b5;
-  --line: #2c3850;
+  /* Stealth palette — near-black layered surfaces, one restrained accent.
+     Emerald reads "verified / reconciled" for a finance product; everything
+     else stays quiet so numbers carry the page. */
+  --paper: #0a0a0c;
+  --surface: #121215;
+  --surface-2: #1a1a1f;
+  --ink: #ececee;
+  --ink-2: #a7a7b0;
+  --muted: #6e6e78;
+  --line: #212126;
 
-  --accent: #5eead4;
-  --accent-strong: #99f6e4;
-  --accent-soft: #14352f;
+  --accent: #34d399;
+  --accent-strong: #6ee7b7;
+  --accent-soft: rgb(52 211 153 / 0.11);
 
-  --confirmed: #4ade80;
-  --likely: #22d3ee;
+  --confirmed: #34d399;
+  --likely: #38bdf8;
   --possible: #fbbf24;
-  --unclear: #c4b5fd;
-  --missing: #94a3b8;
-  --confirmed-soft: #14301f;
-  --likely-soft: #0f2d36;
-  --possible-soft: #33290f;
-  --unclear-soft: #291f45;
-  --missing-soft: #242b38;
+  --unclear: #a78bfa;
+  --missing: #73737e;
+  --confirmed-soft: rgb(52 211 153 / 0.11);
+  --likely-soft: rgb(56 189 248 / 0.11);
+  --possible-soft: rgb(251 191 36 / 0.11);
+  --unclear-soft: rgb(167 139 250 / 0.12);
+  --missing-soft: rgb(115 115 126 / 0.14);
 
   --sev-critical: #f87171;
   --sev-high: #fb923c;
   --sev-medium: #fbbf24;
-  --sev-low: #22d3ee;
-  --sev-info: #94a3b8;
-  --sev-critical-soft: #3a1d1d;
-  --sev-high-soft: #38240f;
-  --sev-medium-soft: #33290f;
-  --sev-low-soft: #0f2d36;
-  --sev-info-soft: #242b38;
+  --sev-low: #38bdf8;
+  --sev-info: #73737e;
+  --sev-critical-soft: rgb(248 113 113 / 0.11);
+  --sev-high-soft: rgb(251 146 60 / 0.11);
+  --sev-medium-soft: rgb(251 191 36 / 0.11);
+  --sev-low-soft: rgb(56 189 248 / 0.11);
+  --sev-info-soft: rgb(115 115 126 / 0.14);
 
-  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-2: 0 4px 14px rgb(0 0 0 / 0.45);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.5);
+  --shadow-2: 0 6px 24px rgb(0 0 0 / 0.5);
+  --content-max: 1200px;
+  --app-max: 1440px;
 
-  --color-destructive-foreground: #0f1420;
+  --color-destructive-foreground: #0a0a0c;
+  --color-ring: var(--accent);
 }
 
 /* base — apply UI font inside v2 surfaces; app keeps sans headings,

@@ -16,7 +16,7 @@ const MoneyTrail = dynamic(() => import("@/components/v2/money-trail").then((m) 
 });
 import {
   Money, DateText, StatusBadge, CertaintyBadge, SeverityBadge,
-  ActionButton, ErrorState,
+  ActionButton, ErrorState, FadeIn, Card,
 } from "@/components/ui/v2";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -143,9 +143,9 @@ export default function InvestigationDetailPage() {
   const ask = (about: string) => router.push(`/app/ask?about=${encodeURIComponent(about)}&case=${id}`);
 
   return (
-    <div className="space-y-6">
+    <FadeIn className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-[22px] font-semibold text-[var(--ink)]">{caseData.title}</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--ink)]">{caseData.title}</h1>
         <StatusBadge status={caseData.status} />
         <button
           type="button"
@@ -153,14 +153,14 @@ export default function InvestigationDetailPage() {
             const { downloadEvidencePack } = await import("@/components/v2/evidence-pack");
             await downloadEvidencePack(data);
           }}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)] hover:border-[var(--accent)]"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]/60 hover:text-[var(--ink)]"
         >
           <FileDown size={13} aria-hidden="true" /> Evidence pack
         </button>
       </div>
 
       {/* recommendation banner */}
-      <div className="rounded-[var(--radius-md)] border-l-4 border-[var(--sev-high)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)]">
+      <div className="rounded-[var(--radius-md)] border border-[var(--line)] border-l-4 border-l-[var(--sev-high)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)]">
         <p className="text-base font-medium leading-relaxed text-[var(--ink)]">
           {recommendation.reasons.join(" ")}
         </p>
@@ -174,7 +174,7 @@ export default function InvestigationDetailPage() {
             onClick={() => ask("Draft a message to the supplier asking which invoice the ₹15,000 transfer is for")}
           />
         </div>
-        <p className="mt-3 text-xs text-[var(--muted)]">
+        <p className="mt-3 text-xs leading-relaxed text-[var(--muted)]">
           These record your decision — the person who created a document cannot decide on it themselves.
         </p>
       </div>
@@ -183,21 +183,19 @@ export default function InvestigationDetailPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {balances && (
           <>
-            <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5">
-              <p className="text-sm text-[var(--muted)]">{BALANCE_TERMS.evidenceSupportedPayable.label}</p>
-              <p className="mt-2 text-[26px] font-semibold tnum text-[var(--confirmed)]"><Money value={balances.supported} /></p>
-              <p className="mt-1 text-xs text-[var(--muted)]">{BALANCE_TERMS.evidenceSupportedPayable.tip}</p>
-            </div>
-            <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5">
-              <p className="text-sm text-[var(--muted)]">{BALANCE_TERMS.disputedExposure.label}</p>
-              <p className="mt-2 text-[26px] font-semibold tnum text-[var(--sev-high)]"><Money value={balances.disputed} /></p>
-              <p className="mt-1 text-xs text-[var(--muted)]">{BALANCE_TERMS.disputedExposure.tip}</p>
-            </div>
-            <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5">
-              <p className="text-sm text-[var(--muted)]">{BALANCE_TERMS.recordedPayable.label}</p>
-              <p className="mt-2 text-[26px] font-semibold tnum text-[var(--ink)]"><Money value={balances.recorded} /></p>
-              <p className="mt-1 text-xs text-[var(--muted)]">{BALANCE_TERMS.recordedPayable.tip}</p>
-            </div>
+            {[
+              { label: BALANCE_TERMS.evidenceSupportedPayable.label, tip: BALANCE_TERMS.evidenceSupportedPayable.tip, value: balances.supported, tone: "var(--confirmed)" },
+              { label: BALANCE_TERMS.disputedExposure.label, tip: BALANCE_TERMS.disputedExposure.tip, value: balances.disputed, tone: "var(--sev-high)" },
+              { label: BALANCE_TERMS.recordedPayable.label, tip: BALANCE_TERMS.recordedPayable.tip, value: balances.recorded, tone: "var(--ink)" },
+            ].map((balance) => (
+              <Card key={balance.label} className="transition-colors hover:border-[var(--ink-2)]/25">
+                <p className="text-[13px] text-[var(--muted)]">{balance.label}</p>
+                <p className="mt-2.5 text-[26px] font-semibold tnum tracking-tight" style={{ color: balance.tone }}>
+                  <Money value={balance.value} />
+                </p>
+                <p className="mt-1.5 text-xs leading-relaxed text-[var(--muted)]">{balance.tip}</p>
+              </Card>
+            ))}
           </>
         )}
       </div>
@@ -296,7 +294,7 @@ export default function InvestigationDetailPage() {
         </TabsContent>
       </Tabs>
       {openEvidence && <EvidenceDrawer evidence={openEvidence} onClose={() => setOpenEvidence(null)} />}
-    </div>
+    </FadeIn>
   );
 }
 

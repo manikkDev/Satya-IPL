@@ -11,7 +11,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, FileText, ShieldCheck, TriangleAlert } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
 import { mocksEnabled } from "@/lib/flags";
-import { ErrorState } from "@/components/ui/v2";
+import { ErrorState, FadeIn, Card } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -74,7 +74,7 @@ export default function DraftReviewPage() {
   const { draft, fields, lines, issues, suggestions } = data;
 
   return (
-    <div className="space-y-5">
+    <FadeIn className="space-y-5">
       <div className="flex items-center gap-3">
         <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-[var(--muted)] hover:text-[var(--ink)]">
           <ArrowLeft size={15} /> Back
@@ -90,7 +90,7 @@ export default function DraftReviewPage() {
       {issues.length > 0 && (
         <ul className="space-y-2">
           {issues.map((issue, i) => (
-            <li key={i} className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--possible)] bg-[var(--possible-soft)] px-3 py-2 text-xs text-[var(--ink-2)]">
+            <li key={i} className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--possible)]/40 bg-[var(--possible-soft)] px-3 py-2 text-xs text-[var(--ink-2)]">
               <TriangleAlert size={14} className="mt-0.5 shrink-0 text-[var(--possible)]" aria-hidden="true" />
               {issue.message}
             </li>
@@ -100,7 +100,7 @@ export default function DraftReviewPage() {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* preview */}
-        <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
+        <Card pad={false} className="p-4">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Document preview</h2>
           <div className="mt-3 flex h-[480px] items-center justify-center rounded-[var(--radius-sm)] bg-[var(--surface-2)] text-[var(--muted)]">
             <div className="text-center">
@@ -113,12 +113,12 @@ export default function DraftReviewPage() {
               ) : null}
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* extracted fields */}
         <div className="space-y-4">
           {fields.map((group) => (
-            <section key={group.group} className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
+            <section key={group.group} className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-1)]">
               <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">{group.group}</h2>
               <div className="mt-3 space-y-3">
                 {group.items.map((item) => {
@@ -142,8 +142,8 @@ export default function DraftReviewPage() {
                         onChange={(event) => setValues((prev) => ({ ...prev, [item.name]: event.target.value }))}
                         onFocus={() => item.quote && setHighlight(item.quote)}
                         className={cn(
-                          "mt-1 h-9 w-full rounded-[var(--radius-sm)] border bg-[var(--paper)] px-3 text-sm text-[var(--ink)] outline-none",
-                          item.confidence === "high" ? "border-[var(--line)]" : "border-[var(--possible)] focus:border-[var(--accent)]",
+                          "mt-1 h-9 w-full rounded-[var(--radius-sm)] border bg-[var(--surface-2)]/50 px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:bg-[var(--surface)]",
+                          item.confidence === "high" ? "border-[var(--line)] focus:border-[var(--accent)]" : "border-[var(--possible)] focus:border-[var(--accent)]",
                         )}
                       />
                       <p className="mt-0.5 text-[10px] text-[var(--muted)]">{item.source}</p>
@@ -179,11 +179,11 @@ export default function DraftReviewPage() {
           )}
 
           {(suggestions.supplier || suggestions.po) && (
-            <section className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Suggested links — confirm or change</h2>
+            <section className="rounded-[var(--radius-md)] border border-[var(--accent)]/30 bg-[var(--accent-soft)]/50 p-4">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--accent-strong)]">Suggested links — confirm or change</h2>
               <div className="mt-2 flex flex-wrap gap-2">
-                {suggestions.supplier && <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs text-[var(--ink-2)]">Supplier: {suggestions.supplier}</span>}
-                {suggestions.po && <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs text-[var(--ink-2)]">Order: {suggestions.po}</span>}
+                {suggestions.supplier && <span className="rounded-full border border-[var(--accent)]/25 bg-[var(--surface)] px-3 py-1 text-xs text-[var(--ink-2)]">Supplier: {suggestions.supplier}</span>}
+                {suggestions.po && <span className="rounded-full border border-[var(--accent)]/25 bg-[var(--surface)] px-3 py-1 text-xs text-[var(--ink-2)]">Order: {suggestions.po}</span>}
               </div>
             </section>
           )}
@@ -194,7 +194,7 @@ export default function DraftReviewPage() {
               {checkFields.length ? <span className="text-[var(--possible)]">Low</span> : null}
             </p>
             {confirmed ? (
-              <span className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--confirmed-soft)] px-4 py-2 text-sm font-medium text-[var(--confirmed)]">
+              <span className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--confirmed)]/30 bg-[var(--confirmed-soft)] px-4 py-2 text-sm font-medium text-[var(--confirmed)]">
                 <ShieldCheck size={15} aria-hidden="true" /> Saved as evidence{confirmed.startsWith("doc_mock") ? " (mock)" : ""}
               </span>
             ) : (
@@ -203,7 +203,7 @@ export default function DraftReviewPage() {
                 disabled={!ready || saving}
                 onClick={saveAsEvidence}
                 title={ready ? "Save this document as evidence" : "Fill every field first"}
-                className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <ShieldCheck size={15} aria-hidden="true" /> {saving ? "Saving…" : "Save as evidence"}
               </button>
@@ -211,6 +211,6 @@ export default function DraftReviewPage() {
           </div>
         </div>
       </div>
-    </div>
+    </FadeIn>
   );
 }

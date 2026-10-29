@@ -5,7 +5,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { v2 } from "@/lib/api/v2";
-import { Money, DateText, ErrorState, Term } from "@/components/ui/v2";
+import { Money, DateText, ErrorState, Term, PageHeader, FadeIn } from "@/components/ui/v2";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { daysLeftText } from "@/lib/format";
@@ -16,13 +16,11 @@ export default function CompliancePage() {
   if (error) return <ErrorState message={error instanceof Error ? error.message : "Something went wrong."} onRetry={() => refetch()} />;
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-[22px] font-semibold text-[var(--ink)]">Compliance</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Satya helps you find issues in your documents — it does not file returns or give tax advice.
-        </p>
-      </div>
+    <FadeIn className="space-y-5">
+      <PageHeader
+        title="Compliance"
+        description="Satya helps you find issues in your documents — it does not file returns or give tax advice."
+      />
 
       {isLoading || !data ? (
         <Skeleton className="h-80 w-full" />
@@ -72,16 +70,16 @@ export default function CompliancePage() {
                 ["Missing in books", String(data.gstr2b.missingInBooks.length)],
                 ["GST credit at risk", <Money key="r" value={data.gstr2b.itcAtRisk} />],
               ].map(([label, value], i) => (
-                <div key={i} className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-3">
+                <div key={i} className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-3.5 transition-colors hover:border-[var(--ink-2)]/25">
                   <p className="text-[11px] text-[var(--muted)]">{label}</p>
-                  <p className="tnum mt-1 text-lg font-semibold text-[var(--ink)]">{value}</p>
+                  <p className="tnum mt-1 text-lg font-semibold tracking-tight text-[var(--ink)]">{value}</p>
                 </div>
               ))}
             </div>
             {data.gstr2b.missingIn2B.length > 0 && (
               <ul className="mt-4 space-y-2">
                 {data.gstr2b.missingIn2B.map((row) => (
-                  <li key={row.invoice} className="rounded-[var(--radius-sm)] border border-[var(--possible)] bg-[var(--possible-soft)] px-4 py-3 text-sm text-[var(--ink-2)]">
+                  <li key={row.invoice} className="rounded-[var(--radius-sm)] border border-[var(--possible)]/40 bg-[var(--possible-soft)] px-4 py-3 text-sm leading-relaxed text-[var(--ink-2)]">
                     <span className="font-medium text-[var(--ink)]">{row.invoice}</span> · {row.supplier} · <Money value={row.amount} /> — not in GSTR-2B for {data.gstr2b.period}. Ask the supplier to report it; <Money value={row.tax} /> of credit is at risk.
                   </li>
                 ))}
@@ -91,7 +89,7 @@ export default function CompliancePage() {
 
           {(["rule37", "tds", "eway", "lut"] as const).map((tab) => (
             <TabsContent key={tab} value={tab}>
-              <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--line)] bg-[var(--surface)] p-6 text-sm text-[var(--muted)]">
+              <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--line)] bg-[var(--surface)] p-6 text-sm leading-relaxed text-[var(--muted)]">
                 {{
                   rule37: "If a supplier invoice (value + tax) stays unpaid 180 days, the GST credit you claimed must be reversed with interest — upcoming risks will list here.",
                   tds: "Whether tax should have been deducted at source on each payment — thresholds depend on the financial year and your turnover band.",
@@ -103,6 +101,6 @@ export default function CompliancePage() {
           ))}
         </Tabs>
       )}
-    </div>
+    </FadeIn>
   );
 }

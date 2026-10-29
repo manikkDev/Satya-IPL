@@ -17,6 +17,7 @@ const downloadDocumentPdf = async (...args: Parameters<typeof import("@/componen
 import { mocksEnabled } from "@/lib/flags";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { FadeIn } from "@/components/ui/v2";
 
 const STEPS = ["Who is buying?", "Who is the supplier?", "What are you buying?", "Commercial terms", "Tax & totals", "Approvals", "Issue & share"];
 
@@ -75,7 +76,7 @@ function mockCompute(lines: Line[], intraState: boolean): Promise<ComputeResult>
   );
 }
 
-const inputCls = "h-9 w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]";
+const inputCls = "h-9 w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface-2)]/50 px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)] placeholder:text-[var(--muted)]";
 const labelCls = "mb-1 block text-xs font-medium text-[var(--muted)]";
 
 /** Debounced HSN picker — real /api/v2/hsn/search outside mocks, curated list inside. */
@@ -247,7 +248,7 @@ export default function NewOrderPage() {
     setLines((prev) => prev.map((line, index) => (index === i ? { ...line, ...patch } : line)));
 
   return (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
+    <FadeIn className="grid grid-cols-1 gap-6 xl:grid-cols-5">
       {/* left: wizard */}
       <div className="xl:col-span-3">
         <button type="button" onClick={() => router.back()} className="mb-3 inline-flex items-center gap-1 text-sm text-[var(--muted)] hover:text-[var(--ink)]">
@@ -264,8 +265,8 @@ export default function NewOrderPage() {
                 onClick={() => i < step && setStep(i)}
                 aria-current={i === step ? "step" : undefined}
                 className={cn(
-                  "rounded-full px-2.5 py-1 text-[11px] font-medium",
-                  i === step ? "bg-[var(--accent)] text-white" : i < step ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]" : "bg-[var(--surface-2)] text-[var(--muted)]",
+                  "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all",
+                  i === step ? "border-[var(--accent)] bg-[var(--accent)] text-white" : i < step ? "border-[var(--accent)]/30 bg-[var(--accent-soft)] text-[var(--accent-strong)] cursor-pointer hover:border-[var(--accent)]/60" : "border-[var(--line)] bg-[var(--surface-2)] text-[var(--muted)]",
                 )}
               >
                 {i < step ? "✓ " : `${i + 1}. `}{name}
@@ -274,7 +275,7 @@ export default function NewOrderPage() {
           ))}
         </ol>
 
-        <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-6">
+        <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow-1)]">
           {step === 0 && (
             <fieldset>
               <legend className="text-base font-semibold text-[var(--ink)]">Who is buying?</legend>
@@ -586,6 +587,6 @@ export default function NewOrderPage() {
           </p>
         </div>
       </aside>
-    </div>
+    </FadeIn>
   );
 }

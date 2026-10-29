@@ -14,7 +14,7 @@ import { streamCopilotChat, stageText, listConversations, getConversation, delet
 import { mocksEnabled } from "@/lib/flags";
 import { pushAiUsage } from "@/lib/ai-usage";
 import { AiCapacityPill } from "@/components/AiCapacityPill";
-import { CertaintyBadge } from "@/components/ui/v2";
+import { CertaintyBadge, FadeIn, Card } from "@/components/ui/v2";
 import { useSession } from "@/components/v2/session";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -237,13 +237,13 @@ function Copilot() {
   };
 
   return (
-    <div className="flex gap-5">
+    <FadeIn className="flex gap-5">
       {/* left rail — conversations */}
       <aside className="hidden w-52 shrink-0 lg:block" aria-label="Conversations">
         <button
           type="button"
           onClick={newConvo}
-          className="flex w-full items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--accent)] px-3 py-2 text-sm font-medium text-[var(--accent-strong)] hover:bg-[var(--accent-soft)]"
+          className="flex w-full items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--accent)]/50 px-3 py-2 text-sm font-medium text-[var(--accent-strong)] transition-colors hover:bg-[var(--accent-soft)]"
         >
           <Plus size={15} aria-hidden="true" /> New chat
         </button>
@@ -286,18 +286,18 @@ function Copilot() {
       {/* centre */}
       <div className="min-w-0 max-w-[760px] flex-1">
         {context && (
-          <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium text-[var(--accent-strong)]">
+          <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium text-[var(--accent-strong)]">
             About: {context}
-            <button type="button" onClick={() => setContext("")} aria-label="Remove context"><X size={12} /></button>
+            <button type="button" onClick={() => setContext("")} aria-label="Remove context" className="transition-opacity hover:opacity-70"><X size={12} /></button>
           </span>
         )}
-        <h1 className="text-[22px] font-semibold text-[var(--ink)]">Ask Satya</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--ink)]">Ask Satya</h1>
+        <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-[var(--muted)]">
           Answers come from your records — every figure links back to a document. Missing information is never guessed.
         </p>
 
         {evidenceOnly && (
-          <p className="mt-3 rounded-[var(--radius-sm)] border border-[var(--possible)] bg-[var(--possible-soft)] px-3 py-2 text-xs text-[var(--possible)]">
+          <p className="mt-3 rounded-[var(--radius-sm)] border border-[var(--possible)]/40 bg-[var(--possible-soft)] px-3 py-2 text-xs text-[var(--possible)]">
             Evidence-only mode: AI capacity is used up, so answers come straight from your documents without language
             model help.
           </p>
@@ -305,18 +305,20 @@ function Copilot() {
 
         <div className="mt-5 space-y-4">
           {convo.turns.length === 0 && (
-            <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--line)] bg-[var(--surface)] p-8 text-center">
-              <MessageSquare size={26} className="mx-auto text-[var(--muted)]" aria-hidden="true" />
-              <p className="mt-2 text-sm font-medium text-[var(--ink)]">What would you like to understand?</p>
-              <p className="mt-1 text-xs text-[var(--muted)]">Try one of these:</p>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <div className="flex flex-col items-center rounded-[var(--radius-md)] border border-dashed border-[var(--line)] bg-[var(--surface)] px-6 py-12 text-center">
+              <div className="grid h-11 w-11 place-items-center rounded-full bg-[var(--surface-2)]">
+                <MessageSquare size={20} className="text-[var(--muted)]" aria-hidden="true" />
+              </div>
+              <p className="mt-4 text-[15px] font-medium text-[var(--ink)]">What would you like to understand?</p>
+              <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-[var(--muted)]">Ask about any order, invoice, payment or deadline in your records.</p>
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
                 {suggested.map((prompt) => (
                   <button
                     key={prompt}
                     type="button"
                     disabled={busy}
                     onClick={() => send(prompt)}
-                    className="rounded-full border border-[var(--line)] px-3.5 py-1.5 text-xs text-[var(--ink-2)] hover:border-[var(--accent)] hover:text-[var(--accent-strong)]"
+                    className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-3.5 py-1.5 text-xs text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]/60 hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)]"
                   >
                     {prompt}
                   </button>
@@ -358,7 +360,7 @@ function Copilot() {
             send(question);
           }}
         >
-          <div className="flex items-end gap-2 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[var(--shadow-1)]">
+          <div className="flex items-end gap-2 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[var(--shadow-1)] transition-colors focus-within:border-[var(--accent)]/50">
             <Textarea
               ref={input}
               value={question}
@@ -379,7 +381,7 @@ function Copilot() {
             <button
               type="submit"
               disabled={busy || !question.trim()}
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius-sm)] bg-[var(--accent)] text-white disabled:opacity-50"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius-sm)] bg-[var(--accent)] text-white transition-colors hover:bg-[var(--accent-strong)] disabled:opacity-50"
               aria-label={busy ? "Waiting for answer" : "Send question"}
             >
               <Send size={16} />
@@ -427,7 +429,7 @@ function Copilot() {
           )}
         </div>
       </aside>
-    </div>
+    </FadeIn>
   );
 }
 

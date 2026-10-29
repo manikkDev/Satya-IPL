@@ -13,7 +13,7 @@ const MoneyTrail = dynamic(() => import("@/components/v2/money-trail").then((m) 
   ssr: false,
   loading: () => <div className="h-[420px] animate-pulse rounded-[var(--radius-md)] bg-[var(--surface-2)]" />,
 });
-import { Money, Qty, DateText, StatusBadge, ErrorState } from "@/components/ui/v2";
+import { Money, Qty, DateText, StatusBadge, ErrorState, FadeIn, Card } from "@/components/ui/v2";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -43,13 +43,13 @@ export default function OrderDetailPage() {
   const { order, lifecycle, schedule, documents, history, caseId } = data;
 
   return (
-    <div className="space-y-6">
+    <FadeIn className="space-y-6">
       {/* header */}
-      <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5">
+      <Card>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="font-code text-xl font-semibold text-[var(--ink)]">{order.number}</h1>
+              <h1 className="font-code text-xl font-semibold tracking-tight text-[var(--ink)]">{order.number}</h1>
               {order.revision > 0 && <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-xs text-[var(--ink-2)]">Revision R{order.revision}</span>}
               <StatusBadge status={order.status} />
             </div>
@@ -124,10 +124,10 @@ export default function OrderDetailPage() {
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
       {/* delivery schedule */}
-      <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5">
+      <Card>
         <h2 className="text-sm font-semibold text-[var(--ink)]">Delivery schedule</h2>
         <ul className="mt-3 space-y-2">
           {schedule.map((batch) => (
@@ -140,7 +140,7 @@ export default function OrderDetailPage() {
             </li>
           ))}
         </ul>
-      </div>
+      </Card>
 
       {/* tabs */}
       <Tabs defaultValue="documents">
@@ -194,7 +194,7 @@ export default function OrderDetailPage() {
           </ol>
         </TabsContent>
       </Tabs>
-    </div>
+    </FadeIn>
   );
 }
 

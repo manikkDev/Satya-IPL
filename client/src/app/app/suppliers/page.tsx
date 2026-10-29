@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Building2 } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
-import { Money, ErrorState, EmptyState, Term } from "@/components/ui/v2";
+import { Money, ErrorState, EmptyState, Term, PageHeader, FadeIn } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function SuppliersPage() {
@@ -15,11 +15,11 @@ export default function SuppliersPage() {
   const items = data?.items ?? [];
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-[22px] font-semibold text-[var(--ink)]">Suppliers</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">Open orders, overdue MSME amounts and issues per supplier.</p>
-      </div>
+    <FadeIn className="space-y-5">
+      <PageHeader
+        title="Suppliers"
+        description="Open orders, overdue MSME amounts and issues per supplier."
+      />
       {error ? (
         <ErrorState message={error instanceof Error ? error.message : "Something went wrong."} onRetry={() => refetch()} />
       ) : isLoading ? (
@@ -33,7 +33,7 @@ export default function SuppliersPage() {
               <button
                 type="button"
                 onClick={() => router.push(`/app/suppliers/${supplier.id}`)}
-                className="w-full rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 text-left hover:border-[var(--accent)]"
+                className="w-full rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 text-left transition-colors hover:border-[var(--accent)]/50 hover:bg-[var(--surface-2)]/40"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
@@ -63,6 +63,6 @@ export default function SuppliersPage() {
           ))}
         </ul>
       )}
-    </div>
+    </FadeIn>
   );
 }

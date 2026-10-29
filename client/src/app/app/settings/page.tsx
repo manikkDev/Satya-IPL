@@ -12,7 +12,7 @@ import { v2, type EntityPolicy } from "@/lib/api/v2";
 import { mocksEnabled } from "@/lib/flags";
 import { useSession } from "@/components/v2/session";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ErrorState } from "@/components/ui/v2";
+import { ErrorState, PageHeader, FadeIn, Card } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const SECTIONS: { icon: LucideIcon; title: string; body: string }[] = [
@@ -24,7 +24,7 @@ const SECTIONS: { icon: LucideIcon; title: string; body: string }[] = [
   { icon: Plug, title: "Integrations", body: "Tally export and bank CSV formats (coming soon)." },
 ];
 
-const inputCls = "h-9 w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--paper)] px-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]";
+const inputCls = "h-9 w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface-2)]/50 px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)]";
 
 function PolicyEditor() {
   const { activeEntity, hasPermission } = useSession();
@@ -72,7 +72,7 @@ function PolicyEditor() {
         approval requirements. Saved values take effect on the next check.
       </p>
 
-      <section className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5">
+      <Card>
         <h3 className="text-sm font-semibold text-[var(--ink)]">Matching tolerance</h3>
         <p className="mt-1 text-xs text-[var(--muted)]">Price variance beyond this is flagged for review.</p>
         <div className="mt-3 flex items-end gap-3">
@@ -87,18 +87,18 @@ function PolicyEditor() {
               value={data?.tolerance?.priceAbs ?? ""} onChange={(e) => patch("tolerance.priceAbs", e.target.value)} />
           </div>
         </div>
-      </section>
+      </Card>
 
-      <section className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5">
+      <Card>
         <h3 className="text-sm font-semibold text-[var(--ink)]">MSME payment deadline</h3>
         <p className="mt-1 text-xs text-[var(--muted)]">Micro/small suppliers must be paid within this many days.</p>
         <div className="mt-3 w-40">
           <input className={inputCls} inputMode="numeric" disabled={!canEdit}
             value={data?.msme?.defaultDays ?? ""} onChange={(e) => patch("msme.defaultDays", Number(e.target.value) || 0)} />
         </div>
-      </section>
+      </Card>
 
-      <section className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5">
+      <Card>
         <label className="flex items-start gap-3">
           <input type="checkbox" className="mt-1 accent-[var(--accent)]" disabled={!canEdit}
             checked={!!data?.approvals?.requireMakerChecker}
@@ -121,11 +121,11 @@ function PolicyEditor() {
             </span>
           </span>
         </label>
-      </section>
+      </Card>
 
       <div className="flex items-center gap-3">
         <button type="button" onClick={save} disabled={saving || !canEdit}
-          className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+          className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-strong)] disabled:opacity-50">
           {saved ? <Check size={15} /> : null} {saving ? "Saving…" : saved ? "Saved" : "Save policy"}
         </button>
         {!canEdit && <p className="text-xs text-[var(--muted)]">Your role can view policies but not change them.</p>}
@@ -190,11 +190,11 @@ function ItemsPanel() {
 
 export default function SettingsPage() {
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-[22px] font-semibold text-[var(--ink)]">Settings</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">Group and entity setup, people, approvals and masters.</p>
-      </div>
+    <FadeIn className="space-y-5">
+      <PageHeader
+        title="Settings"
+        description="Group and entity setup, people, approvals and masters."
+      />
 
       <Tabs defaultValue="policy">
         <TabsList className="flex-wrap">
@@ -209,8 +209,8 @@ export default function SettingsPage() {
         <TabsContent value="more">
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {SECTIONS.map(({ icon: Icon, title, body }) => (
-              <li key={title} className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
-                <h2 className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]"><Icon size={16} aria-hidden="true" /> {title}</h2>
+              <li key={title} className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 transition-colors hover:border-[var(--ink-2)]/25">
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]"><Icon size={16} className="text-[var(--muted)]" aria-hidden="true" /> {title}</h2>
                 <p className="mt-1.5 text-xs leading-relaxed text-[var(--muted)]">{body}</p>
               </li>
             ))}
@@ -220,6 +220,6 @@ export default function SettingsPage() {
           </p>
         </TabsContent>
       </Tabs>
-    </div>
+    </FadeIn>
   );
 }

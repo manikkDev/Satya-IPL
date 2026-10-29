@@ -11,7 +11,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { v2 } from "@/lib/api/v2";
 import type { OrderListRow } from "@/lib/mocks/data";
 import { DataTable } from "@/components/ui/data-table";
-import { Money, StatusBadge, ErrorState, EmptyState } from "@/components/ui/v2";
+import { Money, StatusBadge, ErrorState, EmptyState, PageHeader, FadeIn } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const STATUS_OPTIONS = [
@@ -66,33 +66,33 @@ export default function OrdersPage() {
   );
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-semibold text-[var(--ink)]">Orders</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">Purchase orders — what was agreed, what arrived, what is owed.</p>
-        </div>
-        <Link
-          href="/app/orders/new"
-          className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-strong)]"
-        >
-          <Plus size={16} aria-hidden="true" /> New purchase order
-        </Link>
-      </div>
+    <FadeIn className="space-y-5">
+      <PageHeader
+        title="Orders"
+        description="Purchase orders — what was agreed, what arrived, what is owed."
+        actions={
+          <Link
+            href="/app/orders/new"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-strong)]"
+          >
+            <Plus size={16} aria-hidden="true" /> New purchase order
+          </Link>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <input
           type="search" value={query} onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by number or supplier…" aria-label="Search orders"
-          className="h-9 w-64 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]"
+          className="h-9 w-64 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] placeholder:text-[var(--muted)]"
         />
         <select
           value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status"
-          className="h-9 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] px-2 text-sm text-[var(--ink-2)]"
+          className="h-9 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] px-2 text-sm text-[var(--ink-2)] outline-none transition-colors focus:border-[var(--accent)]"
         >
           {STATUS_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
-        <label className="flex items-center gap-2 text-sm text-[var(--ink-2)]">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--ink-2)]">
           <input type="checkbox" checked={hasIssues} onChange={(e) => setHasIssues(e.target.checked)} className="accent-[var(--accent)]" />
           Has issues
         </label>
@@ -112,6 +112,6 @@ export default function OrdersPage() {
           onAction={() => router.push("/app/orders/new")}
         />
       )}
-    </div>
+    </FadeIn>
   );
 }

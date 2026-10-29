@@ -4,7 +4,8 @@
 // icon + word + colour — never colour alone. Money renders formatted decimal
 // strings only.
 
-import { CheckCircle2, CircleDot, Circle, CircleHelp, CircleDashed, OctagonAlert, TriangleAlert, CircleAlert, Info, Check, MessageCircleQuestion, CircleArrowUp, PauseCircle, Inbox, RotateCcw, type LucideIcon } from "lucide-react";
+import { CheckCircle2, CircleDot, Circle, CircleHelp, CircleDashed, OctagonAlert, TriangleAlert, CircleAlert, Info, Check, MessageCircleQuestion, CircleArrowUp, PauseCircle, Inbox, RotateCcw, SearchX, type LucideIcon } from "lucide-react";
+import { motion } from "framer-motion";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,56 @@ export function Term({ of, children, className }: { of: keyof typeof TERM_TIPS; 
   );
 }
 
+/* ---------- layout & motion ---------- */
+
+/** Consistent page head: title + one plain-English line + optional actions. */
+export function PageHeader({ title, description, actions }: { title: React.ReactNode; description?: React.ReactNode; actions?: React.ReactNode }) {
+  return (
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+      <div className="min-w-0">
+        <h1 className="text-xl font-semibold tracking-tight text-[var(--ink)]">{title}</h1>
+        {description ? <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-[var(--muted)]">{description}</p> : null}
+      </div>
+      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+    </div>
+  );
+}
+
+/** Subtle rise-in on mount — shared by every page so motion stays uniform. */
+export function FadeIn({ children, delay = 0, className }: { children: React.ReactNode; delay?: number; className?: string }) {
+  return (
+    <motion.div
+      className={className}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, delay, ease: [0.21, 0.65, 0.36, 1] }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/** Card container — one surface, one border, gentle hover lift. */
+export function Card({ children, className, pad = true }: { children: React.ReactNode; className?: string; pad?: boolean }) {
+  return (
+    <div className={cn(
+      "rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-1)]",
+      pad && "p-5", className,
+    )}>
+      {children}
+    </div>
+  );
+}
+
+export function CardTitle({ children, hint }: { children: React.ReactNode; hint?: string }) {
+  return (
+    <div className="mb-4 flex items-baseline justify-between gap-3">
+      <h2 className="text-sm font-medium text-[var(--ink)]">{children}</h2>
+      {hint ? <span className="text-xs text-[var(--muted)]">{hint}</span> : null}
+    </div>
+  );
+}
+
 /* ---------- badges ---------- */
 
 const CERTAINTY_STYLE: Record<Certainty, { icon: LucideIcon; color: string; bg: string }> = {
@@ -54,8 +105,8 @@ export function CertaintyBadge({ certainty, short }: { certainty: Certainty; sho
   const label = short ? CERTAINTY_LABEL[certainty].split(" — ")[0] : CERTAINTY_LABEL[certainty];
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
-      style={{ color: style.color, background: style.bg }}
+      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+      style={{ color: style.color, background: style.bg, borderColor: `color-mix(in srgb, ${style.color} 30%, transparent)` }}
     >
       <Icon size={13} aria-hidden="true" />
       {label}
@@ -76,8 +127,8 @@ export function SeverityBadge({ severity }: { severity: string }) {
   const Icon = style.icon;
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
-      style={{ color: style.color, background: style.bg }}
+      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+      style={{ color: style.color, background: style.bg, borderColor: `color-mix(in srgb, ${style.color} 30%, transparent)` }}
     >
       <Icon size={13} aria-hidden="true" />
       {style.word}
@@ -166,8 +217,8 @@ export function StatCard({
   onSeeWhy?: () => void;
 }) {
   return (
-    <article className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)]">
-      <p className="text-sm text-[var(--muted)] flex items-center gap-1">
+    <article className="group rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)] transition-all duration-200 hover:border-[color-mix(in_srgb,var(--ink-2)_25%,transparent)] hover:shadow-[var(--shadow-2)]">
+      <p className="text-[13px] text-[var(--muted)] flex items-center gap-1">
         {tip ? (
           <Tooltip>
             <TooltipTrigger className="underline decoration-dotted underline-offset-4 cursor-help">{label}</TooltipTrigger>
@@ -175,11 +226,11 @@ export function StatCard({
           </Tooltip>
         ) : label}
       </p>
-      <p className="mt-2 text-[28px] leading-8 font-semibold tnum text-[var(--ink)]">{value}</p>
-      <div className="mt-2 flex items-center justify-between gap-2">
+      <p className="mt-2.5 text-[28px] leading-8 font-semibold tnum tracking-tight text-[var(--ink)]">{value}</p>
+      <div className="mt-3 flex items-center justify-between gap-2">
         {delta ? <span className="text-xs text-[var(--muted)]">{delta}</span> : <span />}
         {seeWhy ? (
-          <button type="button" onClick={onSeeWhy} className="text-xs font-medium text-[var(--accent)] hover:underline">
+          <button type="button" onClick={onSeeWhy} className="text-xs font-medium text-[var(--accent)] transition-colors hover:text-[var(--accent-strong)] hover:underline">
             {seeWhy}
           </button>
         ) : null}
@@ -188,14 +239,16 @@ export function StatCard({
   );
 }
 
-export function EmptyState({ title, body, actionLabel, onAction }: { title: string; body?: string; actionLabel?: string; onAction?: () => void }) {
+export function EmptyState({ title, body, actionLabel, onAction, icon: Icon = Inbox }: { title: string; body?: string; actionLabel?: string; onAction?: () => void; icon?: LucideIcon }) {
   return (
-    <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--line)] bg-[var(--surface)] p-10 text-center">
-      <Inbox size={28} className="mx-auto text-[var(--muted)]" aria-hidden="true" />
-      <p className="mt-3 text-base font-medium text-[var(--ink)]">{title}</p>
-      {body ? <p className="mt-1 text-sm text-[var(--muted)] max-w-md mx-auto">{body}</p> : null}
+    <div className="flex flex-col items-center rounded-[var(--radius-md)] border border-dashed border-[var(--line)] bg-[var(--surface)] px-6 py-14 text-center">
+      <div className="grid h-11 w-11 place-items-center rounded-full bg-[var(--surface-2)]">
+        <Icon size={20} className="text-[var(--muted)]" aria-hidden="true" />
+      </div>
+      <p className="mt-4 text-[15px] font-medium text-[var(--ink)]">{title}</p>
+      {body ? <p className="mt-1.5 max-w-md text-sm leading-relaxed text-[var(--muted)]">{body}</p> : null}
       {actionLabel ? (
-        <button type="button" onClick={onAction} className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-strong)]">
+        <button type="button" onClick={onAction} className="mt-5 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-strong)]">
           {actionLabel}
         </button>
       ) : null}
@@ -205,11 +258,11 @@ export function EmptyState({ title, body, actionLabel, onAction }: { title: stri
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div role="alert" className="rounded-[var(--radius-md)] border border-[var(--sev-critical)] bg-[var(--sev-critical-soft)] p-5">
+    <div role="alert" className="flex flex-col items-start rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--sev-critical)_35%,transparent)] bg-[var(--sev-critical-soft)] px-5 py-4">
       <p className="text-sm font-medium text-[var(--sev-critical)]">We couldn’t load this.</p>
       <p className="mt-1 text-sm text-[var(--ink-2)]">{message}</p>
       {onRetry ? (
-        <button type="button" onClick={onRetry} className="mt-3 inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--sev-critical)] px-3 py-1.5 text-sm font-medium text-[var(--sev-critical)]">
+        <button type="button" onClick={onRetry} className="mt-3 inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-[color-mix(in_srgb,var(--sev-critical)_50%,transparent)] px-3 py-1.5 text-sm font-medium text-[var(--sev-critical)] transition-colors hover:bg-[var(--sev-critical-soft)]">
           <RotateCcw size={14} aria-hidden="true" /> Try again
         </button>
       ) : null}

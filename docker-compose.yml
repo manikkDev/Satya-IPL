@@ -130,11 +130,13 @@ services:
         NEXT_PUBLIC_MAIN_API_URL: http://localhost:5001
         NEXT_PUBLIC_GRAPH_API_URL: http://localhost:5002
         NEXT_PUBLIC_ML_API_URL: http://localhost:8000
+        NEXT_PUBLIC_APP_V2: "1"
     environment:
       PORT: 3000
       NEXT_PUBLIC_MAIN_API_URL: http://localhost:5001
       NEXT_PUBLIC_GRAPH_API_URL: http://localhost:5002
       NEXT_PUBLIC_ML_API_URL: http://localhost:8000
+      NEXT_PUBLIC_APP_V2: "1"
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:

@@ -6,21 +6,21 @@
 import { useQuery } from "@tanstack/react-query";
 import { ShieldCheck } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
-import { Money, DateText, ErrorState } from "@/components/ui/v2";
+import { Money, DateText, ErrorState, PageHeader, FadeIn } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AuditPage() {
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ["case", "case_po1001"], queryFn: () => v2.case("case_po1001") });
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-[22px] font-semibold text-[var(--ink)]">Review history</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">Who decided what, when and why — the trail behind every number.</p>
-      </div>
+    <FadeIn className="space-y-5">
+      <PageHeader
+        title="Review history"
+        description="Who decided what, when and why — the trail behind every number."
+      />
 
-      <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-xs text-[var(--muted)]">
-        <ShieldCheck size={15} className="text-[var(--confirmed)]" aria-hidden="true" />
+      <div className="flex items-center gap-2.5 rounded-[var(--radius-md)] border border-[var(--confirmed)]/25 bg-[var(--confirmed-soft)] px-4 py-3 text-xs leading-relaxed text-[var(--muted)]">
+        <ShieldCheck size={15} className="shrink-0 text-[var(--confirmed)]" aria-hidden="true" />
         Audit chain verification arrives with the audit API — entries here are read-only and time-ordered.
       </div>
 
@@ -44,6 +44,6 @@ export default function AuditPage() {
           ))}
         </ol>
       )}
-    </div>
+    </FadeIn>
   );
 }

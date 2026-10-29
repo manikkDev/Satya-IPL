@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { UploadCloud, X } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
-import { Money, DateText, CertaintyBadge, ErrorState, Term } from "@/components/ui/v2";
+import { Money, DateText, CertaintyBadge, ErrorState, Term, PageHeader, FadeIn, Card } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +23,7 @@ function Workbench({ paymentId, onClose }: { paymentId: string; onClose: () => v
   if (isLoading || !data) return <Skeleton className="h-64 w-full" />;
   const { payment, solutions } = data;
   return (
-    <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5">
+    <Card>
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-sm font-semibold text-[var(--ink)]">Where does this payment belong?</h2>
@@ -39,7 +39,7 @@ function Workbench({ paymentId, onClose }: { paymentId: string; onClose: () => v
       </p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {solutions.map((solution) => (
-          <div key={solution.id} className="rounded-[var(--radius-sm)] border border-[var(--line)] p-3">
+          <div key={solution.id} className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface-2)]/40 p-3 transition-colors hover:border-[var(--accent)]/40">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-[var(--ink)]">{solution.label}</p>
               <CertaintyBadge certainty={solution.certainty} short />
@@ -64,7 +64,7 @@ function Workbench({ paymentId, onClose }: { paymentId: string; onClose: () => v
         <button type="button" className="rounded-[var(--radius-sm)] border border-[var(--accent)] px-3 py-1.5 font-medium text-[var(--accent-strong)]">Attach remittance advice</button>
         <span className="text-[var(--muted)]">Amounts must sum exactly — checked by the engine.</span>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -73,18 +73,16 @@ export default function PaymentsPage() {
   const [workbench, setWorkbench] = useState<string | null>(null);
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-semibold text-[var(--ink)]">Payments</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Bank transfers matched to invoices. Unclear ones wait for your call — Satya never guesses.
-          </p>
-        </div>
-        <button type="button" className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--accent-strong)] hover:bg-[var(--accent-soft)]">
-          <UploadCloud size={15} aria-hidden="true" /> Import bank CSV
-        </button>
-      </div>
+    <FadeIn className="space-y-5">
+      <PageHeader
+        title="Payments"
+        description="Bank transfers matched to invoices. Unclear ones wait for your call — Satya never guesses."
+        actions={
+          <button type="button" className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--accent)]/50 px-4 py-2 text-sm font-medium text-[var(--accent-strong)] transition-colors hover:bg-[var(--accent-soft)]">
+            <UploadCloud size={15} aria-hidden="true" /> Import bank CSV
+          </button>
+        }
+      />
 
       {workbench && <Workbench paymentId={workbench} onClose={() => setWorkbench(null)} />}
 
@@ -97,7 +95,7 @@ export default function PaymentsPage() {
           {(data?.items ?? []).map((payment) => {
             const meta = ALLOCATION_LABEL[payment.status] ?? ALLOCATION_LABEL.not_linked;
             return (
-              <li key={payment.id} className="flex flex-wrap items-center gap-3 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] px-4 py-3">
+              <li key={payment.id} className="flex flex-wrap items-center gap-3 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] px-4 py-3 transition-colors hover:border-[var(--ink-2)]/25">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-[var(--ink)]"><Money value={payment.amount} /> · {payment.supplier}</p>
                   <p className="mt-0.5 text-xs text-[var(--muted)]">
@@ -108,7 +106,7 @@ export default function PaymentsPage() {
                 </div>
                 <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", meta.classes)}>{meta.label}</span>
                 {payment.status === "unclear" && (
-                  <button type="button" onClick={() => setWorkbench(payment.id)} className="rounded-[var(--radius-sm)] border border-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--accent-strong)]">
+                  <button type="button" onClick={() => setWorkbench(payment.id)} className="rounded-[var(--radius-sm)] border border-[var(--accent)]/50 px-3 py-1.5 text-xs font-medium text-[var(--accent-strong)] transition-colors hover:bg-[var(--accent-soft)]">
                     Resolve
                   </button>
                 )}
@@ -117,6 +115,6 @@ export default function PaymentsPage() {
           })}
         </ul>
       )}
-    </div>
+    </FadeIn>
   );
 }

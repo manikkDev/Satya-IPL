@@ -10,7 +10,7 @@ import { UploadCloud, FileText, CircleCheck, CircleAlert, LoaderCircle, FileUp }
 import { v2 } from "@/lib/api/v2";
 import { mocksEnabled } from "@/lib/flags";
 import { useSession } from "@/components/v2/session";
-import { DateText, ErrorState } from "@/components/ui/v2";
+import { DateText, ErrorState, PageHeader, FadeIn, Card } from "@/components/ui/v2";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -33,7 +33,7 @@ function UploadRow({ draft, onOpen }: { draft: Draft; onOpen: (id: string) => vo
       <button
         type="button"
         onClick={() => onOpen(draft.id)}
-        className="flex w-full items-center gap-3 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-left hover:border-[var(--accent)]"
+        className="flex w-full items-center gap-3 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-left transition-colors hover:border-[var(--accent)]/50 hover:bg-[var(--surface-2)]/50"
       >
         <FileText size={18} className="shrink-0 text-[var(--muted)]" aria-hidden="true" />
         <div className="min-w-0 flex-1">
@@ -91,16 +91,14 @@ export default function DocumentsPage() {
   const records = items.filter((item) => item.status === "confirmed");
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-[22px] font-semibold text-[var(--ink)]">Documents</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Drop invoices, delivery notes, bank statements and GST files — Satya reads them, you confirm.
-        </p>
-      </div>
+    <FadeIn className="space-y-5">
+      <PageHeader
+        title="Documents"
+        description="Drop invoices, delivery notes, bank statements and GST files — Satya reads them, you confirm."
+      />
 
       {!policyAccepted && (
-        <div className="rounded-[var(--radius-md)] border border-[var(--possible)] bg-[var(--possible-soft)] p-4 text-sm text-[var(--ink-2)]">
+        <div className="rounded-[var(--radius-md)] border border-[var(--possible)]/40 bg-[var(--possible-soft)] p-4 text-sm text-[var(--ink-2)]">
           <p className="font-medium text-[var(--ink)]">Before we read real documents with AI</p>
           <p className="mt-1 text-xs leading-relaxed">
             Sample/demo data may be processed by Google Gemini free tier, where inputs may be used to improve Google
@@ -109,7 +107,7 @@ export default function DocumentsPage() {
           <button
             type="button"
             onClick={() => setPolicyAccepted(true)}
-            className="mt-2 text-xs font-medium text-[var(--accent-strong)] underline"
+            className="mt-2 text-xs font-medium text-[var(--accent-strong)] underline underline-offset-2 transition-colors hover:text-[var(--accent)]"
           >
             Got it — I&apos;m uploading sample or consented documents
           </button>
@@ -126,12 +124,16 @@ export default function DocumentsPage() {
         onClick={() => fileInput.current?.click()}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") fileInput.current?.click(); }}
         className={cn(
-          "flex cursor-pointer flex-col items-center rounded-[var(--radius-lg)] border-2 border-dashed p-10 text-center transition-colors",
-          dragOver ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-[var(--surface)] hover:border-[var(--accent)]",
+          "group flex cursor-pointer flex-col items-center rounded-[var(--radius-lg)] border-2 border-dashed px-6 py-12 text-center transition-all duration-200",
+          dragOver
+            ? "border-[var(--accent)] bg-[var(--accent-soft)] scale-[1.005]"
+            : "border-[var(--line)] bg-[var(--surface)] hover:border-[var(--accent)]/60 hover:bg-[var(--surface-2)]/40",
         )}
       >
-        <UploadCloud size={30} className="text-[var(--accent)]" aria-hidden="true" />
-        <p className="mt-3 text-sm font-medium text-[var(--ink)]">
+        <div className="grid h-12 w-12 place-items-center rounded-full bg-[var(--surface-2)] transition-colors group-hover:bg-[var(--accent-soft)]">
+          <UploadCloud size={22} className="text-[var(--accent)]" aria-hidden="true" />
+        </div>
+        <p className="mt-4 text-sm font-medium text-[var(--ink)]">
           {uploading ? `Uploading ${uploading}…` : "Drop files here, or click to choose"}
         </p>
         <p className="mt-1 text-xs text-[var(--muted)]">PDF, photo, Excel, CSV or e-invoice JSON — up to 10 MB each</p>
@@ -179,20 +181,20 @@ export default function DocumentsPage() {
         </TabsContent>
 
         <TabsContent value="import">
-          <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-6">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
+          <Card>
+            <h3 className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
               <FileUp size={15} aria-hidden="true" /> Structured import
             </h3>
-            <p className="mt-1 text-sm text-[var(--muted)]">
+            <p className="mt-1.5 text-sm leading-relaxed text-[var(--muted)]">
               The existing CSV/JSON mapping workspace (with sample downloads and validation preview) moves here once
               the v2 ingestion endpoints land — the current importer keeps working at{" "}
-              <a href="/inbox" className="text-[var(--accent)] underline">Import records</a> meanwhile.
+              <a href="/inbox" className="text-[var(--accent)] underline underline-offset-2">Import records</a> meanwhile.
             </p>
-          </div>
+          </Card>
         </TabsContent>
       </Tabs>
 
       {mocksEnabled() && <p className="text-xs text-[var(--muted)]">Mock data — uploads do not reach a server.</p>}
-    </div>
+    </FadeIn>
   );
 }

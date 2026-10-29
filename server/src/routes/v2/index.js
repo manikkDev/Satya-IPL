@@ -18,6 +18,7 @@ import complianceRoutes from "./compliance.js";
 import auditRoutes from "./audit.js";
 import researchRoutes from "./research.js";
 import importsRoutes from "./imports.js";
+import compatRoutes from "./compat.js";
 import { writeAudit } from "../../services/audit.js";
 import Job from "../../models/Job.js";
 import { authenticateV2, loadScope } from "../../auth/middleware.js";
@@ -62,6 +63,7 @@ router.use("/compliance", complianceRoutes);
 router.use("/audit", auditRoutes);
 router.use("/research", researchRoutes);
 router.use("/import", importsRoutes);
+router.use("/", compatRoutes);
 
 // GET /api/v2/jobs/:id — job polling (02 §5.5)
 router.get("/jobs/:id", async (req, res, next) => {
