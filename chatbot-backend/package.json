@@ -7,6 +7,9 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "test": "node --test \"test/**/*.test.mjs\"",
+    "eval": "node scripts/eval.mjs",
+    "eval:live": "node scripts/eval.mjs --live",
+    "golden:gen": "node test/golden/generate.mjs",
     "smoke:live": "node scripts/smokeLive.mjs"
   },
   "author": "",
@@ -17,8 +20,10 @@
     "dotenv": "^17.2.3",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
+    "minisearch": "^7.2.0",
     "mongodb": "^6.21.0",
     "openai": "^5.22.0",
+    "ulid": "^3.0.2",
     "zod": "^3.25.76"
   },
   "devDependencies": {

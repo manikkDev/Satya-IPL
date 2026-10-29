@@ -7,13 +7,16 @@ import suppliersRoutes from "./suppliers.js";
 import itemsRoutes from "./items.js";
 import hsnRoutes from "./hsn.js";
 import policiesRoutes from "./policies.js";
+import documentsRoutes from "./documents.js";
+import verifyRoutes from "./verify.js";
 import { authenticateV2, loadScope } from "../../auth/middleware.js";
 
 const router = express.Router();
 
-// Public: feature flags, health, login/signup/switch-group.
+// Public: feature flags, health, login/signup/switch-group, document verify.
 router.use("/meta", metaRoutes);
 router.use("/auth", authRoutes);
+router.use("/verify", verifyRoutes);
 
 // Everything below requires a v2 session + resolved group scope.
 router.use(authenticateV2, loadScope);
@@ -23,5 +26,6 @@ router.use("/suppliers", suppliersRoutes);
 router.use("/items", itemsRoutes);
 router.use("/hsn", hsnRoutes);
 router.use("/policies", policiesRoutes);
+router.use("/documents", documentsRoutes);
 
 export default router;
