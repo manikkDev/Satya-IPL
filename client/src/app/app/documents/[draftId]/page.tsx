@@ -7,9 +7,10 @@
 
 import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, FileText, ShieldCheck, TriangleAlert } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
+import { mocksEnabled } from "@/lib/flags";
 import { ErrorState } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -23,9 +24,37 @@ const CONFIDENCE = {
 export default function DraftReviewPage() {
   const { draftId } = useParams<{ draftId: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ["draft", draftId], queryFn: () => v2.draft(draftId) });
   const [values, setValues] = useState<Record<string, string>>({});
   const [highlight, setHighlight] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [confirmed, setConfirmed] = useState<string | null>(null);
+
+  const saveAsEvidence = async () => {
+    if (!data) return;
+    setSaving(true);
+    try {
+      if (mocksEnabled()) {
+        setConfirmed("doc_mock_confirmed");
+        return;
+      }
+      const changed: Record<string, string> = {};
+      for (const [name, value] of Object.entries(values)) {
+        const original = data.fields.flatMap((g) => g.items).find((item) => item.name === name);
+        if (original && value !== original.value) changed[name] = value;
+      }
+      if (Object.keys(changed).length) await v2.patchIngestDraft(draftId, { fields: changed });
+      const result = await v2.confirmIngestDraft(draftId);
+      setConfirmed(result.documentId);
+      queryClient.invalidateQueries({ queryKey: ["drafts"] });
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Could not save as evidence");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const checkFields = useMemo(() => {
     if (!data) return [];
@@ -164,14 +193,21 @@ export default function DraftReviewPage() {
               {checkFields.length ? `${checkFields.length} field${checkFields.length === 1 ? "" : "s"} to check — they are marked “Check”/` : "All fields look confirmed."}
               {checkFields.length ? <span className="text-[var(--possible)]">Low</span> : null}
             </p>
-            <button
-              type="button"
-              disabled={!ready}
-              title={ready ? "Save this document as evidence" : "Fill every field first"}
-              className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <ShieldCheck size={15} aria-hidden="true" /> Save as evidence
-            </button>
+            {confirmed ? (
+              <span className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--confirmed-soft)] px-4 py-2 text-sm font-medium text-[var(--confirmed)]">
+                <ShieldCheck size={15} aria-hidden="true" /> Saved as evidence{confirmed.startsWith("doc_mock") ? " (mock)" : ""}
+              </span>
+            ) : (
+              <button
+                type="button"
+                disabled={!ready || saving}
+                onClick={saveAsEvidence}
+                title={ready ? "Save this document as evidence" : "Fill every field first"}
+                className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ShieldCheck size={15} aria-hidden="true" /> {saving ? "Saving…" : "Save as evidence"}
+              </button>
+            )}
           </div>
         </div>
       </div>

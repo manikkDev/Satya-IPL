@@ -5,10 +5,11 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { UploadCloud, FileText, CircleCheck, CircleAlert, LoaderCircle, FileUp } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
 import { mocksEnabled } from "@/lib/flags";
+import { useSession } from "@/components/v2/session";
 import { DateText, ErrorState } from "@/components/ui/v2";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,16 +55,36 @@ function UploadRow({ draft, onOpen }: { draft: Draft; onOpen: (id: string) => vo
 
 export default function DocumentsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { activeEntity } = useSession();
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ["drafts"], queryFn: () => v2.drafts() });
   const [dragOver, setDragOver] = useState(false);
   const [policyAccepted, setPolicyAccepted] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const onFiles = useCallback((files: FileList | null) => {
-    if (!files?.length) return;
-    // Upload wiring lands with B's POST /files; for now surface intent clearly.
-    alert(`${files.length} file${files.length === 1 ? "" : "s"} selected — upload connects when the files API ships.`);
-  }, []);
+  const onFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files?.length) return;
+      if (mocksEnabled()) {
+        alert(`${files.length} file${files.length === 1 ? "" : "s"} selected — mock mode, nothing uploaded.`);
+        return;
+      }
+      for (const file of Array.from(files)) {
+        setUploading(file.name);
+        try {
+          const uploaded = await v2.uploadFile(file, activeEntity?.id);
+          const { draftId } = await v2.extractFile(uploaded.id);
+          router.push(`/app/documents/${draftId}`);
+        } catch (err) {
+          alert(err instanceof Error ? err.message : `Upload of ${file.name} failed`);
+        }
+      }
+      setUploading(null);
+      queryClient.invalidateQueries({ queryKey: ["drafts"] });
+    },
+    [activeEntity?.id, queryClient, router],
+  );
 
   const items = data?.items ?? [];
   const needsReview = items.filter((item) => item.status === "needs_review");
@@ -110,7 +131,9 @@ export default function DocumentsPage() {
         )}
       >
         <UploadCloud size={30} className="text-[var(--accent)]" aria-hidden="true" />
-        <p className="mt-3 text-sm font-medium text-[var(--ink)]">Drop files here, or click to choose</p>
+        <p className="mt-3 text-sm font-medium text-[var(--ink)]">
+          {uploading ? `Uploading ${uploading}…` : "Drop files here, or click to choose"}
+        </p>
         <p className="mt-1 text-xs text-[var(--muted)]">PDF, photo, Excel, CSV or e-invoice JSON — up to 10 MB each</p>
         <input ref={fileInput} type="file" multiple className="hidden" accept=".pdf,.png,.jpg,.jpeg,.csv,.xlsx,.xls,.json" onChange={(e) => onFiles(e.target.files)} />
       </div>

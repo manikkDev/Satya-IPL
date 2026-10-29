@@ -12,6 +12,8 @@ import { ArrowLeft, ArrowRight, Check, FileDown, CircleCheck, LoaderCircle, Tria
 import { useSession } from "@/components/v2/session";
 import { mockEntities, mockSupplier } from "@/lib/mocks/flagship";
 import { v2 } from "@/lib/api/v2";
+const downloadDocumentPdf = async (...args: Parameters<typeof import("@/components/v2/po-pdf").downloadDocumentPdf>) =>
+  (await import("@/components/v2/po-pdf")).downloadDocumentPdf(...args);
 import { mocksEnabled } from "@/lib/flags";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -88,7 +90,9 @@ export default function NewOrderPage() {
   const [terms, setTerms] = useState({ creditDays: "30", advancePct: "0", deliveryTerms: "FOR destination", inspection: "On receipt", warranty: "12" });
   const [compute, setCompute] = useState<ComputeResult | null>(null);
   const [computing, setComputing] = useState(false);
-  const [issued, setIssued] = useState(false);
+  const [issued, setIssued] = useState<{ number?: string; verifyUrl?: string } | null>(null);
+  const [docId, setDocId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const { data: supplierPage } = useQuery({ queryKey: ["suppliers"], queryFn: () => v2.suppliers() });
   const supplierList = mocksEnabled() ? SUPPLIERS : supplierPage?.items?.length ? supplierPage.items : SUPPLIERS;
@@ -103,9 +107,72 @@ export default function NewOrderPage() {
 
   const runCompute = async () => {
     setComputing(true);
-    const result = await mockCompute(lines, intraState);
-    setCompute(result);
-    setComputing(false);
+    setActionError(null);
+    try {
+      if (!mocksEnabled()) {
+        // Real path: create the draft once, then compute via engine proxy.
+        let id = docId;
+        if (!id) {
+          const draft = await v2.createDraft({
+            type: "PO", entityId, supplierId,
+            date: new Date().toISOString().slice(0, 10),
+            lines: lines.map((l, i) => ({ lineNo: i + 1, description: l.description, hsn: l.hsn || undefined, qty: l.qty, uom: l.uom, rate: l.rate })),
+            terms,
+          });
+          id = draft.id;
+          setDocId(id);
+        } else {
+          await v2.patchDocument(id, {
+            lines: lines.map((l, i) => ({ lineNo: i + 1, description: l.description, hsn: l.hsn || undefined, qty: l.qty, uom: l.uom, rate: l.rate })),
+            terms,
+          });
+        }
+        const result = (await v2.documentAction(id, "compute")) as {
+          lines?: { lineNo: number; taxableValue: string; gstRate: string; cgst: string; sgst: string; igst: string; lineTotal: string }[];
+          totals?: { taxable: string; cgst: string; sgst: string; igst: string; roundOff?: string; grand: string };
+          taxType?: string; warnings?: { code: string; message: string }[];
+        };
+        setCompute({
+          lines: result.lines ?? [],
+          totals: {
+            taxable: result.totals?.taxable ?? "0.00", cgst: result.totals?.cgst ?? "0.00",
+            sgst: result.totals?.sgst ?? "0.00", igst: result.totals?.igst ?? "0.00",
+            roundOff: result.totals?.roundOff ?? "0.00", grand: result.totals?.grand ?? "0.00",
+          },
+          taxType: (result.taxType === "IGST" ? "IGST" : "CGST+SGST") as ComputeResult["taxType"],
+          warnings: result.warnings ?? [],
+          amountInWords: "",
+        });
+      } else {
+        setCompute(await mockCompute(lines, intraState));
+      }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Compute failed");
+    } finally {
+      setComputing(false);
+    }
+  };
+
+  const submitForApproval = async () => {
+    if (mocksEnabled()) { setStep(6); return; }
+    if (!docId) return;
+    try {
+      await v2.documentAction(docId, "submit");
+      setStep(6);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Submit failed");
+    }
+  };
+
+  const issuePo = async () => {
+    if (mocksEnabled()) { setIssued({ number: `${entity.code}/PO/26-27/000127` }); return; }
+    if (!docId) return;
+    try {
+      const result = (await v2.documentAction(docId, "issue")) as { number?: string; verifyUrl?: string };
+      setIssued({ number: result.number, verifyUrl: result.verifyUrl });
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Issue failed");
+    }
   };
 
   const setLine = (i: number, patch: Partial<Line>) =>
@@ -335,10 +402,12 @@ export default function NewOrderPage() {
                 )}
                 <p className="mt-1 text-xs text-[var(--muted)]">You cannot approve a purchase order you created — another approver must sign off.</p>
               </div>
+              {actionError && <p className="mt-3 text-xs text-[var(--sev-critical)]">{actionError}</p>}
               <button
                 type="button"
-                onClick={() => setStep(6)}
-                className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white"
+                onClick={submitForApproval}
+                disabled={!mocksEnabled() && !docId}
+                className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               >
                 Submit for approval <ArrowRight size={15} />
               </button>
@@ -350,10 +419,11 @@ export default function NewOrderPage() {
               <legend className="text-base font-semibold text-[var(--ink)]">Issue & share</legend>
               {!issued ? (
                 <div className="mt-4">
-                  <p className="flex items-center gap-2 text-sm text-[var(--confirmed)]"><CircleCheck size={16} /> Approved by AP Manager (demo)</p>
+                  <p className="flex items-center gap-2 text-sm text-[var(--confirmed)]"><CircleCheck size={16} /> Approved by AP Manager{!mocksEnabled() ? " (submitted)" : " (demo)"}</p>
+                  {actionError && <p className="mt-3 text-xs text-[var(--sev-critical)]">{actionError}</p>}
                   <button
                     type="button"
-                    onClick={() => setIssued(true)}
+                    onClick={issuePo}
                     className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white"
                   >
                     Issue purchase order
@@ -361,12 +431,29 @@ export default function NewOrderPage() {
                 </div>
               ) : (
                 <div className="mt-4 space-y-3">
-                  <p className="text-sm text-[var(--ink-2)]">Issued as <span className="font-code font-medium text-[var(--ink)]">{entity.code}/PO/26-27/000127</span></p>
+                  <p className="text-sm text-[var(--ink-2)]">Issued as <span className="font-code font-medium text-[var(--ink)]">{issued.number ?? `${entity.code}/PO/26-27/000127`}</span></p>
+                  {issued.verifyUrl && <p className="text-xs text-[var(--muted)]">Verify: <span className="font-code">{issued.verifyUrl}</span></p>}
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)]"><FileDown size={13} /> Download PDF</button>
-                    <button type="button" className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)]">Download CSV/JSON</button>
-                    <button type="button" className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)]">Copy verify link</button>
-                    <button type="button" className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)]">Print</button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const model = await v2.renderModel(docId ?? "doc_po1001");
+                        await downloadDocumentPdf(model);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)]"
+                    >
+                      <FileDown size={13} /> Download PDF
+                    </button>
+                    {issued.verifyUrl && (
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText(issued.verifyUrl!)}
+                        className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)]"
+                      >
+                        Copy verify link
+                      </button>
+                    )}
+                    <button type="button" onClick={() => window.print()} className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)]">Print</button>
                   </div>
                   <button type="button" onClick={() => router.push("/app/orders")} className="text-xs font-medium text-[var(--accent)]">Done — back to orders</button>
                 </div>

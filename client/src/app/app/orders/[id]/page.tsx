@@ -4,6 +4,8 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+const downloadDocumentPdf = async (...args: Parameters<typeof import("@/components/v2/po-pdf").downloadDocumentPdf>) =>
+  (await import("@/components/v2/po-pdf")).downloadDocumentPdf(...args);
 import { FileDown, Pencil, OctagonX, MessageSquare, AlertCircle } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
 import { MoneyTrail } from "@/components/v2/money-trail";
@@ -57,13 +59,36 @@ export default function OrderDetailPage() {
             )}
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)] hover:border-[var(--accent)]">
+            <button
+              type="button"
+              onClick={async () => {
+                try { await v2.documentAction(order.id, "amend"); } catch { /* mock mode — no-op */ }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)] hover:border-[var(--accent)]"
+            >
               <Pencil size={13} aria-hidden="true" /> Amend
             </button>
-            <button type="button" className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)] hover:border-[var(--accent)]">
+            <button
+              type="button"
+              onClick={async () => {
+                try { await v2.documentAction(order.id, "short-close"); refetch(); } catch { /* mock mode — no-op */ }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)] hover:border-[var(--accent)]"
+            >
               <OctagonX size={13} aria-hidden="true" /> Short-close
             </button>
-            <button type="button" className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)] hover:border-[var(--accent)]">
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const model = await v2.renderModel(order.id);
+                  await downloadDocumentPdf(model);
+                } catch {
+                  alert("The PDF could not be generated right now — try again in a moment.");
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)] hover:border-[var(--accent)]"
+            >
               <FileDown size={13} aria-hidden="true" /> Download PDF
             </button>
             <button
