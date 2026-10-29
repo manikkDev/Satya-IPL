@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { FileSignature, AlertTriangle, CheckCircle2, ShieldCheck, GitCommit, ArrowRight, Clock, FileText, FileDown, RefreshCw } from "lucide-react";
 import BusinessShell, { Panel, State } from "@/components/BusinessShell";
-import { businessApi, type ContractView, type ContractObligation, type ContractAgreement } from "@/lib/business-api";
+import { businessApi, downloadFile, type ContractView, type ContractObligation, type ContractAgreement } from "@/lib/business-api";
 
 export default function ContractsPage() {
   const [data, setData] = useState<ContractView | null>(null);
@@ -87,14 +87,19 @@ export default function ContractsPage() {
           {/* ── Action Bar: Download PDF & Reload Contracts ───────────── */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
             <div style={{ display: "flex", gap: "0.5rem" }}>
-              <a
-                href={businessApi.contractPdfReportUrl()}
-                download="BPCI_Legal_MOU_Clearance_Report.pdf"
+              <button
+                onClick={async () => {
+                  try {
+                    await downloadFile(businessApi.contractPdfReportUrl(), "BPCI_Legal_MOU_Clearance_Report.pdf");
+                  } catch (err: unknown) {
+                    alert(err instanceof Error ? err.message : "Failed to download contract PDF report");
+                  }
+                }}
                 className="satya-button"
-                style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", textDecoration: "none" }}
+                style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
               >
                 <FileDown size={16} /> Download Legal MOU Clearance PDF Report
-              </a>
+              </button>
               <button
                 onClick={handleReseedContracts}
                 disabled={reseeding}

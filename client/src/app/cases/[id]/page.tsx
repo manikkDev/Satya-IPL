@@ -9,7 +9,7 @@ import BusinessShell, { Panel, State, evidenceLabel } from "@/components/Busines
 import BusinessGraph from "@/components/BusinessGraph";
 import DeliveryProgress from '@/components/DeliveryProgress';
 import { useAuth } from "@/contexts/auth-context";
-import { businessApi, money, waitForJob, type BusinessCase, type Evidence, type Graph, type Snapshot, type AssignableUser, type CaseDocument, type CaseReminder } from "@/lib/business-api";
+import { businessApi, money, waitForJob, downloadFile, type BusinessCase, type Evidence, type Graph, type Snapshot, type AssignableUser, type CaseDocument, type CaseReminder } from "@/lib/business-api";
 
 const tabs = ["Summary", "Records", "Record connections", "Payments & matches", "Anomalies & Evidence", "Documents", "Review history"];
 const recordTypes: Record<string, string> = { PO: "Purchase order", GRN: "Delivery receipt", INVOICE: "Invoice", PAYMENT: "Payment", CREDIT_NOTE: "Credit note", RETURN: "Return", PROFORMA: "Proforma invoice" };
@@ -113,9 +113,42 @@ export default function CasePage() {
         <span className="satya-tag">Exception: {data.exceptionStatus || "open"}</span>
         <span>Records available at {new Date(view.observedBefore).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST</span>
         <button disabled={busy || user?.role === "auditor"} className="satya-button secondary" onClick={() => run(async () => { const job = await businessApi.reconcile(id); await waitForJob(job.id); await load(true); })}><RefreshCw size={16} className={busy ? "satya-spin" : undefined} />Check records again</button>
-        <a className="satya-button" href={businessApi.downloadReportUrl(id, "pdf")} target="_blank" rel="noreferrer"><Download size={15} />Export PDF</a>
-        <a className="satya-button secondary" href={businessApi.downloadReportUrl(id, "json")} target="_blank" rel="noreferrer"><Download size={15} />Export JSON</a>
-        <a className="satya-button secondary" href={businessApi.downloadReportUrl(id, "csv")} target="_blank" rel="noreferrer"><Download size={15} />Export CSV</a>
+        <button
+          className="satya-button"
+          onClick={async () => {
+            try {
+              await downloadFile(businessApi.downloadReportUrl(id, "pdf"), `satya-report-${data.poId || id}.pdf`);
+            } catch (err: unknown) {
+              alert(err instanceof Error ? err.message : "Failed to download PDF report");
+            }
+          }}
+        >
+          <Download size={15} />Export PDF
+        </button>
+        <button
+          className="satya-button secondary"
+          onClick={async () => {
+            try {
+              await downloadFile(businessApi.downloadReportUrl(id, "json"), `satya-report-${data.poId || id}.json`);
+            } catch (err: unknown) {
+              alert(err instanceof Error ? err.message : "Failed to download JSON report");
+            }
+          }}
+        >
+          <Download size={15} />Export JSON
+        </button>
+        <button
+          className="satya-button secondary"
+          onClick={async () => {
+            try {
+              await downloadFile(businessApi.downloadReportUrl(id, "csv"), `satya-report-${data.poId || id}.csv`);
+            } catch (err: unknown) {
+              alert(err instanceof Error ? err.message : "Failed to download CSV report");
+            }
+          }}
+        >
+          <Download size={15} />Export CSV
+        </button>
         <Link className="satya-button secondary" href={`/chat?case=${encodeURIComponent(id)}`}><MessageSquare size={16} />Ask Satya</Link>
       </div>
       <div className="satya-metric-grid satya-money-grid">{[

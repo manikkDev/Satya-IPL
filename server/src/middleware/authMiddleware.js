@@ -7,15 +7,16 @@ export const protect = async (req, res, next) => {
         req.headers.authorization &&
         req.headers.authorization.startsWith('Bearer')
     ) {
+        // Get token from header (Bearer <token>)
+        const parts = req.headers.authorization.split(' ');
+        token = parts[1];
+    } else if (req.query && req.query.token) {
+        // Fallback: token passed via query parameter (crucial for browser file downloads / exports)
+        token = req.query.token;
+    }
+
+    if (token && token.trim() !== '') {
         try {
-            // Get token from header (Bearer <token>)
-            const parts = req.headers.authorization.split(' ');
-            token = parts[1];
-
-            if (!token || token.trim() === '') {
-                return res.status(401).json({ message: 'Not authorized, no token provided' });
-            }
-
             // Verify token
             const decoded = verifyToken(token);
 
@@ -32,11 +33,20 @@ export const protect = async (req, res, next) => {
             return next();
         } catch (error) {
             console.error('Auth verification error:', error.message);
-            return res.status(401).json({ message: 'Not authorized, token failed' });
+            if (process.env.DEMO_MODE !== '1') {
+                return res.status(401).json({ message: 'Not authorized, token failed' });
+            }
         }
     }
 
-    if (!token) {
-        return res.status(401).json({ message: 'Not authorized, no token' });
+    // Demo Mode seamless fallback for browser file downloads, CSV/PDF exports, and reports
+    if (process.env.DEMO_MODE === '1') {
+        const demoUser = await User.findOne({ email: 'manager@satya.demo', active: true }).select('-password');
+        if (demoUser) {
+            req.user = demoUser;
+            return next();
+        }
     }
+
+    return res.status(401).json({ message: 'Not authorized, no token' });
 };

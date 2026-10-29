@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import {
   Radio, Send, RefreshCw, Moon, Sun, CheckCircle2, MessageSquare,
-  Mail, Smartphone, Globe, ExternalLink, FileText, FileDown
+  Mail, Smartphone, Globe, ExternalLink, FileText, FileDown, Copy, Check, X
 } from "lucide-react";
 import BusinessShell, { Panel, State } from "@/components/BusinessShell";
-import { businessApi, type OutboxView, type OutboxMessage } from "@/lib/business-api";
+import { businessApi, downloadFile, type OutboxView, type OutboxMessage } from "@/lib/business-api";
 
 function formatTimeIST(dateVal?: string | Date | null) {
   if (!dateVal) return "—";
@@ -29,6 +29,8 @@ export default function OutboxPage() {
   const [reseeding, setReseeding] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [activeSmsModal, setActiveSmsModal] = useState<OutboxMessage | null>(null);
+  const [smsCopied, setSmsCopied] = useState(false);
 
   // Test send form state
   const [channel, setChannel] = useState<"whatsapp" | "email" | "sms" | "webhook">("email");
@@ -142,14 +144,19 @@ export default function OutboxPage() {
           {/* ── Action Bar: Download PDF & Queue Processing ───────────── */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
             <div style={{ display: "flex", gap: "0.5rem" }}>
-              <a
-                href={businessApi.outboxPdfReportUrl()}
-                download="Satya_Executive_Procurement_Report.pdf"
+              <button
+                onClick={async () => {
+                  try {
+                    await downloadFile(businessApi.outboxPdfReportUrl(), "Satya_Executive_Procurement_Report.pdf");
+                  } catch (err: unknown) {
+                    alert(err instanceof Error ? err.message : "Failed to download outbox PDF report");
+                  }
+                }}
                 className="satya-button"
-                style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", textDecoration: "none" }}
+                style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
               >
                 <FileDown size={16} /> Download Executive PDF Report
-              </a>
+              </button>
               <button
                 onClick={handleReseed}
                 disabled={reseeding}
@@ -455,7 +462,7 @@ export default function OutboxPage() {
                             )}
 
                             {/* Direct WhatsApp Launch Link */}
-                            {m.deliveryReceipt.actionUrl && (
+                            {m.channel === "whatsapp" && m.deliveryReceipt.actionUrl && (
                               <a
                                 href={m.deliveryReceipt.actionUrl}
                                 target="_blank"
@@ -468,13 +475,36 @@ export default function OutboxPage() {
                                   padding: "0.2rem 0.5rem",
                                   fontSize: "0.75rem",
                                   width: "fit-content",
-                                  backgroundColor: m.channel === "whatsapp" ? "#16a34a" : "#4f46e5",
-                                  borderColor: m.channel === "whatsapp" ? "#16a34a" : "#4f46e5",
+                                  backgroundColor: "#16a34a",
+                                  borderColor: "#16a34a",
                                   textDecoration: "none"
                                 }}
                               >
-                                {m.channel === "whatsapp" ? "Open in WhatsApp" : "Send via SMS"} <ExternalLink size={12} />
+                                Open in WhatsApp <ExternalLink size={12} />
                               </a>
+                            )}
+
+                            {/* Direct SMS Launch & Inspection Modal Trigger */}
+                            {m.channel === "sms" && (
+                              <button
+                                onClick={() => {
+                                  setActiveSmsModal(m);
+                                  setSmsCopied(false);
+                                }}
+                                className="satya-button"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "0.3rem",
+                                  padding: "0.2rem 0.5rem",
+                                  fontSize: "0.75rem",
+                                  width: "fit-content",
+                                  backgroundColor: "#7c3aed",
+                                  borderColor: "#7c3aed"
+                                }}
+                              >
+                                View SMS / Carrier <Smartphone size={12} />
+                              </button>
                             )}
 
                             {/* Attached PDF indicator */}
@@ -496,6 +526,118 @@ export default function OutboxPage() {
               </table>
             </div>
           </Panel>
+        </div>
+      )}
+
+      {/* ── SMS Inspection & Carrier Dialog Modal ───────────────────────── */}
+      {activeSmsModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.65)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem"
+          }}
+          onClick={() => setActiveSmsModal(null)}
+        >
+          <div
+            style={{
+              backgroundColor: "var(--card, #ffffff)",
+              color: "var(--foreground, #0f172a)",
+              borderRadius: "0.75rem",
+              maxWidth: "520px",
+              width: "100%",
+              padding: "1.5rem",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
+              border: "1px solid var(--border, #e2e8f0)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1rem"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <Smartphone size={20} className="text-violet-600" />
+                <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700 }}>Twilio SMS Carrier Dispatch</h3>
+              </div>
+              <button
+                onClick={() => setActiveSmsModal(null)}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem" }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ fontSize: "0.85rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", padding: "0.75rem", background: "var(--accent, #f8fafc)", borderRadius: "0.5rem" }}>
+              <div><strong>DLT Header:</strong> BPCI-SATYA</div>
+              <div><strong>TRAI Template:</strong> DLT-BPCI-SATYA-1002</div>
+              <div><strong>DLT Entity ID:</strong> 1101552390000023412</div>
+              <div><strong>Gateway Status:</strong> <span style={{ color: "#16a34a", fontWeight: 600 }}>Delivered to Carrier</span></div>
+              <div style={{ gridColumn: "span 2" }}><strong>Recipient Phone:</strong> <code>{activeSmsModal.recipient}</code></div>
+            </div>
+
+            {/* Mobile Chat Bubble Simulation */}
+            <div>
+              <p style={{ margin: "0 0 0.35rem 0", fontSize: "0.75rem", color: "var(--muted-foreground, #64748b)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Handset SMS Screen Preview</p>
+              <div
+                style={{
+                  background: "#f1f5f9",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "1rem 1rem 1rem 0.2rem",
+                  padding: "0.9rem",
+                  fontSize: "0.88rem",
+                  lineHeight: "1.45",
+                  color: "#0f172a"
+                }}
+              >
+                <div style={{ fontSize: "0.72rem", color: "#64748b", marginBottom: "0.4rem", fontWeight: 600 }}>
+                  FROM: BPCI-SATYA · Indian Telecom DLT Standard
+                </div>
+                {activeSmsModal.body}
+              </div>
+            </div>
+
+            {/* Action Bar */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginTop: "0.5rem" }}>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(activeSmsModal.body);
+                  setSmsCopied(true);
+                  setTimeout(() => setSmsCopied(false), 2500);
+                }}
+                className="satya-button"
+                style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+              >
+                {smsCopied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                {smsCopied ? "Copied SMS Body!" : "Copy SMS Body"}
+              </button>
+
+              <a
+                href="https://messages.google.com/web"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="satya-button secondary"
+                style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", textDecoration: "none" }}
+              >
+                Open Google Messages Web <ExternalLink size={12} />
+              </a>
+
+              {activeSmsModal.deliveryReceipt?.actionUrl && (
+                <a
+                  href={activeSmsModal.deliveryReceipt.actionUrl}
+                  className="satya-button secondary"
+                  style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", textDecoration: "none" }}
+                >
+                  Trigger Device SMS App <ExternalLink size={12} />
+                </a>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </BusinessShell>

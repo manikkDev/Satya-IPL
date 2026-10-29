@@ -210,16 +210,28 @@ export const businessApi = {
   caseReminders: (id: string) => request<CaseReminder[]>(`/cases/${encodeURIComponent(id)}/reminders`),
   createReminder: (id: string, body: { dueAt: string; reason: string; recipientId?: string }) => request<CaseReminder>(`/cases/${encodeURIComponent(id)}/reminders`, body),
   auditDetailed: () => request<DetailedAuditEntry[]>("/audit/detailed"),
-  downloadReportUrl: (id: string, format: "json" | "csv" | "pdf" = "json") => `${SERVER_URL}/api/v1/cases/${encodeURIComponent(id)}/report?format=${format}`,
+  downloadReportUrl: (id: string, format: "json" | "csv" | "pdf" = "json") => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
+    const base = `${SERVER_URL}/api/v1/cases/${encodeURIComponent(id)}/report?format=${format}`;
+    return token ? `${base}&token=${encodeURIComponent(token)}` : base;
+  },
   // ── Contracts, Predictive Risk & Outbox Endpoints ──────────────────
   contracts: () => request<ContractView>("/contracts"),
   reseedContracts: () => request<ContractView>("/contracts/seed", {}),
-  contractPdfReportUrl: () => `${SERVER_URL}/api/v1/contracts/report/pdf`,
+  contractPdfReportUrl: () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
+    const base = `${SERVER_URL}/api/v1/contracts/report/pdf`;
+    return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+  },
   updateObligationStatus: (id: string, body: { status: string; notes?: string }) => request<{ obligation: ContractObligation }>(`/contracts/obligations/${encodeURIComponent(id)}/status`, body),
   predictiveRisk: () => request<PredictiveRiskView>("/predictive-risk"),
   outbox: () => request<OutboxView>("/outbox"),
   reseedOutbox: () => request<{ message: string; count: number }>("/outbox/reseed", {}),
-  outboxPdfReportUrl: () => `${SERVER_URL}/api/v1/outbox/report/pdf`,
+  outboxPdfReportUrl: () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
+    const base = `${SERVER_URL}/api/v1/outbox/report/pdf`;
+    return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+  },
   processOutbox: () => request<{ processedCount: number; results: unknown[] }>("/outbox/process", {}),
   testSendNotification: (body: { channel: string; recipient: string; subject?: string; body: string; severity?: string }) => request<{ message: string; record: OutboxMessage }>("/outbox/test-send", body),
   chat: async (prompt: string, caseId?: string, conversationId?: string, onStatus?: (stage: string) => void): Promise<ChatAnswer> => {
@@ -265,4 +277,28 @@ export function money(value: string | null | undefined, currency = "INR") {
   const head = absolute.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ",");
   const grouped = head ? `${head},${tail}` : tail;
   return `${negative ? "−" : ""}${currency === "INR" ? "₹" : `${currency} `}${grouped}.${fraction.padEnd(2, "0")}`;
+}
+
+export async function downloadFile(url: string, defaultFilename: string) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
+  const fullUrl = token && !url.includes("token=") ? `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}` : url;
+  
+  const res = await fetch(fullUrl, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
+  
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Download failed (${res.status}): ${errorText}`);
+  }
+  
+  const blob = await res.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = defaultFilename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 }
