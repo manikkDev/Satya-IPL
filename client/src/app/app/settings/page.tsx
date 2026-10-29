@@ -7,12 +7,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Users, Stamp, Scale, Hash, Boxes, Sparkles, Plug, Check, type LucideIcon } from "lucide-react";
+import { Building2, Users, Stamp, Hash, Sparkles, Plug, Check, type LucideIcon } from "lucide-react";
 import { v2, type EntityPolicy } from "@/lib/api/v2";
 import { mocksEnabled } from "@/lib/flags";
 import { useSession } from "@/components/v2/session";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Money, ErrorState } from "@/components/ui/v2";
+import { ErrorState } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const SECTIONS: { icon: LucideIcon; title: string; body: string }[] = [
@@ -27,7 +27,7 @@ const SECTIONS: { icon: LucideIcon; title: string; body: string }[] = [
 const inputCls = "h-9 w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--paper)] px-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]";
 
 function PolicyEditor() {
-  const { activeEntity, hasPermission, mocks } = useSession();
+  const { activeEntity, hasPermission } = useSession();
   const queryClient = useQueryClient();
   const entityId = activeEntity?.id ?? "";
   const { data, isLoading, error, refetch } = useQuery<EntityPolicy>({

@@ -6,7 +6,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Sparkles, FileSearch } from "lucide-react";
+import { Sparkles, FileSearch, FileDown } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
 import { MoneyTrail } from "@/components/v2/money-trail";
 import {
@@ -90,6 +90,16 @@ export default function InvestigationDetailPage() {
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-[22px] font-semibold text-[var(--ink)]">{caseData.title}</h1>
         <StatusBadge status={caseData.status} />
+        <button
+          type="button"
+          onClick={async () => {
+            const { downloadEvidencePack } = await import("@/components/v2/evidence-pack");
+            await downloadEvidencePack(data);
+          }}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)] hover:border-[var(--accent)]"
+        >
+          <FileDown size={13} aria-hidden="true" /> Evidence pack
+        </button>
       </div>
 
       {/* recommendation banner */}
