@@ -9,7 +9,12 @@ export const protect = async (req, res, next) => {
     ) {
         try {
             // Get token from header (Bearer <token>)
-            token = req.headers.authorization.split(' ')[1];
+            const parts = req.headers.authorization.split(' ');
+            token = parts[1];
+
+            if (!token || token.trim() === '') {
+                return res.status(401).json({ message: 'Not authorized, no token provided' });
+            }
 
             // Verify token
             const decoded = verifyToken(token);
@@ -24,14 +29,14 @@ export const protect = async (req, res, next) => {
                 return res.status(403).json({ message: 'Account erased under a data-rights request' });
             }
 
-            next();
+            return next();
         } catch (error) {
-            console.error(error);
-            res.status(401).json({ message: 'Not authorized, token failed' });
+            console.error('Auth verification error:', error.message);
+            return res.status(401).json({ message: 'Not authorized, token failed' });
         }
     }
 
     if (!token) {
-        res.status(401).json({ message: 'Not authorized, no token' });
+        return res.status(401).json({ message: 'Not authorized, no token' });
     }
 };
