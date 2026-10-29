@@ -7,7 +7,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from .business_matching import evaluation
 from .auth import internal
 from .compat_v1 import router as legacy_router
-from .contracts_v2 import GstinValidateRequest, TaxComputeRequest, schemas
+from .contracts_v2 import GstinValidateRequest, ReconcileCaseRequest, TaxComputeRequest, schemas
+from .recon.case import reconcile_case
 from .india.gstin import validate_gstin
 from .india.hsn_master import HsnMaster
 from .india.tax import TaxInputError, compute_tax
@@ -68,5 +69,9 @@ def create_app():
             return JSONResponse(status_code=422, content={
                 "error": {"code": "VALIDATION_FAILED", "message": str(error),
                           "details": {"fields": error.fields}, "requestId": uuid.uuid4().hex}})
+
+    @app.post("/v2/reconcile/case", dependencies=[Depends(require_v2), Depends(internal)])
+    def reconcile(request: ReconcileCaseRequest):
+        return reconcile_case(request)
 
     return app
