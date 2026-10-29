@@ -171,7 +171,7 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
   const router = useRouter();
 
   // B's neo4j projection carries no replay timeline — only snapshot graphs do.
-  const timeline = graph.timeline ?? [];
+  const timeline = useMemo(() => graph.timeline ?? [], [graph.timeline]);
 
   const visibleIds = useMemo(() => {
     if (replay === null) return null;
