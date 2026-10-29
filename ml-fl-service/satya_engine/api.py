@@ -9,6 +9,7 @@ from .business_matching import evaluation
 from .auth import internal
 from .compat_v1 import router as legacy_router
 from .anomaly import score as anomaly_score
+from .evaluate import report as eval_report
 from .contracts_v2 import AllocatePaymentRequest, AnomalyScoreRequest, ComplianceDeadlinesRequest, DocsParseRequest, DocsValidateRequest, GstinValidateRequest, MatchCandidatesRequest, ReconcileCaseRequest, TaxComputeRequest, schemas
 from .match.candidates import candidates as match_candidates
 from .deadlines import deadlines
@@ -130,5 +131,26 @@ def create_app():
                                "metrics": card["metrics"], "limitations": card["limitations"]})
         return {"models": models,
                 "fallback": "heuristic-v2 when no artifact in runs/satya-models/<task>/"}
+
+    @app.get("/v2/evaluation/report", dependencies=[Depends(require_v2), Depends(internal)])
+    def evaluation_report(task: str = "invoice_po_line"):
+        return eval_report(task)
+
+    @app.post("/v2/train", dependencies=[Depends(require_v2), Depends(internal)])
+    def train_model(request: dict):
+        if os.environ.get("ALLOW_ENGINE_TRAIN") != "1":
+            return JSONResponse(status_code=403, content={
+                "error": {"code": "TRAINING_DISABLED",
+                          "message": "Engine training is disabled in this environment (ALLOW_ENGINE_TRAIN != 1)",
+                          "requestId": uuid.uuid4().hex}})
+        from .match.pairs import train
+        try:
+            return train(task=request.get("task", "invoice_po_line"),
+                         seed=int(request.get("seed", 42)),
+                         n_pos=int(request.get("n_pos", 60)))
+        except ValueError as error:
+            return JSONResponse(status_code=422, content={
+                "error": {"code": "VALIDATION_FAILED", "message": str(error),
+                          "requestId": uuid.uuid4().hex}})
 
     return app
