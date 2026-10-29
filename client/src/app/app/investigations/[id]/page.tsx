@@ -22,6 +22,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BALANCE_TERMS } from "@/content/copy/vocabulary";
+import { DocPreviewModal } from "@/components/v2/doc-preview";
 import type { Finding, Evidence } from "@/lib/api/types";
 
 function EvidenceDrawer({ evidence, onClose }: { evidence: Evidence; onClose: () => void }) {
@@ -131,6 +132,7 @@ export default function InvestigationDetailPage() {
     enabled: !!data,
   });
   const [openEvidence, setOpenEvidence] = useState<Evidence | null>(null);
+  const [previewDocId, setPreviewDocId] = useState<string | null>(null);
 
   if (error) return <ErrorState message={error instanceof Error ? error.message : "Investigation not found."} onRetry={() => refetch()} />;
   if (isLoading || !data) return <div className="space-y-4"><Skeleton className="h-28 w-full" /><Skeleton className="h-80 w-full" /></div>;
@@ -307,18 +309,10 @@ export default function InvestigationDetailPage() {
                     )}
                     <button
                       type="button"
-                      onClick={async () => {
-                        try {
-                          const model = await v2.renderModel(doc.id);
-                          const { downloadDocumentPdf } = await import("@/components/v2/po-pdf");
-                          await downloadDocumentPdf(model);
-                        } catch (e) {
-                          alert(e instanceof Error ? e.message : "Preview could not be generated");
-                        }
-                      }}
+                      onClick={() => setPreviewDocId(doc.id)}
                       className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline"
                     >
-                      <FileDown size={12} /> Preview PDF
+                      <FileDown size={12} /> Preview
                     </button>
                   </div>
                 </li>
@@ -362,6 +356,7 @@ export default function InvestigationDetailPage() {
         </TabsContent>
       </Tabs>
       {openEvidence && <EvidenceDrawer evidence={openEvidence} onClose={() => setOpenEvidence(null)} />}
+      {previewDocId && <DocPreviewModal documentId={previewDocId} onClose={() => setPreviewDocId(null)} />}
     </FadeIn>
   );
 }

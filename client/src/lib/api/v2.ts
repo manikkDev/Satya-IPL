@@ -192,22 +192,23 @@ const normalizeGraph = (g: GraphPayload & { snapshotId?: string }): GraphPayload
   source: g.source ?? "snapshot",
 });
 
-/** Engine ledger (flat decimal strings) → the page's three-balance shape.
- *  Disputed = the gap between what books show and what evidence supports. */
 const moneyOf = (v: unknown, currency = "INR") =>
   v && typeof v === "object" ? (v as { amount: string; currency: string }) : v != null ? { amount: String(v), currency } : undefined;
 
-const ledgerToBalances = (ledger: Record<string, unknown> | undefined) => {
-  if (!ledger) return undefined;
-  const supported = moneyOf(ledger.supportedOutstanding ?? ledger.supported);
-  const recorded = moneyOf(ledger.recordedOutstanding ?? ledger.canonicalOutstanding ?? ledger.recorded);
-  if (!supported && !recorded) return undefined;
-  const s = Number(supported?.amount ?? 0);
-  const r = Number(recorded?.amount ?? 0);
+/** Engine emits balances as {recordedPayable, evidenceSupportedPayable,
+ *  disputedExposure} flat decimal strings; the page reads
+ *  {supported, disputed, recorded} Money objects. Accepts both. */
+const normalizeBalances = (raw: Record<string, unknown> | undefined) => {
+  if (!raw) return undefined;
+  const supported = moneyOf(raw.supported ?? raw.evidenceSupportedPayable ?? raw.supportedOutstanding);
+  const recorded = moneyOf(raw.recorded ?? raw.recordedPayable ?? raw.recordedOutstanding ?? raw.canonicalOutstanding);
+  const disputed = moneyOf(raw.disputed ?? raw.disputedExposure);
+  if (!supported && !recorded && !disputed) return undefined;
+  const d = disputed ?? { amount: Math.max(0, Number(recorded?.amount ?? 0) - Number(supported?.amount ?? 0)).toFixed(2), currency: "INR" };
   return {
     supported: supported ?? { amount: "0.00", currency: "INR" },
     recorded: recorded ?? { amount: "0.00", currency: "INR" },
-    disputed: { amount: Math.max(0, r - s).toFixed(2), currency: "INR" },
+    disputed: d,
   };
 };
 
@@ -359,7 +360,7 @@ export const v2 = {
                         open: String(r.open ?? "0"),
                       };
                     }),
-                    balances: snap.balances ?? ledgerToBalances(snap.ledger as Record<string, unknown> | undefined),
+                    balances: normalizeBalances((snap.balances ?? snap.ledger) as Record<string, unknown> | undefined),
                     recommendation: rec
                       ? { ...rec, reasons: prettifyReasons(rec.reasons, snapFindings) }
                       : null,
