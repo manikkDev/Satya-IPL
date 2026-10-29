@@ -6,3 +6,5 @@ Append one line per milestone: `YYYY-MM-DD <agent>: <task id> <what> (commit <sh
 
 2026-10-29 B: P0-B0 done — lib/flags.js + GET /api/v2/meta/flags (off in prod, on in dev); docker-compose resource limits (engine 2g/2, server+gateway 768m/1, client 1.5g/2, mongo 1g, neo4j 1.5g + 512m heap/256m pagecache). tests 15/15 green (business.test.mjs).
 **QUESTION FOR HUMAN (auto-deploys): Render + Vercel deploy on every push to main. For the 30 Oct pitch: (a) pause auto-deploys until after the pitch, or (b) accept every push deploys live (all v2 work is behind FEATURE_V2_* flags, default off in prod)? Please reply in STATUS.**
+
+2026-10-29 D: P0 done — flag-guarded AI capacity pill (GET /api/v2/ai/usage, 60s poll + SSE push hook, hidden when flag off or endpoint absent) mounted under chat composer; sourced stats strip on landing (₹7.34 lakh crore MSME delays — GAME–FISME–C2FO; 0.8–2% duplicate/erroneous disbursements — APQC via CFO.com; ~16% GVA manufacturing — MoSPI). Lint/tests/build green.

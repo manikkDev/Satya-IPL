@@ -484,3 +484,26 @@ button:disabled { cursor:not-allowed; }
 .satya-chat-body { padding-bottom:40px; }
 .satya-chat-composer { background:linear-gradient(transparent,var(--background) 18%); padding-top:16px; padding-bottom:8px; }
 @media(max-width:650px) { .satya-delivery-heading { flex-direction:column; } .satya-delivery-overview { padding:16px; gap:14px; } .satya-delivery-ring { width:90px; height:90px; } .satya-delivery-context h3 { font-size:15px; } .satya-delivery-metrics { grid-template-columns:1fr 1fr; row-gap:20px; } .satya-delivery-metrics > div:nth-child(2) { border-right:0; } .satya-delivery-footer { flex-direction:column; align-items:flex-start; } }
+
+/* AI capacity pill (v2, behind NEXT_PUBLIC_FEATURE_V2_AI_USAGE_METER) */
+.satya-ai-pill-row { display:flex; justify-content:flex-end; padding:2px 4px 0; }
+.satya-ai-pill { display:inline-flex; align-items:center; gap:8px; font-size:11px; color:var(--muted-foreground); background:transparent; border:0; padding:2px 0; cursor:help; font-family:inherit; text-align:right; }
+.satya-ai-pill-text { white-space:nowrap; }
+.satya-ai-pill-track { width:56px; height:3px; border-radius:2px; background:var(--muted); overflow:hidden; display:inline-block; }
+.satya-ai-pill-fill { display:block; height:100%; border-radius:2px; background:var(--muted-foreground); transition:width 400ms ease; }
+.satya-ai-pill[data-tone="low"] { color:#a16207; }
+.satya-ai-pill[data-tone="low"] .satya-ai-pill-fill { background:#a16207; }
+.satya-ai-pill[data-tone="empty"] { color:#a16207; }
+.satya-ai-pill-tip { max-width:280px; font-size:11px; line-height:1.55; }
+.satya-ai-pill-tip p { margin:0 0 4px; }
+.satya-ai-pill-tip-title { font-weight:650; }
+.satya-ai-pill-tip-note { opacity:.75; margin-top:6px; }
+@media (prefers-reduced-motion: reduce) { .satya-ai-pill-fill { transition:none; } }
+
+/* Landing: sourced numbers strip */
+.satya-stat-strip dl { display:grid; grid-template-columns:repeat(3,1fr); gap:28px; margin:0; }
+.satya-stat-strip dt { font-size:14px; color:var(--foreground); line-height:1.55; }
+.satya-stat-strip dt strong { display:block; font-size:26px; font-weight:650; color:var(--primary); font-variant-numeric:tabular-nums; margin-bottom:6px; }
+.satya-stat-strip dd { margin:8px 0 0; font-size:11px; color:var(--muted-foreground); }
+.satya-stat-note { margin-top:22px; font-size:13px; color:var(--muted-foreground); max-width:640px; line-height:1.65; }
+@media(max-width:760px) { .satya-stat-strip dl { grid-template-columns:1fr; gap:20px; } }
