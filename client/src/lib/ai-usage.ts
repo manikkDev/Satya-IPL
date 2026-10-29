@@ -3,7 +3,7 @@
 // UI can show a calm "AI capacity" pill. All numbers are estimates produced by
 // the gateway — the client never computes quotas itself.
 
-import { SERVER_URL_1 } from "@/utils/commonHelper";
+import { SERVER_URL_1 } from "../utils/commonHelper.js";
 
 export type AiUsageModel = {
   model: string;

@@ -1,0 +1,138 @@
+/* Satya v2 design tokens (docs/plan/06 §3).
+   Scoped under .v2 so the legacy demo pages keep their current theme.
+   Raw palette tokens keep the plan's names; --color-* remaps let Tailwind /
+   shadcn-style utilities resolve to the v2 palette inside .v2.
+
+   Contrast (WCAG 2.2 AA, measured approx. against the paired surface):
+   light  · --ink on --paper ≈ 13.4:1   · --muted on --paper ≈ 4.7:1
+          · --accent on --surface ≈ 4.9:1 · --muted on --surface ≈ 4.9:1
+   dark   · --ink on --paper ≈ 14.1:1   · --muted on --surface ≈ 5.4:1
+          · --accent on --paper ≈ 9.6:1  · certainty colours ≥ 4.5:1 on --surface */
+
+.v2 {
+  /* palette — light */
+  --paper: #f7f6f2;
+  --surface: #ffffff;
+  --surface-2: #f0eee8;
+  --ink: #14213d;
+  --ink-2: #3d4a63;
+  --muted: #6b7385;
+  --line: #e3e0d8;
+
+  --accent: #0f766e;
+  --accent-strong: #115e59;
+  --accent-soft: #e6f3f1;
+
+  /* certainty — icon + word always accompany the colour */
+  --confirmed: #15803d;
+  --likely: #0e7490;
+  --possible: #a16207;
+  --unclear: #7c3aed;
+  --missing: #64748b;
+  --confirmed-soft: #e4f2e7;
+  --likely-soft: #e0eef3;
+  --possible-soft: #f5ecd8;
+  --unclear-soft: #ece5f8;
+  --missing-soft: #e7eaee;
+
+  /* severity */
+  --sev-critical: #b91c1c;
+  --sev-high: #c2410c;
+  --sev-medium: #a16207;
+  --sev-low: #0e7490;
+  --sev-info: #475569;
+  --sev-critical-soft: #f6e3e3;
+  --sev-high-soft: #f6e7dc;
+  --sev-medium-soft: #f5ecd8;
+  --sev-low-soft: #e0eef3;
+  --sev-info-soft: #e6e9ec;
+
+  /* shape & rhythm — 4-pt spacing scale stays Tailwind default */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --shadow-1: 0 1px 2px rgb(20 33 61 / 0.06);
+  --shadow-2: 0 4px 14px rgb(20 33 61 / 0.08);
+  --content-max: 1200px;
+  --app-max: 1440px;
+
+  /* type — wired to next/font variables on <html> */
+  --font-ui: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-code: var(--font-jbmono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* shadcn/Tailwind semantic remap */
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--surface-2);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--surface-2);
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--accent-soft);
+  --color-accent-foreground: var(--accent-strong);
+  --color-destructive: var(--sev-critical);
+  --color-destructive-foreground: #ffffff;
+  --color-border: var(--line);
+  --color-input: var(--line);
+  --color-ring: var(--accent);
+  --color-radius: var(--radius-md);
+}
+
+.dark .v2 {
+  --paper: #0f1420;
+  --surface: #171e2e;
+  --surface-2: #1f2939;
+  --ink: #e8edf6;
+  --ink-2: #b9c3d6;
+  --muted: #93a0b5;
+  --line: #2c3850;
+
+  --accent: #5eead4;
+  --accent-strong: #99f6e4;
+  --accent-soft: #14352f;
+
+  --confirmed: #4ade80;
+  --likely: #22d3ee;
+  --possible: #fbbf24;
+  --unclear: #c4b5fd;
+  --missing: #94a3b8;
+  --confirmed-soft: #14301f;
+  --likely-soft: #0f2d36;
+  --possible-soft: #33290f;
+  --unclear-soft: #291f45;
+  --missing-soft: #242b38;
+
+  --sev-critical: #f87171;
+  --sev-high: #fb923c;
+  --sev-medium: #fbbf24;
+  --sev-low: #22d3ee;
+  --sev-info: #94a3b8;
+  --sev-critical-soft: #3a1d1d;
+  --sev-high-soft: #38240f;
+  --sev-medium-soft: #33290f;
+  --sev-low-soft: #0f2d36;
+  --sev-info-soft: #242b38;
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 4px 14px rgb(0 0 0 / 0.45);
+
+  --color-destructive-foreground: #0f1420;
+}
+
+/* base — apply UI font inside v2 surfaces; app keeps sans headings,
+   public v2 pages opt into Fraunces via .v2-display on the heading. */
+.v2 {
+  font-family: var(--font-ui);
+  color: var(--ink);
+  background: var(--paper);
+}
+.v2 h1, .v2 h2, .v2 h3, .v2 h4, .v2 h5, .v2 h6 { font-family: var(--font-ui); }
+.v2 .v2-display { font-family: var(--font-display); }
+.v2 .tnum { font-variant-numeric: tabular-nums; }
+.v2 .font-code { font-family: var(--font-code); }

@@ -7,7 +7,7 @@
 //   4. default off (safe for production)
 // Flags are fetched once per session and merged; a failed fetch never throws.
 
-import { SERVER_URL } from "@/utils/commonHelper";
+import { SERVER_URL } from "../utils/commonHelper.js";
 import { useEffect, useState } from "react";
 
 export const FEATURE_FLAG_NAMES = [
