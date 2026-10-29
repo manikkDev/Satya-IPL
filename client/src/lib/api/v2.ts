@@ -107,13 +107,13 @@ export type IngestDraft = {
 
 /** Real findings arrive as {code,severity,certainty,status,data:{message,evidence,amount}};
  *  UI expects {title,explanation,evidence[],calculation[],whatResolvesIt,exposure}. */
-const normalizeFinding = (f: Record<string, unknown>): Finding => {
+const normalizeFinding = (f: Record<string, unknown>, index = 0): Finding => {
   const d = (f.data ?? {}) as Record<string, unknown>;
   const message = String(d.message ?? f.title ?? f.message ?? "").trim();
   const title = (f.title as string) || message || String(f.code ?? "Finding").replaceAll("_", " ").toLowerCase();
   const rawEvidence = (f.evidence ?? d.evidence ?? []) as Record<string, unknown>[];
   return {
-    id: String(f.id ?? `${f.caseId ?? "case"}:${f.code ?? Math.random().toString(36).slice(2)}`),
+    id: String(f.id ?? f._id ?? `${f.caseId ?? "case"}:${f.code ?? "finding"}:${index}`),
     caseId: f.caseId,
     code: (f.code ?? d.code) as string,
     severity: String(f.severity ?? d.severity ?? "info").toLowerCase(),
@@ -150,7 +150,7 @@ export const v2 = {
       ? mock(mockToday)
       : fetchJson<Today>(`/api/v2/dashboard/today${entityId ? `?entityId=${encodeURIComponent(entityId)}` : ""}`).then((t) => ({
           ...t,
-          topFindings: (t.topFindings ?? []).map((f) => normalizeFinding(f as unknown as Record<string, unknown>)),
+          topFindings: (t.topFindings ?? []).map((f, i) => normalizeFinding(f as unknown as Record<string, unknown>, i)),
         })),
 
   orders: (params: Record<string, string> = {}): Promise<Page<OrderListRow>> =>
@@ -245,7 +245,7 @@ export const v2 = {
           return {
             case: { id: d.id, title: d.title, status: d.status, kind: d.kind, subjectIds: d.subjectIds, entityId: d.entityId, groupId: d.groupId },
             snapshot: snap
-              ? { ...snap, findings: (Array.isArray(snap.findings) ? snap.findings : []).map((f) => normalizeFinding(f as Record<string, unknown>)) }
+              ? { ...snap, findings: (Array.isArray(snap.findings) ? snap.findings : []).map((f, i) => normalizeFinding(f as Record<string, unknown>, i)) }
               : null,
             documents: d.documents ?? [],
             decisions: (Array.isArray(d.decisions) ? d.decisions : []).map((x) => {
@@ -260,7 +260,7 @@ export const v2 = {
                 scope: raw.scope,
               };
             }),
-            findings: (Array.isArray(d.findings) ? d.findings : []).map((f) => normalizeFinding(f as Record<string, unknown>)),
+            findings: (Array.isArray(d.findings) ? d.findings : []).map((f, i) => normalizeFinding(f as Record<string, unknown>, i)),
           } as unknown as typeof mockCaseDetail;
         }),
 
@@ -269,7 +269,7 @@ export const v2 = {
       ? mock({ items: mockToday.topFindings, nextCursor: null, total: mockToday.topFindings.length })
       : fetchJson<Page<Record<string, unknown>>>(`/api/v2/findings${qs(params)}`).then((page) => ({
           ...page,
-          items: page.items.map(normalizeFinding),
+          items: page.items.map((f, i) => normalizeFinding(f as Record<string, unknown>, i)),
         })),
 
   graph: (caseId: string, asOf?: string): Promise<GraphPayload> =>
