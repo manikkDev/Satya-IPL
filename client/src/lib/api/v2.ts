@@ -361,7 +361,7 @@ export const v2 = {
   allocatePayment: (id: string, body: { allocations: { documentId: string; amount: string }[]; reason: string; expectedRevision?: number }) =>
     fetchJson(`/api/v2/payments/${encodeURIComponent(id)}/allocate`, { method: "POST", body: JSON.stringify(body) }),
 
-  importBankCsv: (entityId: string, mapping: Record<string, string>, rows: Record<string, string>[]) =>
+  importBankCsv: (entityId: string, mapping: Record<string, string>, rows: Record<string, string>[]): Promise<{ created: number; deduped: number; errors: number }> =>
     fetchJson(`/api/v2/import/bank-csv`, { method: "POST", body: JSON.stringify({ entityId, mapping, rows }) }),
 
   suppliers: (params: Record<string, string> = {}): Promise<SuppliersPage> =>

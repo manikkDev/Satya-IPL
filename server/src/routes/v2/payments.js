@@ -2,7 +2,7 @@ import express from "express";
 import Document from "../../models/Document.js";
 import DocumentLink from "../../models/DocumentLink.js";
 import Decision from "../../models/Decision.js";
-import { engineFetch } from "../../services/engine.js";
+import { enginePost } from "../../services/engine.js";
 import { writeAudit } from "../../services/audit.js";
 import { enqueue } from "../../jobs/runner.js";
 import { newId } from "../../lib/ids.js";
@@ -56,23 +56,35 @@ const loadPayment = async (req, id) => {
   return doc;
 };
 
-// open (not fully settled) INVOICE_IN/OUT in the same entity + unapplied credit notes.
-const openTargets = async (req, payment) => {
+// open (not fully settled) INVOICE_IN/OUT in the same entity + unapplied credit
+// notes, ranked so the engine's 20-candidate subset-sum cap gets the likeliest
+// matches: same counterparty first, then closest open amount to the payment.
+const openTargets = async (req, payment, limit = 20) => {
   const direction = payment.type.endsWith("IN") ? "INVOICE_OUT" : "INVOICE_IN";
   const invoices = await Document.find({ groupId: req.scope.groupId, entityId: payment.entityId, type: direction, status: { $in: ["issued", "posted"] } }).lean();
   const settles = await DocumentLink.find({ groupId: req.scope.groupId, kind: "SETTLES" }).lean();
   const settledAmt = {};
   for (const l of settles) settledAmt[l.toId] = (settledAmt[l.toId] || 0) + Number(l.amount?.amount || l.amount || 0);
+  const payAmount = Number(payment.payment?.amount || 0);
+  const cp = (payment.seller?.gstin || payment.seller?.supplierId || payment.seller?.name || "").toLowerCase();
   const open = invoices.map((inv) => {
     const grand = Number(inv.totals?.grand || 0);
     const open = Math.max(0, grand - (settledAmt[inv.id] || 0));
-    return open > 0.005 ? { id: inv.id, number: inv.number, date: inv.date, openAmount: open.toFixed(2), seller: inv.seller?.name, dueDate: inv.terms?.dueDate || null } : null;
-  }).filter(Boolean);
+    if (open <= 0.005) return null;
+    const sellerKey = (inv.seller?.gstin || inv.seller?.supplierId || inv.seller?.name || "").toLowerCase();
+    const sameCounterparty = cp && sellerKey === cp;
+    return {
+      id: inv.id, number: inv.number, date: inv.date, openAmount: open.toFixed(2),
+      seller: inv.seller?.name, dueDate: inv.terms?.dueDate || null,
+      _score: (sameCounterparty ? 0 : 1) * 1e12 + Math.abs(open - payAmount),
+    };
+  }).filter(Boolean).sort((a, b) => a._score - b._score).slice(0, limit)
+    .map(({ _score, ...rest }) => rest);
   const credits = await Document.find({ groupId: req.scope.groupId, entityId: payment.entityId, type: { $in: ["CREDIT_NOTE_IN", "CREDIT_NOTE_OUT"] }, status: { $in: ["issued", "posted"] } }).lean();
   const applied = new Set(settles.map((l) => l.fromId));
   return {
     openInvoices: open,
-    credits: credits.filter((c) => !applied.has(c.id)).map((c) => ({ id: c.id, amount: c.totals?.grand || "0", date: c.date })),
+    credits: credits.filter((c) => !applied.has(c.id)).map((c) => ({ id: c.id, amount: c.totals?.grand || "0", date: c.date })).slice(0, 10),
   };
 };
 
@@ -81,19 +93,16 @@ const openTargets = async (req, payment) => {
 router.get("/:id/allocate", handle(async (req, res) => {
   const payment = await loadPayment(req, req.params.id);
   const targets = await openTargets(req, payment);
-  const suggestion = await engineFetch("/v2/allocate/payment", {
-    method: "POST",
-    body: JSON.stringify({
-      payment: { id: payment.id, amount: payment.payment?.amount || "0", date: payment.date, utr: payment.payment?.utr, tdsAmount: payment.payment?.tdsAmount },
-      openInvoices: targets.openInvoices.map(({ id, number, date, openAmount, dueDate }) => ({ id, number, date, openAmount, dueDate })),
-      credits: targets.credits,
-    }),
+  const suggestion = await enginePost("/v2/allocate/payment", {
+    payment: { id: payment.id, amount: { amount: payment.payment?.amount || "0", currency: payment.currency || "INR" }, date: payment.date, utr: payment.payment?.utr },
+    openInvoices: targets.openInvoices.map(({ id, number, date, openAmount, dueDate }) => ({ id, number, date, openAmount: { amount: openAmount, currency: "INR" }, dueDate })),
+    credits: targets.credits.map((c) => ({ id: c.id, amount: { amount: c.amount, currency: "INR" }, date: c.date })),
   });
   const remaining = dec(payment.payment?.amount || 0, (payment.payment?.allocations || []).reduce((s, a) => s + Number(a.amount || 0), 0));
   res.json({
     payment: { id: payment.id, amount: payment.payment?.amount, utr: payment.payment?.utr, remaining },
     openInvoices: targets.openInvoices, credits: targets.credits,
-    suggestion: suggestion.body || null,
+    suggestion: suggestion || null,
   });
 }));
 
