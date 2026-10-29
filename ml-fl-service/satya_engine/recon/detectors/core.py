@@ -115,6 +115,7 @@ def unmatched_invoice(docs, links):
 def run_all(ledger, docs, links):
     from .flows import run_flows
     from .terms import run_terms
+    from .payments import run_payments
 
     findings = []
     findings += billed_above_received(ledger, docs)
@@ -125,4 +126,5 @@ def run_all(ledger, docs, links):
     findings += unmatched_invoice(docs, links)
     findings += run_flows(ledger, docs, links)
     findings += run_terms(ledger, docs, links)
+    findings += run_payments(ledger, docs, links)
     return findings
