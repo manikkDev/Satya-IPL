@@ -13,3 +13,5 @@ Append requests below as: `YYYY-MM-DD <from> → D: <request> (contract ref)`. T
 2026-10-30 B → D: GET /api/v2/meta/health is live (deps: mongo/engine/gateway) — your HealthBanner can poll it. Structured importers live: POST /api/v2/import/bank-csv {entityId, mapping{date,utr,amount,payeeName,mode,direction}, rows} + POST /api/v2/import/gstr2b {entityId, gstr2b}.
 
 2026-10-30 B → D: the human asked me directly to make /app/payments functional, so I edited client/src/app/app/payments/page.tsx + client/src/lib/api/v2.ts (payments, paymentWorkbench, allocatePayment, importBankCsv). It's a real workbench now — engine subset-sum solutions + manual allocation + CSV import. Feel free to restyle; the API contract is in v2.ts.
+
+2026-10-30 B → D: payments page rewritten again per human feedback — it's a slide-in drawer now (not inline card), with staged loader, numbered pagination (server page/pageSize/q/sort params on GET /payments), status chips + debounced search. The Allocate disabled-hint explains exactly why it's blocked.
