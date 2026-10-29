@@ -105,6 +105,39 @@ export type IngestDraft = {
   confirmedDocumentId?: string; edits?: { actor: string; at: string; changed: string[] }[];
 };
 
+/** Real findings arrive as {code,severity,certainty,status,data:{message,evidence,amount}};
+ *  UI expects {title,explanation,evidence[],calculation[],whatResolvesIt,exposure}. */
+const normalizeFinding = (f: Record<string, unknown>): Finding => {
+  const d = (f.data ?? {}) as Record<string, unknown>;
+  const message = String(d.message ?? f.title ?? f.message ?? "").trim();
+  const title = (f.title as string) || message || String(f.code ?? "Finding").replaceAll("_", " ").toLowerCase();
+  const rawEvidence = (f.evidence ?? d.evidence ?? []) as Record<string, unknown>[];
+  return {
+    id: String(f.id ?? `${f.caseId ?? "case"}:${f.code ?? Math.random().toString(36).slice(2)}`),
+    caseId: f.caseId,
+    code: (f.code ?? d.code) as string,
+    severity: String(f.severity ?? d.severity ?? "info").toLowerCase(),
+    certainty: String(f.certainty ?? d.certainty ?? "POSSIBLE").toUpperCase(),
+    status: (f.status ?? "open") as string,
+    title,
+    explanation: (f.explanation as string) || message || title,
+    whatResolvesIt: (f.whatResolvesIt as string) || (d.resolution as string) || "",
+    exposure: (f.exposure ?? (d.amount ? { amount: d.amount, currency: "INR" } : undefined)) as Finding["exposure"],
+    evidence: rawEvidence.map((e, i) => ({
+      id: String(e.id ?? `ev-${i}`),
+      documentId: String(e.documentId ?? e.docId ?? ""),
+      documentType: String(e.documentType ?? "document"),
+      field: String(e.field ?? ""),
+      value: e.value as string | undefined,
+      locator: (e.locator ?? { kind: "manual" }) as never,
+      observedAt: String(e.observedAt ?? f.createdAt ?? ""),
+    })) as Finding["evidence"],
+    calculation: (Array.isArray(f.calculation) ? f.calculation : Array.isArray(d.calculation) ? d.calculation : []) as Finding["calculation"],
+    candidates: (f.candidates ?? d.candidates) as Finding["candidates"],
+    harmlessVariance: f.harmlessVariance as boolean | undefined,
+  } as unknown as Finding;
+};
+
 const mock = <T>(value: T): Promise<T> => Promise.resolve(structuredClone(value));
 const qs = (params: Record<string, string>) => {
   const query = new URLSearchParams(params).toString();
@@ -115,7 +148,10 @@ export const v2 = {
   today: (entityId?: string): Promise<Today> =>
     mocksEnabled()
       ? mock(mockToday)
-      : fetchJson<Today>(`/api/v2/dashboard/today${entityId ? `?entityId=${encodeURIComponent(entityId)}` : ""}`),
+      : fetchJson<Today>(`/api/v2/dashboard/today${entityId ? `?entityId=${encodeURIComponent(entityId)}` : ""}`).then((t) => ({
+          ...t,
+          topFindings: (t.topFindings ?? []).map((f) => normalizeFinding(f as unknown as Record<string, unknown>)),
+        })),
 
   orders: (params: Record<string, string> = {}): Promise<Page<OrderListRow>> =>
     mocksEnabled()
@@ -204,18 +240,37 @@ export const v2 = {
   case: (id: string): Promise<typeof mockCaseDetail> =>
     mocksEnabled()
       ? mock(mockCaseDetail)
-      : fetchJson<Record<string, unknown>>(`/api/v2/cases/${encodeURIComponent(id)}`).then((d) => ({
-          case: { id: d.id, title: d.title, status: d.status, kind: d.kind, subjectIds: d.subjectIds, entityId: d.entityId, groupId: d.groupId },
-          snapshot: d.snapshot ?? null,
-          documents: d.documents ?? [],
-          decisions: d.decisions ?? [],
-          findings: d.findings ?? [],
-        }) as unknown as typeof mockCaseDetail),
+      : fetchJson<Record<string, unknown>>(`/api/v2/cases/${encodeURIComponent(id)}`).then((d) => {
+          const snap = (d.snapshot ?? null) as Record<string, unknown> | null;
+          return {
+            case: { id: d.id, title: d.title, status: d.status, kind: d.kind, subjectIds: d.subjectIds, entityId: d.entityId, groupId: d.groupId },
+            snapshot: snap
+              ? { ...snap, findings: (Array.isArray(snap.findings) ? snap.findings : []).map((f) => normalizeFinding(f as Record<string, unknown>)) }
+              : null,
+            documents: d.documents ?? [],
+            decisions: (Array.isArray(d.decisions) ? d.decisions : []).map((x) => {
+              const raw = x as Record<string, unknown>;
+              return {
+                id: raw.id,
+                action: raw.action ?? "DECIDED",
+                reason: raw.reason ?? raw.note ?? raw.comment ?? "",
+                actor: raw.actor ?? raw.actorName ?? raw.user ?? "—",
+                role: raw.role ?? raw.actorRole ?? "team_member",
+                createdAt: raw.createdAt ?? raw.at ?? "",
+                scope: raw.scope,
+              };
+            }),
+            findings: (Array.isArray(d.findings) ? d.findings : []).map((f) => normalizeFinding(f as Record<string, unknown>)),
+          } as unknown as typeof mockCaseDetail;
+        }),
 
   findings: (params: Record<string, string> = {}): Promise<Page<Finding>> =>
     mocksEnabled()
       ? mock({ items: mockToday.topFindings, nextCursor: null, total: mockToday.topFindings.length })
-      : fetchJson<Page<Finding>>(`/api/v2/findings${qs(params)}`),
+      : fetchJson<Page<Record<string, unknown>>>(`/api/v2/findings${qs(params)}`).then((page) => ({
+          ...page,
+          items: page.items.map(normalizeFinding),
+        })),
 
   graph: (caseId: string, asOf?: string): Promise<GraphPayload> =>
     mocksEnabled()
