@@ -126,6 +126,67 @@ export default function OrderDetailPage() {
         </div>
       </Card>
 
+      {/* document preview — the PO as a document, not a table row */}
+      <Card>
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] pb-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">Purchase order</p>
+            <p className="font-code mt-1 text-lg font-semibold tracking-tight text-[var(--ink)]">{order.number}</p>
+          </div>
+          <div className="text-right text-xs leading-relaxed text-[var(--muted)]">
+            <p>Dated <DateText value={order.date} /></p>
+            <p>FY {order.fy}{order.revision > 0 ? ` · Revision R${order.revision}` : ""}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="rounded-[var(--radius-sm)] bg-[var(--surface-2)]/50 p-3.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">From (seller)</p>
+            <p className="mt-1.5 text-sm font-medium text-[var(--ink)]">{order.seller?.name ?? "—"}</p>
+            {order.seller?.gstin && <p className="font-code mt-0.5 text-xs text-[var(--muted)]">GSTIN {order.seller.gstin}</p>}
+            {order.seller?.udyam && <p className="mt-1 text-[11px] text-[var(--likely)]">{order.seller.udyam.category} enterprise · 45-day payment duty</p>}
+          </div>
+          <div className="rounded-[var(--radius-sm)] bg-[var(--surface-2)]/50 p-3.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">To (buyer)</p>
+            <p className="mt-1.5 text-sm font-medium text-[var(--ink)]">{order.buyer?.name ?? "Your entity"}</p>
+            {order.buyer?.gstin && <p className="font-code mt-0.5 text-xs text-[var(--muted)]">GSTIN {order.buyer.gstin}</p>}
+          </div>
+        </div>
+
+        <table className="mt-4 w-full text-sm">
+          <thead>
+            <tr className="border-y border-[var(--line)] text-left text-[11px] uppercase tracking-wide text-[var(--muted)]">
+              <th className="py-2">#</th><th>Item</th><th>HSN</th><th className="text-right">Qty</th><th className="text-right">Rate</th><th className="text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(order.lines ?? []).map((l) => (
+              <tr key={l.lineNo} className="border-b border-[var(--line)] last:border-0 text-[var(--ink-2)]">
+                <td className="py-2 tnum">{l.lineNo}</td>
+                <td>{l.description}</td>
+                <td className="font-code text-xs">{l.hsn ?? "—"}</td>
+                <td className="tnum text-right">{l.qty} {l.uom}</td>
+                <td className="tnum text-right">₹{Number(l.rate ?? 0).toLocaleString("en-IN")}</td>
+                <td className="tnum text-right font-medium text-[var(--ink)]">₹{(Number(l.qty ?? 0) * Number(l.rate ?? 0)).toLocaleString("en-IN")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="mt-3 flex items-end justify-between border-t border-[var(--line)] pt-3">
+          <div className="text-xs leading-relaxed text-[var(--muted)]">
+            {order.terms?.paymentTerms && <p>Payment: {String(order.terms.paymentTerms)}</p>}
+            {order.terms?.deliveryTerms && <p>Delivery: {String(order.terms.deliveryTerms)}</p>}
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] text-[var(--muted)]">Order value</p>
+            <p className="tnum text-xl font-semibold tracking-tight text-[var(--ink)]">
+              <Money value={{ amount: order.totals?.grand ?? String(order.lines?.reduce((s, l) => s + Number(l.qty ?? 0) * Number(l.rate ?? 0), 0) ?? 0), currency: order.currency ?? "INR" }} />
+            </p>
+          </div>
+        </div>
+      </Card>
+
       {/* order statistics */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {(() => {
