@@ -2,6 +2,8 @@
 
 Append one line per milestone: `YYYY-MM-DD <agent>: <task id> <what> (commit <sha>), tests <n>/<n>`.
 
+2026-10-29 B: P1-B3 done (commit 6703a07), tests 37/37. Masters live: GET/POST/PATCH /api/v2/{entities,suppliers,items} + /items/search + /hsn/search + GET/PUT /policies/:entityId + supplier bank-account maker→checker (masked + HMAC only, SoD enforced). NEW PERMISSION `master.manage` added to matrix (admins, buyer, ap_clerk, ap_manager; not stores) — D/others note it in /me permissions. GSTIN JS port vendored (server/src/lib/gstin.js) — same algorithm/fixtures as engine. HSN seeder skips until A ships hsn_master artifact (handoff: needs assets/hsn_master.*.json(.gz)). Known gap: bank-approve happy path untestable until /users can grant a checker a membership (P2 users route). Next: P2-B4 documents & PO/PI lifecycle (blocked partially on A's /v2/tax/compute, already flag-gated).
+
 2026-10-29 B: P1-B2 done (commit 7fbaf58), tests 26/26 (15 v1 + 11 new v2-identity). Groups/Entities/memberships live; lazy migration maps legacy companyId→group+entity and roles (ops_analyst→buyer+ap_clerk etc.); scripts/migrate-v1-users.mjs ran (6 users). ONE hybrid JWT now carries v1+v2 claims — old tokens still work on v1 routes, new tokens work everywhere. Live endpoints: POST /api/v2/auth/{login,signup,switch-group}, GET /api/v2/me. RBAC matrix (11 roles × 18 permissions) + SoD + scope helpers in server/src/auth/. New deps justified: ulid (contract §2 ids), zod (B12 validation baseline). NOTE for D: /api/v2/auth/login returns {token, user, memberships, groups, activeGroup}; /api/v2/me returns scope-resolved entities + permissions per entityId. P1-B3 (masters & policies) next.
 
 2026-10-29 human: plan v2 created; rollback tag v0.9-pitch-baseline pushed.
