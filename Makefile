@@ -14,7 +14,7 @@ train:
 	docker compose run --rm --no-deps ml-fl-service python business_training.py
 	docker compose restart ml-fl-service
 test-python:
-	docker compose exec -T ml-fl-service python -m unittest discover -s tests -p 'test_business*.py' -v
+	docker compose -f docker-compose.yml -f ml-fl-service/compose.owner.yml run --rm --no-deps ml-fl-service python -m pytest tests -q
 test-api:
 	cd server && npm test
 	cd chatbot-backend && npm test

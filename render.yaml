@@ -21,6 +21,8 @@ services:
         value: "1"
       - key: ENGINE_API_URL
         value: https://satya-ipl-ml.onrender.com
+      - key: GATEWAY_API_URL
+        value: https://satya-ipl-chat.onrender.com
       - key: ALLOWED_ORIGINS
         value: https://satya-ipl.vercel.app
       - key: RATE_LIMIT_AUTH
@@ -72,6 +74,8 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: GEMINI_API_KEYS
+        sync: false
       - key: GROQ_KEY
         sync: false
 
@@ -89,10 +93,6 @@ services:
         value: "8000"
       - key: MODEL_ARTIFACT_DIR
         value: runs/satya-linkage
-      - key: PROGRESS_WEBHOOK
-        value: https://satya-ipl-api.onrender.com/api/fl/progress
-      - key: FLOWER_PYTHON
-        value: ""
       - key: NODE_INTERNAL_TOKEN
         sync: false
       - key: NEO4J_URI

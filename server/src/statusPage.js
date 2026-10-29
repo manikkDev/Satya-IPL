@@ -66,7 +66,7 @@ const ENDPOINT_GROUPS = [
     routes: [
       ["GET", "/api/health", "Liveness probe"],
       ["GET", "/api/conversations", "Copilot conversation history"],
-      ["POST", "/api/fl/progress", "Engine progress webhook (internal)"],
+      ["GET", "/api/v2/meta/flags", "Feature flags"],
       ["WS", "/socket.io", "Realtime workspace events"],
     ],
   },
