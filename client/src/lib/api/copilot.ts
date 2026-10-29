@@ -101,6 +101,40 @@ async function* parseSse(body: ReadableStream<Uint8Array>): AsyncGenerator<Copil
   }
 }
 
+export type CopilotConversation = {
+  id: string;
+  title?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  messages?: { role: string; content: string; createdAt?: string }[];
+};
+
+async function copilotJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${SERVER_URL_1}/api/v2/copilot${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...authHeader(), ...(init?.headers ?? {}) },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) throw new Error(`Copilot request failed (${response.status})`);
+  return response.status === 204 ? (undefined as T) : response.json();
+}
+
+export function listConversations(): Promise<{ items: CopilotConversation[] }> {
+  return copilotJson("/conversations");
+}
+
+export function getConversation(id: string): Promise<CopilotConversation> {
+  return copilotJson(`/conversations/${encodeURIComponent(id)}`);
+}
+
+export function deleteConversation(id: string): Promise<void> {
+  return copilotJson(`/conversations/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function sendFeedback(messageId: string, rating: "up" | "down", reason?: string): Promise<void> {
+  return copilotJson("/feedback", { method: "POST", body: JSON.stringify({ messageId, rating, reason }) });
+}
+
 export async function* streamCopilotChat(
   message: string,
   context: CopilotContext = {},

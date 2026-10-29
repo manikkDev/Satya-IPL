@@ -9,8 +9,9 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Send, Plus, FileSearch, Copy, Check, ThumbsUp, ThumbsDown, X, ArrowUpRight, MessageSquare } from "lucide-react";
-import { streamCopilotChat, stageText, type CopilotEvent } from "@/lib/api/copilot";
+import { Send, Plus, FileSearch, Copy, Check, ThumbsUp, ThumbsDown, X, ArrowUpRight, MessageSquare, Trash2 } from "lucide-react";
+import { streamCopilotChat, stageText, listConversations, getConversation, deleteConversation, sendFeedback, type CopilotEvent } from "@/lib/api/copilot";
+import { mocksEnabled } from "@/lib/flags";
 import { pushAiUsage } from "@/lib/ai-usage";
 import { AiCapacityPill } from "@/components/AiCapacityPill";
 import { CertaintyBadge } from "@/components/ui/v2";
@@ -24,8 +25,9 @@ type Turn = {
   prompt: string;
   answer?: Answer;
   error?: string;
+  serverMessageId?: string;
 };
-type Convo = { id: string; title: string; turns: Turn[] };
+type Convo = { id: string; title: string; turns: Turn[]; serverId?: string };
 
 function CitationChip({ citation, onOpen }: { citation: NonNullable<Answer["citations"]>[number]; onOpen: (c: typeof citation) => void }) {
   return (
@@ -41,10 +43,15 @@ function CitationChip({ citation, onOpen }: { citation: NonNullable<Answer["cita
   );
 }
 
-function AnswerCard({ answer, onOpenCitation }: { answer: Answer; onOpenCitation: (c: NonNullable<Answer["citations"]>[number]) => void }) {
+function AnswerCard({ answer, onOpenCitation, messageId }: { answer: Answer; onOpenCitation: (c: NonNullable<Answer["citations"]>[number]) => void; messageId?: string }) {
   const [copied, setCopied] = useState(false);
   const [rating, setRating] = useState<"up" | "down" | null>(null);
   const citations = answer.citations ?? [];
+  const rate = (next: "up" | "down") => {
+    const value = rating === next ? null : next;
+    setRating(value);
+    if (value && messageId && !mocksEnabled()) sendFeedback(messageId, value).catch(() => undefined);
+  };
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(answer.content);
@@ -100,10 +107,10 @@ function AnswerCard({ answer, onOpenCitation }: { answer: Answer; onOpenCitation
           <button type="button" onClick={copy} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-[var(--muted)] hover:bg-[var(--surface-2)]">
             {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? "Copied" : "Copy"}
           </button>
-          <button type="button" aria-label="Helpful answer" aria-pressed={rating === "up"} onClick={() => setRating(rating === "up" ? null : "up")} className={cn("rounded p-1.5", rating === "up" ? "text-[var(--confirmed)]" : "text-[var(--muted)] hover:bg-[var(--surface-2)]")}>
+          <button type="button" aria-label="Helpful answer" aria-pressed={rating === "up"} onClick={() => rate("up")} className={cn("rounded p-1.5", rating === "up" ? "text-[var(--confirmed)]" : "text-[var(--muted)] hover:bg-[var(--surface-2)]")}>
             <ThumbsUp size={13} />
           </button>
-          <button type="button" aria-label="Unhelpful answer" aria-pressed={rating === "down"} onClick={() => setRating(rating === "down" ? null : "down")} className={cn("rounded p-1.5", rating === "down" ? "text-[var(--sev-high)]" : "text-[var(--muted)] hover:bg-[var(--surface-2)]")}>
+          <button type="button" aria-label="Unhelpful answer" aria-pressed={rating === "down"} onClick={() => rate("down")} className={cn("rounded p-1.5", rating === "down" ? "text-[var(--sev-high)]" : "text-[var(--muted)] hover:bg-[var(--surface-2)]")}>
             <ThumbsDown size={13} />
           </button>
         </div>
@@ -139,6 +146,43 @@ function Copilot() {
     bottom.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }, [convo.turns.length, progress]);
 
+  // Load real conversation history when not mocking.
+  useEffect(() => {
+    if (mocksEnabled()) return;
+    listConversations()
+      .then(({ items }) => {
+        if (!items.length) return;
+        setConvos((prev) => {
+          const server = items.map((item) => ({ id: `srv_${item.id}`, serverId: item.id, title: item.title || "Conversation", turns: [] }));
+          const merged = [...prev.filter((p) => !p.serverId), ...server];
+          return merged.length ? merged : prev;
+        });
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const openConvo = async (item: Convo) => {
+    setActiveConvo(item.id);
+    if (!item.serverId || item.turns.length || mocksEnabled()) return;
+    try {
+      const full = await getConversation(item.serverId);
+      const turns: Turn[] = [];
+      for (const msg of full.messages ?? []) {
+        if (msg.role === "user") turns.push({ id: ++sequence.current, prompt: msg.content });
+        else {
+          const last = turns[turns.length - 1];
+          if (last && !last.answer) {
+            const parsed = (() => { try { return JSON.parse(msg.content); } catch { return null; } })();
+            last.answer = parsed && parsed.content ? { type: "answer", ...parsed } : { type: "answer", content: msg.content };
+          }
+        }
+      }
+      setConvos((prev) => prev.map((c) => (c.id === item.id ? { ...c, turns } : c)));
+    } catch {
+      /* history unavailable — leave the conversation empty */
+    }
+  };
+
   const send = async (prompt: string) => {
     const text = prompt.trim();
     if (!text || busy) return;
@@ -162,14 +206,20 @@ function Copilot() {
         ),
       );
     try {
-      for await (const event of streamCopilotChat(text, { page: "/app/ask", caseId, entityId: activeEntity?.id })) {
+      for await (const event of streamCopilotChat(text, { page: "/app/ask", caseId, entityId: activeEntity?.id }, convo.serverId)) {
         if (event.type === "status") setProgress(stageText(event.stage) + (event.detail ? ` — ${event.detail}` : "…"));
         else if (event.type === "tool") setProgress(`${event.name.replaceAll("_", " ")}…`);
         else if (event.type === "answer") {
           patch({ answer: event });
           if (event.mode === "evidence_only") setEvidenceOnly(true);
         } else if (event.type === "usage") pushAiUsage(event.usage);
-        else if (event.type === "error") patch({ error: event.message });
+        else if (event.type === "done" && event.messageId) {
+          // done.messageId is the server conversation id — remember it so the
+          // next turn continues the same conversation and feedback can target it.
+          const serverId = event.messageId;
+          patch({ serverMessageId: serverId });
+          setConvos((prev) => prev.map((c) => (c.id === activeConvo ? { ...c, serverId } : c)));
+        } else if (event.type === "error") patch({ error: event.message });
       }
     } catch (error) {
       patch({ error: error instanceof Error ? error.message : "The answer could not be loaded." });
@@ -199,18 +249,35 @@ function Copilot() {
         </button>
         <ul className="mt-3 space-y-1">
           {convos.map((item) => (
-            <li key={item.id}>
+            <li key={item.id} className="group flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setActiveConvo(item.id)}
+                onClick={() => openConvo(item)}
                 aria-current={item.id === activeConvo}
                 className={cn(
-                  "w-full truncate rounded-[var(--radius-sm)] px-3 py-2 text-left text-sm",
+                  "min-w-0 flex-1 truncate rounded-[var(--radius-sm)] px-3 py-2 text-left text-sm",
                   item.id === activeConvo ? "bg-[var(--accent-soft)] font-medium text-[var(--accent-strong)]" : "text-[var(--ink-2)] hover:bg-[var(--surface-2)]",
                 )}
               >
                 {item.title}
               </button>
+              {item.serverId && !mocksEnabled() && (
+                <button
+                  type="button"
+                  aria-label="Delete conversation"
+                  onClick={async () => {
+                    await deleteConversation(item.serverId!).catch(() => undefined);
+                    setConvos((prev) => {
+                      const rest = prev.filter((c) => c.id !== item.id);
+                      if (activeConvo === item.id && rest.length) setActiveConvo(rest[0].id);
+                      return rest.length ? rest : [{ id: "c0", title: "New conversation", turns: [] }];
+                    });
+                  }}
+                  className="hidden shrink-0 rounded p-1 text-[var(--muted)] hover:text-[var(--sev-critical)] group-hover:block"
+                >
+                  <Trash2 size={13} />
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -264,7 +331,7 @@ function Copilot() {
                 <span className="sr-only">You asked: </span>{turn.prompt}
               </p>
               {turn.answer ? (
-                <AnswerCard answer={turn.answer} onOpenCitation={setSelectedCitation} />
+                <AnswerCard answer={turn.answer} onOpenCitation={setSelectedCitation} messageId={turn.serverMessageId} />
               ) : turn.error ? (
                 <div role="alert" className="rounded-[var(--radius-md)] border border-[var(--sev-critical)] bg-[var(--sev-critical-soft)] p-4 text-sm text-[var(--ink-2)]">
                   {turn.error}

@@ -15,6 +15,7 @@ import {
 import ProtectedRoute from "@/components/auth/protected-route";
 import { AiCapacityPill } from "@/components/AiCapacityPill";
 import { SessionProvider, useSession } from "@/components/v2/session";
+import { HealthBanner } from "@/components/v2/health-banner";
 import { mocksEnabled } from "@/lib/flags";
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem, CommandShortcut,
@@ -243,7 +244,10 @@ function ShellInner({ children }: { children: ReactNode }) {
           </header>
 
           <main id="app-content" tabIndex={-1} className="flex-1 px-4 py-6 pb-24 sm:px-6 md:pb-10">
-            <div className="mx-auto w-full max-w-[var(--content-max)]">{children}</div>
+            <div className="mx-auto w-full max-w-[var(--content-max)]">
+              <HealthBanner />
+              {children}
+            </div>
           </main>
         </div>
       </div>

@@ -5,7 +5,7 @@
 // step 5 calls POST /documents/:id/compute (mocked here) and shows the
 // "Calculating…" state while waiting.
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, FileDown, CircleCheck, LoaderCircle, TriangleAlert, Plus, Trash2 } from "lucide-react";
@@ -77,6 +77,72 @@ function mockCompute(lines: Line[], intraState: boolean): Promise<ComputeResult>
 
 const inputCls = "h-9 w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]";
 const labelCls = "mb-1 block text-xs font-medium text-[var(--muted)]";
+
+/** Debounced HSN picker — real /api/v2/hsn/search outside mocks, curated list inside. */
+function HsnField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [results, setResults] = useState<{ code: string; description: string; rate?: string | null }[]>([]);
+  const timer = useRef<ReturnType<typeof setTimeout>>(null);
+  const MOCK_HSN = [
+    { code: "8413", description: "Pumps for liquids", rate: "18" },
+    { code: "8414", description: "Air/vacuum pumps, compressors", rate: "18" },
+    { code: "8481", description: "Taps, cocks, valves", rate: "18" },
+    { code: "7318", description: "Screws, bolts, nuts", rate: "18" },
+    { code: "8501", description: "Electric motors and generators", rate: "18" },
+  ];
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  const search = (q: string) => {
+    if (timer.current) clearTimeout(timer.current);
+    if (q.trim().length < 2) { setResults([]); setOpen(false); return; }
+    timer.current = setTimeout(async () => {
+      if (mocksEnabled()) {
+        setResults(MOCK_HSN.filter((h) => h.code.startsWith(q.trim()) || h.description.toLowerCase().includes(q.trim().toLowerCase())));
+      } else {
+        try {
+          const { items } = await v2.hsnSearch(q.trim());
+          setResults(items.map((i) => ({ code: i.code, description: i.description, rate: i.rate })));
+        } catch { setResults([]); }
+      }
+      setOpen(true);
+    }, 250);
+  };
+  return (
+    <div className="relative">
+      <label className={labelCls}>HSN code</label>
+      <input
+        value={value}
+        onChange={(e) => { onChange(e.target.value); search(e.target.value); }}
+        onFocus={() => results.length && setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="e.g. 8413 or “pump”"
+        aria-label="HSN code"
+        aria-expanded={open}
+        aria-autocomplete="list"
+        className={inputCls}
+      />
+      {open && results.length > 0 && (
+        <ul role="listbox" className="absolute z-20 mt-1 max-h-44 w-full overflow-auto rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-1)]">
+          {results.map((r) => (
+            <li key={r.code}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={r.code === value}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { onChange(r.code); setOpen(false); }}
+                className="w-full px-3 py-1.5 text-left text-xs hover:bg-[var(--accent-soft)]"
+              >
+                <span className="font-code font-medium text-[var(--ink)]">{r.code}</span>
+                <span className="ml-2 text-[var(--muted)]">{r.description}</span>
+                {r.rate != null && <span className="ml-2 text-[var(--accent-strong)]">· {r.rate}%</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export default function NewOrderPage() {
   const router = useRouter();
@@ -281,8 +347,7 @@ export default function NewOrderPage() {
                         <input value={line.description} onChange={(e) => setLine(i, { description: e.target.value })} placeholder="e.g. Centrifugal pump 1 kW, model CP-100" className={inputCls} />
                       </div>
                       <div>
-                        <label className={labelCls}>HSN code</label>
-                        <input value={line.hsn} onChange={(e) => setLine(i, { hsn: e.target.value })} placeholder="e.g. 8413" className={inputCls} />
+                        <HsnField value={line.hsn} onChange={(v) => setLine(i, { hsn: v })} />
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         <div>
