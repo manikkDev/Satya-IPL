@@ -47,16 +47,34 @@ def _jwt_parts(token):
 
 
 def _irp_keys():
+    """Load IRP public keys — X.509 certs or raw PEM public keys.
+
+    Filenames may carry validity windows (einvpublickeyNIC1_DDMMYYYY_to_DDMMYYYY);
+    they are parsed so verification can prefer keys valid on the invoice date.
+    """
     keys = []
     if not IRP_KEYS_DIR.is_dir():
         return keys
+    from cryptography.hazmat.primitives.serialization import load_pem_public_key
     from cryptography.x509 import load_pem_x509_certificate
 
     for path in sorted(IRP_KEYS_DIR.glob("*.pem")) + sorted(IRP_KEYS_DIR.glob("*.crt")):
+        raw = path.read_bytes()
+        key, valid_from, valid_to = None, None, None
         try:
-            keys.append((path.stem, load_pem_x509_certificate(path.read_bytes())))
+            key = load_pem_x509_certificate(raw).public_key()
+            valid_from, valid_to = None, None
         except Exception:
-            continue
+            try:
+                key = load_pem_public_key(raw)
+            except Exception:
+                continue
+        window = re.search(r"(\d{8})_to_(\d{8})", path.stem)
+        if window:
+            from datetime import datetime as _dt
+            valid_from = _dt.strptime(window.group(1), "%d%m%Y").date()
+            valid_to = _dt.strptime(window.group(2), "%d%m%Y").date()
+        keys.append((path.stem, key, valid_from, valid_to))
     return keys
 
 
@@ -79,9 +97,21 @@ def _verify_qr(token):
 
     message = f"{segments[0]}.{segments[1]}".encode()
     signature = base64.urlsafe_b64decode(segments[2] + "=" * (-len(segments[2]) % 4))
-    for name, cert in keys:
+    # Prefer keys whose validity window covers the invoice date, then fall back
+    # to trying every installed key.
+    irn_dt = fields.get("IrnDt") or fields.get("DocDt")
+    ordered = list(keys)
+    if irn_dt:
+        from datetime import date as _date, datetime as _dt
         try:
-            cert.public_key().verify(signature, message, padding.PKCS1v15(), hashes.SHA256())
+            when = _dt.strptime(str(irn_dt)[:10], "%d/%m/%Y").date() if "/" in str(irn_dt) \
+                else _date.fromisoformat(str(irn_dt)[:10])
+            ordered.sort(key=lambda k: not (k[2] and k[3] and k[2] <= when <= k[3]))
+        except ValueError:
+            pass
+    for name, key, _vf, _vt in ordered:
+        try:
+            key.verify(signature, message, padding.PKCS1v15(), hashes.SHA256())
             result.update({"verified": True, "keyId": name, "reason": None})
             return result
         except Exception:

@@ -10,7 +10,7 @@ from pydantic import Field, StringConstraints, model_validator
 
 from ..contracts_v2 import Contract, DateOnly, DecimalString, OffsetDateTime
 
-Code = Annotated[str, StringConstraints(pattern=r"^[0-9]{2}(?:[0-9]{2}){0,3}$")]
+Code = Annotated[str, StringConstraints(pattern=r"^[0-9]{2,8}$")]
 MAX_MASTER_BYTES = 32 * 1024 * 1024
 
 

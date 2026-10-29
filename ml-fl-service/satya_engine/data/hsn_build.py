@@ -99,13 +99,23 @@ def build_hsn(directory_path, output_path, *, code_column, description_column, d
         code, description = row[code_index], row[description_index]
         if not isinstance(code, str):
             raise ValueError(f"HSN code at row {row_number} must be text; preserve leading zeros explicitly")
-        code = code.strip()
-        if not re.fullmatch(r"[0-9]{2}(?:[0-9]{2}){0,3}", code) or not isinstance(description, str) or not description.strip():
+        code = re.sub(r"\s+", "", code.strip())
+        if not re.fullmatch(r"[0-9]{2,8}", code) or not isinstance(description, str) or not description.strip():
             raise ValueError(f"Invalid directory code/description at row {row_number}")
         entry = dict(code=code, description=description.strip(), chapter=code[:2])
+        # Old-format rows embed spaces inside the code and a "~" separator in the
+        # description; the same code also appears as a clean row. On conflict
+        # prefer the description without "~".
         if code in codes and codes[code] != entry:
-            raise ValueError(f"Conflicting descriptions for code {code}")
-        codes[code] = entry
+            current, incoming = codes[code]["description"], entry["description"]
+            if "~" in current and "~" not in incoming:
+                codes[code] = entry
+            elif "~" in incoming and "~" not in current:
+                pass
+            else:
+                raise ValueError(f"Conflicting descriptions for code {code}")
+        else:
+            codes[code] = entry
     if not codes:
         raise ValueError("Directory contains no codes")
     sources = [source_metadata(directory_path, "GST HSN directory", directory_url, retrieved_at)]
