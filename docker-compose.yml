@@ -1,10 +1,14 @@
 services:
   neo4j:
     image: neo4j:5.26-community
+    mem_limit: 1.5g
+    cpus: 1
     environment:
       NEO4J_AUTH: neo4j/password
       NEO4J_PLUGINS: '["graph-data-science"]'
       NEO4J_dbms_security_procedures_unrestricted: gds.*
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
     ports:
       - "127.0.0.1:7474:7474"
       - "127.0.0.1:7687:7687"
@@ -19,6 +23,8 @@ services:
 
   mongo:
     image: mongo:7
+    mem_limit: 1g
+    cpus: 1
     ports:
       - "127.0.0.1:27017:27017"
     volumes:
@@ -31,6 +37,8 @@ services:
 
   ml-fl-service:
     build: ./ml-fl-service
+    mem_limit: 2g
+    cpus: 2
     env_file:
       - path: ./ml-fl-service/.env
         required: false
@@ -60,6 +68,8 @@ services:
 
   server:
     build: ./server
+    mem_limit: 768m
+    cpus: 1
     env_file:
       - ./server/.env
     environment:
@@ -90,6 +100,8 @@ services:
 
   chatbot-backend:
     build: ./chatbot-backend
+    mem_limit: 768m
+    cpus: 1
     env_file:
       - ./chatbot-backend/.env
     environment:
@@ -111,6 +123,8 @@ services:
       retries: 10
 
   client:
+    mem_limit: 1.5g
+    cpus: 2
     build:
       context: ./client
       args:

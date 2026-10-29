@@ -3,6 +3,7 @@ import { apiLimiter, authLimiter, writeLimiter } from '../middleware/rateLimit.j
 import authRoutes from './businessAuth.js';
 import businessRoutes from './businessRoutes.js';
 import conversationRoutes from "./conversationRoutes.js";
+import v2Routes from "./v2/index.js";
 
 const router = express.Router();
 
@@ -16,6 +17,7 @@ router.get('/health', (req, res) => {
 // Authentication routes
 router.use('/auth', (req, res, next) => req.method === 'POST' ? authLimiter(req, res, next) : next(), authRoutes);
 router.use('/v1', writeLimiter, businessRoutes);
+router.use('/v2', v2Routes);
 router.use('/conversations', conversationRoutes);
 // Add your resource routes here
 
