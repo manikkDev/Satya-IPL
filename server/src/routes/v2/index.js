@@ -9,6 +9,8 @@ import hsnRoutes from "./hsn.js";
 import policiesRoutes from "./policies.js";
 import documentsRoutes from "./documents.js";
 import verifyRoutes from "./verify.js";
+import filesRoutes from "./files.js";
+import ingestRoutes from "./ingest.js";
 import { authenticateV2, loadScope } from "../../auth/middleware.js";
 
 const router = express.Router();
@@ -27,5 +29,7 @@ router.use("/items", itemsRoutes);
 router.use("/hsn", hsnRoutes);
 router.use("/policies", policiesRoutes);
 router.use("/documents", documentsRoutes);
+router.use("/files", filesRoutes);
+router.use("/ingest", ingestRoutes);
 
 export default router;
