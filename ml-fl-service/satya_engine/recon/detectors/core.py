@@ -112,11 +112,10 @@ def unmatched_invoice(docs, links):
     ]
 
 
-DETECTORS = [billed_above_received, missing_receipt_evidence, delivery_shortfall,
-             duplicate_invoice_suspect, currency_conflict, unmatched_invoice]
-
-
 def run_all(ledger, docs, links):
+    from .flows import run_flows
+    from .terms import run_terms
+
     findings = []
     findings += billed_above_received(ledger, docs)
     findings += missing_receipt_evidence(ledger)
@@ -124,4 +123,6 @@ def run_all(ledger, docs, links):
     findings += duplicate_invoice_suspect(docs)
     findings += currency_conflict(docs, ledger)
     findings += unmatched_invoice(docs, links)
+    findings += run_flows(ledger, docs, links)
+    findings += run_terms(ledger, docs, links)
     return findings
