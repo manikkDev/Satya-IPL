@@ -71,6 +71,49 @@ def tax_lut_missing(docs):
     ]
 
 
+def pay_unallocated(docs, links):
+    """PAY_UNALLOCATED — outbound payment with no invoice it settles."""
+    settled_to = {l["fromId"] for l in links if l["kind"] == "SETTLES"}
+    findings = []
+    for d in docs:
+        if d["type"] not in {"PAYMENT_OUT", "ADVANCE_OUT"} or d["status"] in {"reversed", "cancelled"}:
+            continue
+        payment = d.get("payment") or {}
+        if d["id"] in settled_to or any(l.get("refs", {}).get("invoiceId") for l in d.get("lines", [])):
+            continue
+        if payment.get("invoiceId") or payment.get("purpose"):
+            continue
+        findings.append(_finding(
+            "PAY_UNALLOCATED", "medium", "POSSIBLE",
+            f"Payment {d['id']} ({payment.get('amount')}) is not allocated to any invoice — remittance reference needed",
+            [{"documentId": d["id"]}]))
+    return findings
+
+
+def bank_account_changed(docs):
+    """PAY_BANK_ACCOUNT_CHANGED — same supplier paid to different masked accounts."""
+    from collections import defaultdict
+    accounts = defaultdict(set)
+    payments_of = defaultdict(list)
+    for d in docs:
+        if d["type"] == "PAYMENT_OUT" and d["status"] not in {"reversed", "cancelled"}:
+            payment = d.get("payment") or {}
+            supplier = (d["seller"].get("supplierId") or d["seller"].get("gstin")
+                        or d["seller"]["name"].lower())
+            if payment.get("bankAccountMasked"):
+                accounts[supplier].add(payment["bankAccountMasked"])
+                payments_of[supplier].append(d)
+    findings = []
+    for supplier, seen in accounts.items():
+        if len(seen) > 1:
+            findings.append(_finding(
+                "PAY_BANK_ACCOUNT_CHANGED", "high", "PROBABLE",
+                f"Supplier {supplier} was paid to {len(seen)} different bank accounts ({sorted(seen)}) — confirm a formal bank-change instruction before paying",
+                [{"documentId": p["id"]} for p in payments_of[supplier]]))
+    return findings
+
+
 def run_payments(ledger, docs, links):
     return (utr_repeated_observation(docs) + pay_overpayment(ledger, docs)
-            + pay_before_receipt(docs, ledger) + tax_lut_missing(docs))
+            + pay_before_receipt(docs, ledger) + tax_lut_missing(docs)
+            + pay_unallocated(docs, links) + bank_account_changed(docs))

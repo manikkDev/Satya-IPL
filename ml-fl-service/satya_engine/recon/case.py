@@ -7,6 +7,17 @@ from decimal import Decimal
 from .ledger import build_ledger
 from .detectors.core import run_all
 from ..contracts_v2 import BusinessDocument, DocumentLink, Reviews
+from ..india.hsn_master import HsnMaster
+
+_hsn_master = None
+
+
+def _master():
+    global _hsn_master
+    if _hsn_master is None:
+        import os
+        _hsn_master = HsnMaster.load(os.environ.get("HSN_MASTER_PATH", "assets/hsn_master.json.gz"))
+    return _hsn_master
 
 D = Decimal
 
@@ -143,7 +154,9 @@ def reconcile_case(request):
     links = links + settle_links
     knowledge = request.knowledgeTime
     ledger = build_ledger(docs, links, knowledge)
-    findings = [f for f in run_all(ledger, docs, links) if f["code"] not in suppressed]
+    findings = [f for f in run_all(ledger, docs, links,
+                                   policy=request.entityPolicy, master=_master())
+                if f["code"] not in suppressed]
     ambiguities = _ambiguities(docs, links)
     snapshot_input = {"caseId": request.caseId, "docs": sorted(d["id"] for d in docs),
                       "links": len(links), "knowledgeTime": knowledge,

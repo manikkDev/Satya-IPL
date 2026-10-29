@@ -163,7 +163,116 @@ def ewaybill_missing(docs):
     ]
 
 
-def run_terms(ledger, docs, links):
+def _reference_date(docs):
+    """Latest document date in the set — deterministic 'now' for deadline risk."""
+    dates = [d["date"] for d in docs if d.get("date")]
+    return max(dates) if dates else None
+
+
+def rule37_risk(docs, links):
+    """TAX_RULE37_RISK — unpaid invoice past or near the 180-day ITC window."""
+    from datetime import date, timedelta
+    settled = {l["toId"] for l in links if l["kind"] == "SETTLES"}
+    ref = _reference_date(docs)
+    findings = []
+    for d in docs:
+        if d["type"] != "INVOICE_IN" or d["id"] in settled or d["status"] in {"reversed", "cancelled"}:
+            continue
+        if not ref or not d.get("date"):
+            continue
+        due = date.fromisoformat(d["date"]) + timedelta(days=180)
+        days_left = (due - date.fromisoformat(ref)).days
+        if days_left <= 30:
+            severity = "high" if days_left < 0 else "medium"
+            findings.append(_finding(
+                "TAX_RULE37_RISK", severity, "POSSIBLE",
+                f"Invoice {d['id']} unpaid {'past' if days_left < 0 else f'{days_left}d short of'} the 180-day mark — ITC reversal risk under CGST Rule 37",
+                [{"documentId": d["id"]}]))
+    return findings
+
+
+def einvoice_missing(docs, policy):
+    """TAX_EINVOICE_MISSING — outgoing invoice without IRN when entity AATO >= 10cr."""
+    aato = ((policy or {}).get("tax") or {}).get("aatoBand") if isinstance(policy, dict) else getattr(policy, "aatoBand", None)
+    findings = []
+    if aato not in {">=10cr", "5-10cr"}:
+        return findings
+    if aato == "5-10cr":
+        return findings  # not yet compulsory; advisory only, no finding
+    for d in docs:
+        if d["type"] == "INVOICE_OUT" and (d.get("gst") or {}).get("supplyType") and \
+           not (d["gst"] or {}).get("irn") and d["status"] not in {"reversed", "cancelled"}:
+            findings.append(_finding(
+                "TAX_EINVOICE_MISSING", "high", "POSSIBLE",
+                f"Invoice {d['id']} has no IRN — e-invoicing is mandatory at this entity's AATO band (>=10cr)",
+                [{"documentId": d["id"]}]))
+    return findings
+
+
+def not_in_gstr2b(docs):
+    """TAX_NOT_IN_GSTR2B — purchase invoice absent from the GSTR-2B feed."""
+    gstr2b = [d for d in docs if d["type"] == "GSTR2B_ENTRY"]
+    if not gstr2b:
+        return []
+    covered = {(e["seller"]["name"].lower(), e["number"].strip().lower()) for e in gstr2b}
+    findings = []
+    for d in docs:
+        if d["type"] == "INVOICE_IN" and d["status"] not in {"reversed", "cancelled"}:
+            key = (d["seller"]["name"].lower(), d["number"].strip().lower())
+            if key not in covered:
+                findings.append(_finding(
+                    "TAX_NOT_IN_GSTR2B", "medium", "POSSIBLE",
+                    f"Invoice {d['id']} ({d['number']}) not found in the GSTR-2B feed — supplier may not have filed; ITC at risk",
+                    [{"documentId": d["id"]}]))
+    return findings
+
+
+def ims_rejected_paid(docs, links):
+    """TAX_IMS_REJECTED_BUT_PAID — IMS shows the invoice rejected yet a payment settles it."""
+    settled = {l["toId"] for l in links if l["kind"] == "SETTLES"}
+    rejected = {d["refs"]["invoiceId"] for d in docs
+                if d["type"] == "IMS_ACTION" and (d.get("refs") or {}).get("invoiceId")
+                and "reject" in str(d.get("action", d.get("status", ""))).lower()}
+    findings = []
+    for invoice_id in rejected & settled:
+        findings.append(_finding(
+            "TAX_IMS_REJECTED_BUT_PAID", "high", "PROBABLE",
+            f"Invoice {invoice_id} is rejected in IMS yet a payment settles it — confirm the payment was released knowingly",
+            [{"documentId": invoice_id}]))
+    return findings
+
+
+def rate_mismatch(docs, master):
+    """TAX_RATE_MISMATCH — declared GST rate disagrees with the verified HSN rate."""
+    findings = []
+    for d in docs:
+        if d["type"] not in {"INVOICE_IN", "INVOICE_OUT"} or not d.get("totals"):
+            continue
+        taxable = D(d["totals"].get("taxable") or "0")
+        if taxable <= 0:
+            continue
+        tax_total = D(d["totals"].get("cgst") or "0") + D(d["totals"].get("sgst") or "0") + \
+                    D(d["totals"].get("igst") or "0")
+        effective = (tax_total / taxable * 100).quantize(D("0.01"))
+        for line in d.get("lines", []):
+            hsn = line.get("hsn")
+            if not hsn or not master:
+                continue
+            hit = master.lookup(hsn, d.get("date"))
+            if hit and hit.get("rate") is not None and not hit.get("uncertain"):
+                if D(str(hit["rate"])) != effective:
+                    findings.append(_finding(
+                        "TAX_RATE_MISMATCH", "high", "POSSIBLE",
+                        f"{d['id']} line {line['lineNo']}: HSN {hsn} verified rate {hit['rate']}% but invoice effective rate {effective}%",
+                        [{"documentId": d["id"], "lineNo": line["lineNo"]}]))
+                    break  # one per invoice is enough
+    return findings
+
+
+def run_terms(ledger, docs, links, policy=None, master=None):
     return (price_variance(docs) + uom_unknown_conversion(docs) + challan_vs_grn(docs)
             + unauthorised_charges(docs) + payment_split_combined(docs, links)
-            + invoice_before_grn(docs) + ewaybill_missing(docs))
+            + invoice_before_grn(docs) + ewaybill_missing(docs)
+            + rule37_risk(docs, links) + einvoice_missing(docs, policy)
+            + not_in_gstr2b(docs) + ims_rejected_paid(docs, links)
+            + rate_mismatch(docs, master))
