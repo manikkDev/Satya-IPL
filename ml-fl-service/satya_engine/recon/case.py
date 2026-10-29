@@ -98,12 +98,38 @@ def _lines_view(ledger):
     ]
 
 
+_STAGE = {
+    "PR": "order", "RFQ": "order", "QUOTATION": "order", "PI_IN": "order",
+    "PI_OUT": "order", "PO": "order", "PO_AMENDMENT": "order", "PO_ACK": "order",
+    "RELEASE_ORDER": "order", "DELIVERY_CHALLAN": "dispatch", "EWAY_BILL": "dispatch",
+    "LR": "dispatch", "GRN": "receipt", "QC": "inspection", "RETURN": "receipt",
+    "INVOICE_IN": "invoice", "INVOICE_OUT": "invoice", "CREDIT_NOTE_IN": "invoice",
+    "CREDIT_NOTE_OUT": "invoice", "DEBIT_NOTE_IN": "invoice", "DEBIT_NOTE_OUT": "invoice",
+    "PAYMENT_OUT": "payment", "PAYMENT_IN": "payment", "ADVANCE_OUT": "payment",
+    "REMITTANCE_ADVICE": "payment", "TDS_ENTRY": "tax", "GSTR2B_ENTRY": "tax",
+    "IMS_ACTION": "tax", "BANK_LINE": "payment", "SUPPLIER_STATEMENT_LINE": "invoice",
+}
+
+
 def _graph(docs, links, findings):
-    nodes = [{"id": d["id"], "type": d["type"], "stage": "document"} for d in docs]
-    edges = [{"from": l["fromId"], "to": l["toId"], "kind": l["kind"],
-              "certainty": l["certainty"]} for l in links]
+    nodes = [{
+        "id": d["id"], "type": d["type"], "label": d["number"],
+        "stage": _STAGE.get(d["type"], "document"), "date": d["date"],
+        "status": d["status"],
+        **({"amount": {"amount": d["totals"]["grand"], "currency": d["currency"]}}
+           if d.get("totals") else {}),
+    } for d in docs]
+    edges = [{
+        "id": f"e{i}", "source": l["fromId"], "target": l["toId"],
+        "kind": l["kind"], "certainty": l["certainty"],
+        "label": l["kind"].replace("_", " ").title(),
+        "explanation": f"{l['fromId']} {l['kind'].lower()} {l['toId']} ({l['basis']})",
+        "evidenceIds": [l["fromId"], l["toId"]],
+    } for i, l in enumerate(links)]
     return {"nodes": nodes, "edges": edges,
-            "timeline": sorted((d["observedAt"] for d in docs))}
+            "timeline": [{"at": at, "nodeIds": [d["id"]], "edgeIds": []}
+                         for at, d in sorted(((d["observedAt"], d) for d in docs), key=lambda x: x[0])],
+            "source": "snapshot"}
 
 
 def reconcile_case(request):

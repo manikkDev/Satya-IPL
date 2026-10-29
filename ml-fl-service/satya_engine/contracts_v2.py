@@ -634,6 +634,73 @@ class DocsValidateRequest(Contract):
     textLayer: str | None = None
 
 
+class FindingEvidence(Contract):
+    documentId: str
+    lineNo: int | str | None = None
+    field: str | None = None
+
+
+class ReconFinding(Contract):
+    code: str
+    severity: Literal["low", "medium", "high"]
+    certainty: Certainty | Literal["INSUFFICIENT_EVIDENCE"]
+    message: str
+    evidence: list[FindingEvidence]
+    amount: DecimalString | None = None
+    ruleVersion: str
+
+
+class LedgerRow(Contract):
+    poId: str
+    poLineNo: int | None = None
+    ordered: DecimalString
+    received: DecimalString
+    accepted: DecimalString
+    rejected: DecimalString
+    returned: DecimalString
+    delivered: DecimalString
+    invoicedQty: DecimalString
+    invoicedValue: DecimalString
+    creditedValue: DecimalString
+    paidValue: DecimalString
+    advanceAvailable: DecimalString
+    advanceAdjusted: DecimalString
+
+
+class CaseBalances(Contract):
+    recordedPayable: DecimalString
+    evidenceSupportedPayable: DecimalString
+    disputedExposure: DecimalString
+    itcAtRisk: DecimalString
+    msmeOverdue: DecimalString | None = None
+
+
+class Ambiguity(Contract):
+    id: str
+    scope: str
+    documentId: str
+    alternatives: list[str]
+    neededEvidence: str
+    certainty: Literal["unresolved"]
+
+
+class Recommendation(Contract):
+    action: str
+    scope: str
+    reasons: list[str]
+
+
+class ReconcileCaseResponse(Contract):
+    snapshotId: str
+    caseId: str
+    ledger: list[LedgerRow]
+    balances: CaseBalances
+    findings: list[ReconFinding]
+    graph: GraphPayload
+    ambiguities: list[Ambiguity]
+    recommendation: Recommendation
+
+
 def schemas():
     """Each entry is a self-contained JSON Schema, including nested $defs."""
     return {model.__name__: model.model_json_schema() for model in (
@@ -642,4 +709,6 @@ def schemas():
         EntityPolicy, Reviews, Scenario, ReconcileCaseRequest, PartialBusinessDocument,
         MatchRecord, MatchCandidatesRequest, AllocatePaymentRequest, AnomalyScoreRequest,
         ComplianceDeadlinesRequest, Deadline, DocsParseRequest, DocsValidateRequest,
+        ReconcileCaseResponse, LedgerRow, CaseBalances, ReconFinding, Ambiguity,
+        Recommendation,
     )}

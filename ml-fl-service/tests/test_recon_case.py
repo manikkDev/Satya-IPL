@@ -1,4 +1,4 @@
-from satya_engine.contracts_v2 import ReconcileCaseRequest
+from satya_engine.contracts_v2 import ReconcileCaseRequest, ReconcileCaseResponse
 from satya_engine.recon.case import reconcile_case
 from tests.test_engine_api import call
 
@@ -99,6 +99,10 @@ def test_unallocated_payment_creates_ambiguity():
     ]})
     result = reconcile_case(request)
     assert any(a["documentId"] == "P-1" for a in result["ambiguities"])
+
+
+def test_response_validates_against_contract():
+    ReconcileCaseResponse.model_validate(reconcile_case(flagship()))
 
 
 def test_snapshot_id_is_deterministic():
