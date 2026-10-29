@@ -7,7 +7,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from .business_matching import evaluation
 from .auth import internal
 from .compat_v1 import router as legacy_router
-from .contracts_v2 import GstinValidateRequest, ReconcileCaseRequest, TaxComputeRequest, schemas
+from .contracts_v2 import AllocatePaymentRequest, GstinValidateRequest, ReconcileCaseRequest, TaxComputeRequest, schemas
+from .recon.allocate import AllocationInputError, allocate
 from .recon.case import reconcile_case
 from .india.gstin import validate_gstin
 from .india.hsn_master import HsnMaster
@@ -73,5 +74,14 @@ def create_app():
     @app.post("/v2/reconcile/case", dependencies=[Depends(require_v2), Depends(internal)])
     def reconcile(request: ReconcileCaseRequest):
         return reconcile_case(request)
+
+    @app.post("/v2/allocate/payment", dependencies=[Depends(require_v2), Depends(internal)])
+    def allocate_payment(request: AllocatePaymentRequest):
+        try:
+            return allocate(request)
+        except AllocationInputError as error:
+            return JSONResponse(status_code=422, content={
+                "error": {"code": "VALIDATION_FAILED", "message": str(error),
+                          "requestId": uuid.uuid4().hex}})
 
     return app
