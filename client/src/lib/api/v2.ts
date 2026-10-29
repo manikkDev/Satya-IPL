@@ -106,11 +106,23 @@ export type IngestDraft = {
 };
 
 /** Real findings arrive as {code,severity,certainty,status,data:{message,evidence,amount}};
- *  UI expects {title,explanation,evidence[],calculation[],whatResolvesIt,exposure}. */
-const normalizeFinding = (f: Record<string, unknown>, index = 0): Finding => {
+ *  UI expects {title,explanation,evidence[],calculation[],whatResolvesIt,exposure}.
+ *  docNames resolves internal doc_* ids inside messages to real document numbers. */
+const shortDocId = (id: string) => {
+  const m = id.match(/^doc_bpi_([a-z]+)_(\d+)(?:_\d+)?$/);
+  return m ? `${m[1].toUpperCase()}-${m[2]}` : id.replace(/^doc_/, "");
+};
+const cleanText = (text: string, docNames?: Map<string, string>) =>
+  text
+    .replace(/doc_[\w]+/g, (id) => docNames?.get(id) ?? shortDocId(id))
+    .replace(/invoiced (\d+(?:\.\d+)?) exceeds delivered (\d+(?:\.\d+)?)/gi, (_m, a, b) => `invoiced ${a} units, only ${b} delivered`)
+    .replace(/(\d+(?:\.\d+)?) units delivered, none invoiced/gi, (_m, n) => `${n} units delivered, no invoice yet`)
+    .replace(/\b(\d{4,}\.\d{2})\b/g, (_m, n) => `₹${Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`);
+
+const normalizeFinding = (f: Record<string, unknown>, index = 0, docNames?: Map<string, string>): Finding => {
   const d = (f.data ?? {}) as Record<string, unknown>;
-  const message = String(d.message ?? f.title ?? f.message ?? "").trim();
-  const title = (f.title as string) || message || String(f.code ?? "Finding").replaceAll("_", " ").toLowerCase();
+  const message = cleanText(String(d.message ?? f.title ?? f.message ?? "").trim(), docNames);
+  const title = cleanText((f.title as string) || message || String(f.code ?? "Finding").replaceAll("_", " ").toLowerCase(), docNames);
   const rawEvidence = (f.evidence ?? d.evidence ?? []) as Record<string, unknown>[];
   return {
     id: String(f.id ?? f._id ?? `${f.caseId ?? "case"}:${f.code ?? "finding"}:${index}`),
@@ -120,7 +132,7 @@ const normalizeFinding = (f: Record<string, unknown>, index = 0): Finding => {
     certainty: String(f.certainty ?? d.certainty ?? "POSSIBLE").toUpperCase(),
     status: (f.status ?? "open") as string,
     title,
-    explanation: (f.explanation as string) || message || title,
+    explanation: cleanText((f.explanation as string) || message || title, docNames),
     whatResolvesIt: (f.whatResolvesIt as string) || (d.resolution as string) || "",
     exposure: (f.exposure ?? (d.amount ? { amount: d.amount, currency: "INR" } : undefined)) as Finding["exposure"],
     evidence: rawEvidence.map((e, i) => ({
@@ -242,10 +254,16 @@ export const v2 = {
       ? mock(mockCaseDetail)
       : fetchJson<Record<string, unknown>>(`/api/v2/cases/${encodeURIComponent(id)}`).then((d) => {
           const snap = (d.snapshot ?? null) as Record<string, unknown> | null;
+          const docNames = new Map(
+            (Array.isArray(d.documents) ? d.documents : []).map((doc) => {
+              const raw = doc as Record<string, unknown>;
+              return [String(raw.id ?? ""), String(raw.number ?? raw.externalRef ?? raw.id ?? "")] as [string, string];
+            }).filter(([k]) => k),
+          );
           return {
             case: { id: d.id, title: d.title, status: d.status, kind: d.kind, subjectIds: d.subjectIds, entityId: d.entityId, groupId: d.groupId },
             snapshot: snap
-              ? { ...snap, findings: (Array.isArray(snap.findings) ? snap.findings : []).map((f, i) => normalizeFinding(f as Record<string, unknown>, i)) }
+              ? { ...snap, findings: (Array.isArray(snap.findings) ? snap.findings : []).map((f, i) => normalizeFinding(f as Record<string, unknown>, i, docNames)) }
               : null,
             documents: d.documents ?? [],
             decisions: (Array.isArray(d.decisions) ? d.decisions : []).map((x) => {
@@ -260,7 +278,7 @@ export const v2 = {
                 scope: raw.scope,
               };
             }),
-            findings: (Array.isArray(d.findings) ? d.findings : []).map((f, i) => normalizeFinding(f as Record<string, unknown>, i)),
+            findings: (Array.isArray(d.findings) ? d.findings : []).map((f, i) => normalizeFinding(f as Record<string, unknown>, i, docNames)),
           } as unknown as typeof mockCaseDetail;
         }),
 
@@ -333,12 +351,18 @@ export const v2 = {
         })),
 
   payments: (params: Record<string, string> = {}): Promise<PaymentsPage> =>
-    mocksEnabled() ? mock(mockPayments) : fetchJson(`/api/v2/documents${qs({ type: "PAYMENT_OUT", ...params })}`),
+    mocksEnabled() ? mock(mockPayments) : fetchJson(`/api/v2/payments${qs(params)}`),
 
   paymentWorkbench: (id: string): Promise<typeof mockPaymentWorkbench> =>
     mocksEnabled()
       ? mock(mockPaymentWorkbench)
-      : fetchJson(`/api/v2/allocate/payment/${encodeURIComponent(id)}`),
+      : fetchJson(`/api/v2/payments/${encodeURIComponent(id)}/allocate`),
+
+  allocatePayment: (id: string, body: { allocations: { documentId: string; amount: string }[]; reason: string; expectedRevision?: number }) =>
+    fetchJson(`/api/v2/payments/${encodeURIComponent(id)}/allocate`, { method: "POST", body: JSON.stringify(body) }),
+
+  importBankCsv: (entityId: string, mapping: Record<string, string>, rows: Record<string, string>[]) =>
+    fetchJson(`/api/v2/import/bank-csv`, { method: "POST", body: JSON.stringify({ entityId, mapping, rows }) }),
 
   suppliers: (params: Record<string, string> = {}): Promise<SuppliersPage> =>
     mocksEnabled()

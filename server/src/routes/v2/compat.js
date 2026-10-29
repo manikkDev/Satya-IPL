@@ -13,6 +13,33 @@ const router = express.Router();
 
 const money = (v) => ({ amount: Number(v).toFixed(2), currency: "INR" });
 const msmeIdsBySupplier = () => false; // name matching covers seeded data
+
+// Humanise engine text: swap internal doc_* ids for real document numbers and
+// format bare amounts. Findings reference ids because engines don't know
+// display names — display layers should never show them raw.
+const inr = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const docIdFallback = (id) => {
+  const m = id.match(/^doc_bpi_([a-z]+)_(\d+)(?:_\d+)?$/);
+  return m ? `${m[1].toUpperCase()}-${m[2]}` : id.replace(/^doc_/, "");
+};
+const humanizeText = async (text, groupId) => {
+  if (!text) return text;
+  const str = String(text);
+  const ids = [...new Set([...str.matchAll(/doc_[\w]+/g)].map((m) => m[0]))];
+  let out = str;
+  if (ids.length) {
+    const docs = await Document.find({ groupId, id: { $in: ids } }, { id: 1, number: 1, externalRef: 1 }).lean();
+    const map = new Map(docs.map((d) => [d.id, d.number ?? d.externalRef ?? docIdFallback(d.id)]));
+    out = out.replace(/doc_[\w]+/g, (id) => map.get(id) ?? docIdFallback(id));
+  }
+  return out
+    .replace(/invoiced (\d+(?:\.\d+)?) exceeds delivered (\d+(?:\.\d+)?)/gi, (_m, a, b) => `invoiced ${a} units, only ${b} delivered`)
+    .replace(/(\d+(?:\.\d+)?) units delivered, none invoiced/gi, (_m, n) => `${n} units delivered, no invoice yet`)
+    .replace(/\b(\d{4,}\.\d{2})\b/g, (_m, n) => `₹${inr.format(Number(n))}`);
+};
+const humanizeFinding = async (f, groupId) =>
+  f?.data ? { ...f, data: { ...f.data, message: await humanizeText(f.data.message, groupId) } } : f;
+
 const scopeFilter = (req, entityId) => {
   const f = { groupId: req.scope.groupId, entityId: { $in: req.scope.entityIds } };
   if (entityId) {
@@ -42,6 +69,7 @@ router.get("/dashboard/today", handle(async (req, res) => {
   const taxOf = (d) => ["cgst", "sgst", "igst"].reduce((s, k) => s + Number(d?.totals?.[k]?.amount ?? d?.totals?.[k] ?? 0), 0);
 
   const holdDocs = await Document.find({ ...f, id: { $in: holdCases.flatMap((c) => c.subjectIds) } }).lean();
+  const top = await Promise.all(sorted.slice(0, 10).map((x) => humanizeFinding(x, req.scope.groupId)));
   const today = new Date();
   const msmeNames = new Set(suppliers.filter((s) => s.udyam?.category || s.msme).map((s) => s.legalName));
   const deadlines = invoices
@@ -64,12 +92,12 @@ router.get("/dashboard/today", handle(async (req, res) => {
     approvalsWaiting: draftDocs,
     deadlines,
     itcAtRisk: money(invoices.filter((d) => flaggedDocIds.has(d.id)).reduce((s, d) => s + taxOf(d), 0)),
-    topFindings: sorted.slice(0, 10),
+    topFindings: top,
     supportedOutstanding: money(cleanOutstanding),
     paymentsDueWeek: money(dueWeek),
     openCaseCount: openCases.length,
-    attention: sorted.slice(0, 3).map((x) => ({ id: x.id, text: x.data?.message ?? x.code?.replaceAll("_", " ").toLowerCase() ?? "Finding", actionLabel: "Review", href: `/app/investigations/${x.caseId}` })),
-    activity: findings.slice(0, 5).map((x) => ({ id: x.id, text: x.data?.message ?? x.code ?? "Finding recorded", at: x.createdAt })),
+    attention: await Promise.all(sorted.slice(0, 3).map(async (x) => ({ id: x.id, text: await humanizeText(x.data?.message ?? x.code?.replaceAll("_", " ").toLowerCase() ?? "Finding", req.scope.groupId), actionLabel: "Review", href: `/app/investigations/${x.caseId}` }))),
+    activity: await Promise.all(findings.slice(0, 5).map(async (x) => ({ id: x.id, text: await humanizeText(x.data?.message ?? x.code ?? "Finding recorded", req.scope.groupId), at: x.createdAt }))),
   });
 }));
 
@@ -138,7 +166,8 @@ router.get("/findings", handle(async (req, res) => {
   else q.status = "open";
   const items = await Finding.find(q).sort({ createdAt: -1 }).limit(Number(req.query.limit ?? 100)).lean();
   const total = await Finding.countDocuments(q);
-  res.json({ items, nextCursor: null, total });
+  const humanized = await Promise.all(items.map((x) => humanizeFinding(x, req.scope.groupId)));
+  res.json({ items: humanized, nextCursor: null, total });
 }));
 
 // POST /allocate/payment — proxy to the engine allocator.
