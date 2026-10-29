@@ -238,7 +238,7 @@ Base `http://ml-fl-service:8000`. All money/qty as decimal strings. Request/resp
 |---|---|---|
 | `GET /health`, `GET /ready` | liveness/readiness | `{ok, service, engineVersion, modelVersion, hsnMasterVersion}` — `service` is `"satya-engine"` when `FEATURE_V2_RECON_V2=1`, otherwise the legacy identity |
 | `POST /v2/tax/compute` | GST computation for a document | `{seller:{gstin?,stateCode}, buyer:{gstin?,stateCode}, placeOfSupply?, docDate, supplyType?, reverseCharge?, lut?, currency, policy?: TaxPolicyInput, lines:[{lineNo,hsn,qty,rate,discountPct?,uom,gstRateOverride?,cessRateOverride?}], charges[], roundOff:true}` → `{lines:[{lineNo,taxableValue,gstRate,rateSource:{hsn,effectiveFrom,notificationRef}|"override"|"assumed",cgst,sgst,utgst?,igst,cess,lineTotal}], charges[], taxSummary:[{hsn,gstRate,taxable,cgst,sgst,utgst?,igst,cess}], totals, amountInWords, warnings:[{code,message}], flags:{ewayBillRequired:boolean\|null, einvoiceExpected:boolean\|null, hsnDigitsRequired:4\|6\|null, tds194qApplicable:boolean\|null}}` |
-| `POST /v2/reconcile/case` | Deterministic reconstruction + findings | `{caseId, entityPolicy: EntityPolicy, knowledgeTime?, documents: BusinessDocument[], links: DocumentLink[], reviews?: Reviews, scenario?: Scenario}` → `{snapshotId, engineVersion, modelVersion, ledger, lines:[lifecycle per PO line], findings: Finding[], links:[proposed+confirmed], ambiguities[], recommendation:{action, scope, reasons[]}, graph: GraphPayload}` |
+| `POST /v2/reconcile/case` | Deterministic reconstruction + findings | `{caseId, entityPolicy: EntityPolicy, knowledgeTime?, documents: BusinessDocument[], links: DocumentLink[], reviews?: Reviews, scenario?: Scenario}` → `{snapshotId, engineVersion, modelVersion, ledger, lines:[lifecycle per PO line], findings: Finding[], links:[proposed+confirmed], ambiguities[], recommendation:{action, scope, reasons[]}, graph: GraphPayload}`. **Live-schema deltas verified (B, 30 Oct)**: `entityPolicy` currently accepts `{entityId}` only; `documents` requires `createdAt`/`updatedAt`/`createdBy` ISO strings; `links` forbid `groupId`/`createdAt`/`updatedAt`; `findings[]` carry no `id` (server assigns `fnd_`). |
 | `POST /v2/match/candidates` | Blocking + scoring + conformal sets | `{task:"invoice_po_line"|"grn_po_line"|"invoice_invoice_dup"|"payment_invoice"|"supplier_supplier"|"item_item", anchors: MatchRecord[], pool: MatchRecord[], alpha?:"0.05"}` → `{results:[{anchorId, predictionSet:[{candidateId, probability:decimal-string, contributions:[{feature,value,impact}]}], certainty, abstainReason?}]}` |
 | `POST /v2/allocate/payment` | Exact subset-sum allocation | `{payment: PaymentInput, openInvoices: OpenInvoice[], credits?: CreditInput[], tdsPolicy?: TdsPolicy}` → `{solutions:[{allocations:[{documentId, amount:Money}], residual:Money}], unique:boolean, certainty}` |
 | `POST /v2/anomaly/score` | Price/amount anomaly | `{documents: MatchRecord[], history: MatchRecord[]}` → `{scores:[{documentId, lineNo?, score, method:"robust_z"|"isolation_forest"|"benford", baseline, explanation}]}` |
@@ -267,7 +267,10 @@ type DocumentLink = {
 };
 
 type EntityPolicy = {                                  // engine-relevant slice of `policies` (§4)
-  entityId: string;
+  entityId: string;                                   // REQUIRED — and, as shipped by A today, the ONLY
+                                                      // accepted field: the strict pydantic schema rejects
+                                                      // all extras. The optional keys below are the agreed
+                                                      // TARGET shape; send none until A lands CC-3.
   aatoBand?: "<5cr"|"5-10cr"|">=10cr";                 // drives HSN-digit + e-invoice flags
   einvoiceApplicable?: boolean;                        // explicit override when band unknown
   tolerance?: { priceAbs?: Money; pricePct?: string; qtyPctByUom?: Record<string,string> };
