@@ -12,11 +12,15 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstra
 
 
 def business_date(value: str) -> str:
+    if value is None:
+        return value
     date.fromisoformat(value)
     return value
 
 
 def offset_timestamp(value: str) -> str:
+    if value is None:
+        return value
     if not re.match(r"^\d{4}-\d{2}-\d{2}T", value):
         raise ValueError("Use an ISO timestamp with an explicit timezone offset")
     parsed = datetime.fromisoformat(value)

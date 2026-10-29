@@ -1,3 +1,4 @@
+import base64
 import os
 import uuid
 
@@ -7,7 +8,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from .business_matching import evaluation
 from .auth import internal
 from .compat_v1 import router as legacy_router
-from .contracts_v2 import AllocatePaymentRequest, GstinValidateRequest, ReconcileCaseRequest, TaxComputeRequest, schemas
+from .contracts_v2 import AllocatePaymentRequest, DocsParseRequest, DocsValidateRequest, GstinValidateRequest, ReconcileCaseRequest, TaxComputeRequest, schemas
+from .docs import DocParseError, parse, validate
 from .recon.allocate import AllocationInputError, allocate
 from .recon.case import reconcile_case
 from .india.gstin import validate_gstin
@@ -83,5 +85,19 @@ def create_app():
             return JSONResponse(status_code=422, content={
                 "error": {"code": "VALIDATION_FAILED", "message": str(error),
                           "requestId": uuid.uuid4().hex}})
+
+    @app.post("/v2/docs/parse", dependencies=[Depends(require_v2), Depends(internal)])
+    def docs_parse(request: DocsParseRequest):
+        try:
+            return parse(base64.b64decode(request.fileBase64), request.mime)
+        except Exception as error:
+            status = 422 if isinstance(error, (DocParseError, ValueError)) else 500
+            return JSONResponse(status_code=status, content={
+                "error": {"code": "VALIDATION_FAILED" if status == 422 else "INTERNAL_ERROR",
+                          "message": str(error), "requestId": uuid.uuid4().hex}})
+
+    @app.post("/v2/docs/validate", dependencies=[Depends(require_v2), Depends(internal)])
+    def docs_validate(request: DocsValidateRequest):
+        return validate(request, master=hsn_master())
 
     return app
