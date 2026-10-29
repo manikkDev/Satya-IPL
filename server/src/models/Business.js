@@ -18,3 +18,60 @@ export const ImportPreview = make('ImportPreview', { actorId: String, bundle: Sc
 export const BusinessImport = make("BusinessImport", { caseId: String, checksum: String, recordCount: Number, provenance: { type: String, default: "USER_PROVIDED" }, actorId: String });
 export const BusinessAlert = make("BusinessAlert", { alertId: { type: String, required: true, index: true }, caseId: { type: String, required: true, index: true }, poId: String, supplier: String, type: { type: String, required: true }, severity: { type: String, default: "medium" }, message: { type: String, required: true }, dedupKey: { type: String, required: true }, status: { type: String, default: "unread" }, acknowledgedBy: { type: String, default: null }, acknowledgedAt: { type: Date, default: null }, dismissedBy: { type: String, default: null }, dismissedAt: { type: Date, default: null }, dismissalReason: { type: String, default: null }, resolvedAt: { type: Date, default: null }, metadata: Schema.Types.Mixed });
 export const BusinessReminder = make("BusinessReminder", { reminderId: { type: String, required: true, index: true }, caseId: { type: String, required: true, index: true }, poId: String, dueAt: { type: Date, required: true }, reason: { type: String, required: true }, recipientId: { type: String, default: null }, recipientName: { type: String, default: null }, createdBy: { type: String, required: true }, status: { type: String, default: "active" } });
+
+// ── Extended Intelligence Models ─────────────────────────────────────────────
+
+// Contract & MOU Intelligence (Algorithm B & C)
+export const ContractAgreement = make("ContractAgreement", {
+  agreementNumber: { type: String, required: true, index: true },
+  title: { type: String, required: true },
+  category: { type: String, default: "MOU" }, // MOU, ADDENDUM, FRAMEWORK_MSA, QUALITY_SLA
+  counterparty: { type: String, required: true },
+  effectiveDate: { type: Date, required: true },
+  expiryDate: { type: Date, required: true },
+  status: { type: String, default: "active" }, // active, superseded, under_review, expired
+  supersedesAgreementId: { type: String, default: null },
+  supersededByAgreementId: { type: String, default: null },
+  governingLaw: { type: String, default: "Indian Law (BPCI Public Procurement Framework)" },
+  sourceDocumentId: { type: String, default: null },
+  signatures: { type: [Schema.Types.Mixed], default: [] },
+  clauses: { type: [Schema.Types.Mixed], default: [] },
+  metadata: Schema.Types.Mixed
+});
+
+export const ContractObligation = make("ContractObligation", {
+  obligationId: { type: String, required: true, index: true },
+  agreementId: { type: String, required: true, index: true },
+  caseId: { type: String, default: null },
+  title: { type: String, required: true },
+  type: { type: String, required: true }, // EXPIRY_RENEWAL, PERFORMANCE_MILESTONE, THREE_WAY_MATCH, BANK_GUARANTEE, AUDIT_REPORT
+  dueDate: { type: Date, required: true },
+  effectiveExpiry: { type: Date, default: null },
+  status: { type: String, default: "pending" }, // pending, satisfied, disputed_superseded, overdue, waived
+  authorityStatus: { type: String, default: "authoritative" }, // authoritative, disputed, provisional
+  disputeReason: { type: String, default: null },
+  sourceClauseRef: { type: String, default: null },
+  assignedRole: { type: String, default: "ap_manager" },
+  evidenceIds: { type: [String], default: [] }
+});
+
+// Outbox & Multi-Channel Communications (Algorithm H)
+export const OutboxMessage = make("OutboxMessage", {
+  messageId: { type: String, required: true, index: true },
+  channel: { type: String, enum: ["whatsapp", "email", "sms", "webhook"], required: true },
+  recipient: { type: String, required: true },
+  subject: { type: String, default: null },
+  body: { type: String, required: true },
+  severity: { type: String, default: "medium" }, // low, medium, high, critical_escalation
+  caseId: { type: String, default: null },
+  status: { type: String, enum: ["queued", "quiet_hours_delayed", "sent", "failed", "cancelled"], default: "queued" },
+  idempotencyKey: { type: String, required: true, index: true },
+  attempts: { type: Number, default: 0 },
+  maxAttempts: { type: Number, default: 3 },
+  nextAttemptAt: { type: Date, default: () => new Date() },
+  lastAttemptAt: { type: Date, default: null },
+  deliveredAt: { type: Date, default: null },
+  lastError: { type: String, default: null },
+  deliveryReceipt: Schema.Types.Mixed,
+  metadata: Schema.Types.Mixed
+});

@@ -6,13 +6,16 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import ProtectedRoute from "@/components/auth/protected-route";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { LayoutDashboard, Files, GitBranch, MessageSquare, Upload, ShieldCheck, FlaskConical, LogOut, Menu, X, LoaderCircle, ClipboardList, Bell } from "lucide-react";
+import { LayoutDashboard, Files, GitBranch, MessageSquare, Upload, ShieldCheck, FlaskConical, LogOut, Menu, X, LoaderCircle, ClipboardList, Bell, FileSignature, TrendingUp, Radio } from "lucide-react";
 import { businessApi } from "@/lib/business-api";
 
 const links = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/purchase-orders", label: "Purchase orders", icon: ClipboardList },
   { href: "/cases", label: "Investigations", icon: GitBranch },
+  { href: "/contracts", label: "Contract obligations", icon: FileSignature },
+  { href: "/predictive-risk", label: "Predictive risk", icon: TrendingUp },
+  { href: "/outbox", label: "Communications & outbox", icon: Radio },
   { href: "/records", label: "Records", icon: Files },
   { href: "/inbox", label: "Import records", icon: Upload },
   { href: "/chat", label: "Ask Satya", icon: MessageSquare },

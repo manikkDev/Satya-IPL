@@ -50,6 +50,121 @@ export type AttentionItem = {
 export type Alert = { alertId?: string; type: string; severity: string; caseId: string; poId: string; supplier: string; message: string; status?: string; createdAt: string };
 export type DetailedAuditEntry = { _id: string; action: string; target: string; createdAt: string; role: string; caseContext: { poId: string; supplier: string; currentStatus: string; decisionCount: number } | null };
 
+// ── Contract & Legal Intelligence Types ──────────────────────────────
+export type ContractSignature = { party: string; signatoryName: string; verified: boolean; signedAt?: string };
+export type ContractClause = { clauseId: string; topic: string; text: string };
+export type ContractAgreement = {
+  id: string;
+  agreementNumber: string;
+  title: string;
+  counterparty: string;
+  category: "MOU" | "ADDENDUM" | "FRAMEWORK_MSA" | "PURCHASE_AGREEMENT";
+  supersedesAgreementId?: string;
+  effectiveDate: string;
+  expiryDate: string;
+  clauses: ContractClause[];
+  signatures: ContractSignature[];
+  status: "active" | "superseded" | "disputed" | "expired";
+  documentUrl?: string;
+};
+export type ContractObligation = {
+  id: string;
+  obligationId: string;
+  agreementId: string;
+  caseId?: string;
+  poId?: string;
+  category: "DELIVERY_MILESTONE" | "UTILIZATION_CERTIFICATE" | "SLA_UPTIME" | "REPORTING";
+  title: string;
+  description: string;
+  dueDate: string;
+  status: "pending" | "satisfied" | "waived" | "disputed_superseded";
+  disputeReason?: string;
+};
+export type ClauseContradiction = {
+  id: string;
+  counterparty: string;
+  topic: string;
+  baseAgreement: { id: string; number: string; expiryDate: string; clauseRef: string; clauseText: string };
+  supersedingDocument: { id: string; number: string; extendedExpiryDate: string; clauseRef: string; clauseText: string; allSignaturesVerified: boolean };
+  status: "superseded_authoritative" | "disputed_signature_pending";
+  recommendation: string;
+  authoritativeExpiry: string;
+};
+export type ContractView = {
+  agreements: ContractAgreement[];
+  obligations: ContractObligation[];
+  contradictions: ClauseContradiction[];
+  evidenceGraph: {
+    nodes: { id: string; label: string; title: string; type: string; effectiveDate?: string; expiryDate?: string; dueDate?: string; status: string }[];
+    edges: { id: string; source: string; target: string; type: string; label: string; status: string }[];
+  };
+};
+
+// ── Predictive Risk & Survival Types ────────────────────────────────
+export type SurvivalPoint = { day: number; survivalProbability: number; breachRiskProbability: number };
+export type PredictiveRiskCase = {
+  caseId: string;
+  poId: string;
+  supplier: string;
+  sector: string;
+  status: string;
+  currency: string;
+  financialImpact: string;
+  probabilityOfBreach: number;
+  expectedLoss: string;
+  hazardRatio: number;
+  medianDaysToBreach: number;
+  urgencyLevel: "CRITICAL" | "ELEVATED" | "MODERATE";
+  recommendedInterventionDays: number;
+  survivalCurve: SurvivalPoint[];
+  riskFeatureDecomposition: {
+    blockingFindings: { count: number; contribution: string };
+    duplicateInvoices: { count: number; contribution: string };
+    deliveryShortfall: { ratio: string; contribution: string };
+    unallocatedPayments: { count: number; contribution: string };
+    caseAgingDays: { days: number; contribution: string };
+  };
+};
+export type PredictiveRiskSummary = {
+  totalCasesAnalyzed: number;
+  totalExpectedLoss: string;
+  totalExposureUnderRisk: string;
+  averageHazardRatio: string;
+  criticalCasesCount: number;
+};
+export type PredictiveRiskView = {
+  summary: PredictiveRiskSummary;
+  cases: PredictiveRiskCase[];
+  methodology: { algorithmE: string; algorithmF: string };
+};
+
+// ── Outbox & Communications Types ───────────────────────────────────
+export type OutboxDeliveryReceipt = { messageId: string; deliveredAt: string; provider: string; status: string };
+export type OutboxMessage = {
+  id: string;
+  messageId: string;
+  channel: "whatsapp" | "email" | "sms" | "webhook";
+  recipient: string;
+  subject?: string;
+  body: string;
+  severity: "low" | "medium" | "high" | "critical";
+  caseId?: string;
+  status: "queued" | "quiet_hours_delayed" | "sent" | "failed";
+  retryCount: number;
+  scheduledFor: string;
+  sentAt?: string;
+  deliveryReceipt?: OutboxDeliveryReceipt;
+  lastError?: string;
+  createdAt: string;
+};
+export type OutboxView = {
+  messages: OutboxMessage[];
+  inQuietHours: boolean;
+  quietHoursPolicy: string;
+  statusSummary: { queued: number; quiet_hours_delayed: number; sent: number; failed: number };
+  channelSummary: { whatsapp: number; email: number; sms: number; webhook: number };
+};
+
 export const businessApi = {
   cases: () => request<BusinessCase[]>("/cases"),
   case: (id: string) => request<BusinessCase>(`/cases/${encodeURIComponent(id)}`),
@@ -81,6 +196,13 @@ export const businessApi = {
   createReminder: (id: string, body: { dueAt: string; reason: string; recipientId?: string }) => request<CaseReminder>(`/cases/${encodeURIComponent(id)}/reminders`, body),
   auditDetailed: () => request<DetailedAuditEntry[]>("/audit/detailed"),
   downloadReportUrl: (id: string, format: "json" | "csv" = "json") => `${SERVER_URL}/api/v1/cases/${encodeURIComponent(id)}/report?format=${format}`,
+  // ── Contracts, Predictive Risk & Outbox Endpoints ──────────────────
+  contracts: () => request<ContractView>("/contracts"),
+  updateObligationStatus: (id: string, body: { status: string; notes?: string }) => request<{ obligation: ContractObligation }>(`/contracts/obligations/${encodeURIComponent(id)}/status`, body),
+  predictiveRisk: () => request<PredictiveRiskView>("/predictive-risk"),
+  outbox: () => request<OutboxView>("/outbox"),
+  processOutbox: () => request<{ processedCount: number; results: unknown[] }>("/outbox/process", {}),
+  testSendNotification: (body: { channel: string; recipient: string; subject?: string; body: string; severity?: string }) => request<{ message: string; record: OutboxMessage }>("/outbox/test-send", body),
   chat: async (prompt: string, caseId?: string, conversationId?: string, onStatus?: (stage: string) => void): Promise<ChatAnswer> => {
     const response = await fetch(`${SERVER_URL_1}/api/chat/stream`, { method: "POST", headers: headers(), body: JSON.stringify({ prompt, caseId, conversationId }) });
     if (!response.ok) { const body = await response.json(); throw new Error(body.message || "Copilot unavailable"); }
