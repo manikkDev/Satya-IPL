@@ -18,6 +18,11 @@ export type SupplierRow = {
   id: string; name: string; legalName?: string; gstin: string;
   msme?: string; udyam?: { number: string; category: string; verifiedAt?: string };
   paymentTermsDays?: number;
+  pan?: string;
+  gstins?: { gstin: string; stateCode?: string; status?: string }[];
+  bankAccounts?: { masked?: string; ifsc?: string; accountHash?: string; status?: string }[];
+  addresses?: { label?: string; line1?: string; city?: string; stateCode?: string; pin?: string }[];
+  tags?: string[];
   openValue?: { amount: string; currency: string };
   overdue?: { amount: string; currency: string };
   issueCount: number;
@@ -33,6 +38,9 @@ type SupplierApi = {
   gstins?: { gstin: string; stateCode?: string; status?: string }[];
   pan?: string; udyam?: { number: string; category: "micro" | "small" | "medium"; verifiedAt?: string };
   msme?: boolean; paymentTermsDays?: number;
+  bankAccounts?: { masked?: string; ifsc?: string; accountHash?: string; status?: string }[];
+  addresses?: { label?: string; line1?: string; city?: string; stateCode?: string; pin?: string }[];
+  tags?: string[];
 };
 
 /** Shape returned by GET /api/v2/me (B). */
@@ -142,7 +150,7 @@ export const v2 = {
           );
           return {
           order: doc as unknown as OrderDetail["order"],
-          lifecycle: (doc.lifecycle ?? doc.lines?.map((l) => ({
+          lifecycle: ((Array.isArray(doc.lifecycle) ? doc.lifecycle : null) ?? doc.lines?.map((l) => ({
             lineNo: l.lineNo, ordered: l.qty ?? "0", received: "0", accepted: "0", rejected: "0",
             invoicedQty: "0", paidValue: "0",
           })) ?? []).map((line, i) => ({
@@ -196,7 +204,13 @@ export const v2 = {
   case: (id: string): Promise<typeof mockCaseDetail> =>
     mocksEnabled()
       ? mock(mockCaseDetail)
-      : fetchJson(`/api/v2/cases/${encodeURIComponent(id)}`),
+      : fetchJson<Record<string, unknown>>(`/api/v2/cases/${encodeURIComponent(id)}`).then((d) => ({
+          case: { id: d.id, title: d.title, status: d.status, kind: d.kind, subjectIds: d.subjectIds, entityId: d.entityId, groupId: d.groupId },
+          snapshot: d.snapshot ?? null,
+          documents: d.documents ?? [],
+          decisions: d.decisions ?? [],
+          findings: d.findings ?? [],
+        }) as unknown as typeof mockCaseDetail),
 
   findings: (params: Record<string, string> = {}): Promise<Page<Finding>> =>
     mocksEnabled()
@@ -284,6 +298,11 @@ export const v2 = {
               msme: s.udyam?.category,
               udyam: s.udyam,
               paymentTermsDays: s.paymentTermsDays,
+              pan: s.pan,
+              gstins: s.gstins,
+              bankAccounts: s.bankAccounts,
+              addresses: s.addresses,
+              tags: s.tags,
               openValue: undefined,
               overdue: undefined,
               issueCount: 0,
@@ -403,9 +422,24 @@ export const v2 = {
   compliance: (): Promise<Compliance> =>
     mocksEnabled()
       ? mock(mockCompliance)
-      : Promise.all([fetchJson(`/api/v2/compliance/msme`), fetchJson(`/api/v2/compliance/gstr2b`)]).then(
-          ([msme, gstr2b]) => ({ msme, gstr2b }) as Compliance,
-        ),
+      : Promise.all([
+          fetchJson<unknown>(`/api/v2/compliance/msme`),
+          fetchJson<unknown>(`/api/v2/compliance/gstr2b`),
+        ]).then(([msme, gstr2b]) => {
+          const msmeObj = (msme ?? {}) as Record<string, unknown>;
+          const gstrObj = (gstr2b ?? {}) as Record<string, unknown>;
+          const g2b = (gstrObj.gstr2b ?? gstrObj) as Record<string, unknown>;
+          return {
+            msme: Array.isArray(msme) ? msme : (msmeObj.items ?? []),
+            gstr2b: {
+              matched: g2b.matched ?? 0,
+              missingIn2B: g2b.missingIn2B ?? [],
+              missingInBooks: g2b.missingInBooks ?? [],
+              itcAtRisk: g2b.itcAtRisk ?? null,
+              period: g2b.period ?? "",
+            },
+          } as unknown as Compliance;
+        }),
 
   entities: (): Promise<{ entities: typeof mockEntities }> =>
     mocksEnabled() ? mock({ entities: mockEntities }) : fetchJson(`/api/v2/entities`),

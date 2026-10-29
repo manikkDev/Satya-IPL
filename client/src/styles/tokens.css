@@ -1,27 +1,30 @@
-/* Satya v2 design tokens (docs/plan/06 §3).
-   Scoped under .v2 so the legacy demo pages keep their current theme.
-   Raw palette tokens keep the plan's names; --color-* remaps let Tailwind /
-   shadcn-style utilities resolve to the v2 palette inside .v2.
+/* Satya v2 design tokens — "Obsidian Ledger" theme.
+   Scoped under .v2. Dark is the showcase default (html.dark via next-themes);
+   without .dark the light palette applies. Certainty/severity colours always
+   pair with icon + word — never colour alone.
 
-   Contrast (WCAG 2.2 AA, measured approx. against the paired surface):
-   light  · --ink on --paper ≈ 13.4:1   · --muted on --paper ≈ 4.7:1
-          · --accent on --surface ≈ 4.9:1 · --muted on --surface ≈ 4.9:1
-   dark   · --ink on --paper ≈ 14.1:1   · --muted on --surface ≈ 5.4:1
-          · --accent on --paper ≈ 9.6:1  · certainty colours ≥ 4.5:1 on --surface */
+   Contrast targets (WCAG 2.2 AA):
+   dark  · --ink on --paper ≈ 15.9:1 · --muted on --paper ≈ 5.1:1
+         · --accent on --paper ≈ 8.4:1 · --ink-2 on --surface ≈ 7.2:1
+   light · --ink on --paper ≈ 16.2:1 · --muted on --paper ≈ 5.4:1
+         · --accent on --surface ≈ 4.9:1 */
 
 .v2 {
-  /* palette — light */
-  --paper: #f7f6f2;
+  /* ---------- light palette ---------- */
+  --paper: #f4f5f7;
   --surface: #ffffff;
-  --surface-2: #f0eee8;
-  --ink: #14213d;
-  --ink-2: #3d4a63;
-  --muted: #6b7385;
-  --line: #e3e0d8;
+  --surface-2: #eceef1;
+  --surface-3: #e2e5e9;
+  --ink: #10151c;
+  --ink-2: #3d4653;
+  --muted: #67707f;
+  --line: #e2e5e9;
+  --line-strong: #cfd4da;
 
-  --accent: #0f766e;
-  --accent-strong: #115e59;
-  --accent-soft: #e6f3f1;
+  --accent: #0d9488;
+  --accent-strong: #0f766e;
+  --accent-soft: #ddefea;
+  --accent-glow: rgb(13 148 136 / 0.16);
 
   /* certainty — icon + word always accompany the colour */
   --confirmed: #15803d;
@@ -29,11 +32,11 @@
   --possible: #a16207;
   --unclear: #7c3aed;
   --missing: #64748b;
-  --confirmed-soft: #e4f2e7;
-  --likely-soft: #e0eef3;
-  --possible-soft: #f5ecd8;
-  --unclear-soft: #ece5f8;
-  --missing-soft: #e7eaee;
+  --confirmed-soft: #ddf0e2;
+  --likely-soft: #daedf3;
+  --possible-soft: #f6ecd4;
+  --unclear-soft: #ece4f8;
+  --missing-soft: #e6e9ed;
 
   /* severity */
   --sev-critical: #b91c1c;
@@ -41,20 +44,29 @@
   --sev-medium: #a16207;
   --sev-low: #0e7490;
   --sev-info: #475569;
-  --sev-critical-soft: #f6e3e3;
-  --sev-high-soft: #f6e7dc;
-  --sev-medium-soft: #f5ecd8;
-  --sev-low-soft: #e0eef3;
-  --sev-info-soft: #e6e9ec;
+  --sev-critical-soft: #f7e2e2;
+  --sev-high-soft: #f8e6d9;
+  --sev-medium-soft: #f6ecd4;
+  --sev-low-soft: #daedf3;
+  --sev-info-soft: #e6e9ed;
 
-  /* shape & rhythm — 4-pt spacing scale stays Tailwind default */
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
-  --shadow-1: 0 1px 2px rgb(20 33 61 / 0.06);
-  --shadow-2: 0 4px 14px rgb(20 33 61 / 0.08);
+  /* chrome */
+  --sidebar-bg: #ffffff;
+  --sidebar-line: #e2e5e9;
+  --sidebar-ink: #3d4653;
+  --sidebar-active-bg: #ddefea;
+  --sidebar-active-ink: #0f766e;
+  --topbar-bg: rgb(244 245 247 / 0.82);
+
+  /* shape & rhythm */
+  --radius-sm: 9px;
+  --radius-md: 13px;
+  --radius-lg: 18px;
+  --shadow-1: 0 1px 2px rgb(16 21 28 / 0.05), 0 1px 3px rgb(16 21 28 / 0.04);
+  --shadow-2: 0 4px 16px rgb(16 21 28 / 0.08), 0 1px 4px rgb(16 21 28 / 0.05);
+  --shadow-3: 0 16px 48px rgb(16 21 28 / 0.14);
   --content-max: 1200px;
-  --app-max: 1440px;
+  --app-max: 1520px;
 
   /* type — wired to next/font variables on <html> */
   --font-ui: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
@@ -85,63 +97,101 @@
 }
 
 .dark .v2 {
-  /* Stealth palette — near-black layered surfaces, one restrained accent.
-     Emerald reads "verified / reconciled" for a finance product; everything
-     else stays quiet so numbers carry the page. */
-  --paper: #0a0a0c;
-  --surface: #121215;
-  --surface-2: #1a1a1f;
-  --ink: #ececee;
-  --ink-2: #a7a7b0;
-  --muted: #6e6e78;
-  --line: #212126;
+  /* ---------- dark palette (showcase default) ---------- */
+  --paper: #0a0c0e;
+  --surface: #111417;
+  --surface-2: #181d22;
+  --surface-3: #20262d;
+  --ink: #ecedef;
+  --ink-2: #9fa7b3;
+  --muted: #697180;
+  --line: #1f252c;
+  --line-strong: #2c343d;
 
-  --accent: #34d399;
-  --accent-strong: #6ee7b7;
-  --accent-soft: rgb(52 211 153 / 0.11);
+  --accent: #2dd4a8;
+  --accent-strong: #5eead4;
+  --accent-soft: rgb(45 212 168 / 0.12);
+  --accent-glow: rgb(45 212 168 / 0.18);
 
   --confirmed: #34d399;
   --likely: #38bdf8;
   --possible: #fbbf24;
   --unclear: #a78bfa;
-  --missing: #73737e;
-  --confirmed-soft: rgb(52 211 153 / 0.11);
-  --likely-soft: rgb(56 189 248 / 0.11);
-  --possible-soft: rgb(251 191 36 / 0.11);
-  --unclear-soft: rgb(167 139 250 / 0.12);
-  --missing-soft: rgb(115 115 126 / 0.14);
+  --missing: #6b7480;
+  --confirmed-soft: rgb(52 211 153 / 0.12);
+  --likely-soft: rgb(56 189 248 / 0.12);
+  --possible-soft: rgb(251 191 36 / 0.12);
+  --unclear-soft: rgb(167 139 250 / 0.13);
+  --missing-soft: rgb(107 116 128 / 0.14);
 
   --sev-critical: #f87171;
   --sev-high: #fb923c;
   --sev-medium: #fbbf24;
   --sev-low: #38bdf8;
-  --sev-info: #73737e;
-  --sev-critical-soft: rgb(248 113 113 / 0.11);
-  --sev-high-soft: rgb(251 146 60 / 0.11);
-  --sev-medium-soft: rgb(251 191 36 / 0.11);
-  --sev-low-soft: rgb(56 189 248 / 0.11);
-  --sev-info-soft: rgb(115 115 126 / 0.14);
+  --sev-info: #6b7480;
+  --sev-critical-soft: rgb(248 113 113 / 0.12);
+  --sev-high-soft: rgb(251 146 60 / 0.12);
+  --sev-medium-soft: rgb(251 191 36 / 0.12);
+  --sev-low-soft: rgb(56 189 248 / 0.12);
+  --sev-info-soft: rgb(107 116 128 / 0.14);
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.5);
-  --shadow-2: 0 6px 24px rgb(0 0 0 / 0.5);
+  /* chrome — sidebar sits one step darker than the page */
+  --sidebar-bg: #0d1013;
+  --sidebar-line: #1a1f25;
+  --sidebar-ink: #9fa7b3;
+  --sidebar-active-bg: rgb(45 212 168 / 0.12);
+  --sidebar-active-ink: #5eead4;
+  --topbar-bg: rgb(10 12 14 / 0.78);
+
+  --radius-sm: 9px;
+  --radius-md: 13px;
+  --radius-lg: 18px;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4), 0 1px 3px rgb(0 0 0 / 0.3);
+  --shadow-2: 0 6px 24px rgb(0 0 0 / 0.45), 0 1px 6px rgb(0 0 0 / 0.3);
+  --shadow-3: 0 20px 60px rgb(0 0 0 / 0.55);
   --content-max: 1200px;
-  --app-max: 1440px;
+  --app-max: 1520px;
 
-  --color-destructive-foreground: #0a0a0c;
+  --color-destructive-foreground: #0a0c0e;
   --color-ring: var(--accent);
 }
 
-/* base — apply UI font inside v2 surfaces; app keeps sans headings,
-   public v2 pages opt into Fraunces via .v2-display on the heading. */
+/* ---------- base ---------- */
 .v2 {
   font-family: var(--font-ui);
   color: var(--ink);
   background: var(--paper);
+  -webkit-font-smoothing: antialiased;
 }
 .v2 h1, .v2 h2, .v2 h3, .v2 h4, .v2 h5, .v2 h6 { font-family: var(--font-ui); }
 .v2 .v2-display { font-family: var(--font-display); }
 .v2 .tnum { font-variant-numeric: tabular-nums; }
 .v2 .font-code { font-family: var(--font-code); }
+
+/* thin scrollbars inside app surfaces */
+.v2 *::-webkit-scrollbar { width: 8px; height: 8px; }
+.v2 *::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 8px; }
+.v2 *::-webkit-scrollbar-track { background: transparent; }
+.v2 *::selection { background: var(--accent-soft); color: var(--accent-strong); }
+
+/* shared card chrome */
+.v2 .card-hover {
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+.v2 .card-hover:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-2);
+}
+
+/* subtle accent glow for hero / banner surfaces — one restrained use per page */
+.v2 .glow-accent {
+  background-image:
+    radial-gradient(600px 240px at 15% 0%, var(--accent-glow), transparent 65%);
+}
+
+/* animated progress bar fill */
+.v2 .bar-anim { transition: width 600ms cubic-bezier(0.22, 0.8, 0.3, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .v2 .bar-anim { transition: none; }
+}

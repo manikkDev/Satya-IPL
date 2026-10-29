@@ -305,20 +305,20 @@ function Copilot() {
 
         <div className="mt-5 space-y-4">
           {convo.turns.length === 0 && (
-            <div className="flex flex-col items-center rounded-[var(--radius-md)] border border-dashed border-[var(--line)] bg-[var(--surface)] px-6 py-12 text-center">
-              <div className="grid h-11 w-11 place-items-center rounded-full bg-[var(--surface-2)]">
-                <MessageSquare size={20} className="text-[var(--muted)]" aria-hidden="true" />
+            <div className="glow-accent flex flex-col items-center rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] px-6 py-14 text-center shadow-[var(--shadow-1)]">
+              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[var(--accent-soft)] ring-1 ring-[var(--accent)]/25">
+                <MessageSquare size={20} className="text-[var(--accent)]" aria-hidden="true" />
               </div>
-              <p className="mt-4 text-[15px] font-medium text-[var(--ink)]">What would you like to understand?</p>
-              <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-[var(--muted)]">Ask about any order, invoice, payment or deadline in your records.</p>
-              <div className="mt-5 flex flex-wrap justify-center gap-2">
+              <p className="mt-5 text-[17px] font-semibold tracking-tight text-[var(--ink)]">What would you like to understand?</p>
+              <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-[var(--muted)]">Ask about any order, invoice, payment or deadline in your records. Answers cite the documents they came from.</p>
+              <div className="mt-6 flex flex-wrap justify-center gap-2">
                 {suggested.map((prompt) => (
                   <button
                     key={prompt}
                     type="button"
                     disabled={busy}
                     onClick={() => send(prompt)}
-                    className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-3.5 py-1.5 text-xs text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]/60 hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)]"
+                    className="rounded-full border border-[var(--line)] bg-[var(--paper)] px-4 py-2 text-[13px] text-[var(--ink-2)] transition-all hover:-translate-y-px hover:border-[var(--accent)]/60 hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)]"
                   >
                     {prompt}
                   </button>
@@ -340,9 +340,12 @@ function Copilot() {
                   <button type="button" onClick={() => send(turn.prompt)} className="ml-2 font-medium text-[var(--accent)]">Try again</button>
                 </div>
               ) : (
-                <div role="status" aria-live="polite" className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
-                  <p className="flex items-center gap-2 text-sm text-[var(--ink-2)]">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--accent)]" aria-hidden="true" />
+                <div role="status" aria-live="polite" className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-1)]">
+                  <p className="flex items-center gap-2.5 text-sm text-[var(--ink-2)]">
+                    <span className="relative flex h-2.5 w-2.5" aria-hidden="true">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-60" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--accent)]" />
+                    </span>
                     {progress || "Starting…"}
                   </p>
                 </div>
@@ -360,7 +363,7 @@ function Copilot() {
             send(question);
           }}
         >
-          <div className="flex items-end gap-2 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[var(--shadow-1)] transition-colors focus-within:border-[var(--accent)]/50">
+          <div className="flex items-end gap-2 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[var(--shadow-2)] transition-all focus-within:border-[var(--accent)]/60 focus-within:shadow-[0_0_0_3px_var(--accent-soft)]">
             <Textarea
               ref={input}
               value={question}

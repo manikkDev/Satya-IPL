@@ -4,8 +4,8 @@
 // icon + word + colour — never colour alone. Money renders formatted decimal
 // strings only.
 
-import { CheckCircle2, CircleDot, Circle, CircleHelp, CircleDashed, OctagonAlert, TriangleAlert, CircleAlert, Info, Check, MessageCircleQuestion, CircleArrowUp, PauseCircle, Inbox, RotateCcw, SearchX, type LucideIcon } from "lucide-react";
-import { motion } from "framer-motion";
+import { CheckCircle2, CircleDot, Circle, CircleHelp, CircleDashed, OctagonAlert, TriangleAlert, CircleAlert, Info, Check, MessageCircleQuestion, CircleArrowUp, PauseCircle, Inbox, RotateCcw, ArrowRight, type LucideIcon } from "lucide-react";
+import { motion, type Variants } from "framer-motion";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -26,27 +26,94 @@ export function DateText({ value, withTime, className }: { value: string | null 
   return <span className={cn("tnum", className)}>{withTime ? formatDateTimeIst(value) : formatDate(value)}</span>;
 }
 
-/** Plain word + official term, with a ≤20-word explanation on hover/focus. */
+/** Plain word + official term, with a ≤20-word explanation on hover/focus.
+ *  Renders a focusable <span> (never a button) so it is valid inside
+ *  buttons, tab triggers and table cells. */
 export function Term({ of, children, className }: { of: keyof typeof TERM_TIPS; children?: React.ReactNode; className?: string }) {
   const term = TERM_TIPS[of];
   return (
     <Tooltip>
-      <TooltipTrigger className={cn("underline decoration-dotted decoration-1 underline-offset-4 cursor-help text-inherit font-inherit p-0 bg-transparent border-0", className)}>
-        {children ?? term.label}
+      <TooltipTrigger asChild>
+        <span tabIndex={0} className={cn("underline decoration-dotted decoration-1 underline-offset-4 cursor-help text-inherit font-inherit", className)}>
+          {children ?? term.label}
+        </span>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-60 text-xs leading-relaxed">{term.tip}</TooltipContent>
     </Tooltip>
   );
 }
 
+/* ---------- buttons ---------- */
+
+type BtnVariant = "primary" | "secondary" | "ghost" | "danger" | "outline";
+
+const BTN_VARIANTS: Record<BtnVariant, string> = {
+  primary:
+    "bg-[var(--accent)] text-white shadow-[0_1px_0_rgb(0_0_0/0.2),inset_0_1px_0_rgb(255_255_255/0.12)] hover:bg-[var(--accent-strong)] hover:shadow-[var(--shadow-2)] active:translate-y-px dark:text-[#06231c]",
+  secondary:
+    "bg-[var(--surface-2)] text-[var(--ink)] border border-[var(--line)] hover:bg-[var(--surface-3)] hover:border-[var(--line-strong)]",
+  outline:
+    "border border-[var(--accent)]/45 text-[var(--accent-strong)] bg-transparent hover:bg-[var(--accent-soft)] hover:border-[var(--accent)]/70",
+  ghost:
+    "text-[var(--ink-2)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
+  danger:
+    "border border-[var(--sev-critical)]/45 text-[var(--sev-critical)] bg-transparent hover:bg-[var(--sev-critical-soft)]",
+};
+
+export function Btn({
+  variant = "primary",
+  size = "md",
+  icon: Icon,
+  className,
+  children,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: BtnVariant;
+  size?: "sm" | "md" | "lg";
+  icon?: LucideIcon;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-sm)] font-medium transition-all duration-150",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--paper)]",
+        "disabled:pointer-events-none disabled:opacity-50",
+        size === "sm" && "h-8 px-3 text-xs",
+        size === "md" && "h-9 px-4 text-sm",
+        size === "lg" && "h-11 px-5 text-[15px]",
+        BTN_VARIANTS[variant],
+        className,
+      )}
+      {...props}
+    >
+      {Icon ? <Icon size={size === "sm" ? 13 : 15} aria-hidden="true" /> : null}
+      {children}
+    </button>
+  );
+}
+
 /* ---------- layout & motion ---------- */
 
-/** Consistent page head: title + one plain-English line + optional actions. */
-export function PageHeader({ title, description, actions }: { title: React.ReactNode; description?: React.ReactNode; actions?: React.ReactNode }) {
+/** Consistent page head: eyebrow + title + one plain-English line + actions. */
+export function PageHeader({
+  title,
+  description,
+  actions,
+  eyebrow,
+}: {
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  actions?: React.ReactNode;
+  eyebrow?: string;
+}) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+    <div className="mb-7 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
       <div className="min-w-0">
-        <h1 className="text-xl font-semibold tracking-tight text-[var(--ink)]">{title}</h1>
+        {eyebrow ? (
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">{eyebrow}</p>
+        ) : null}
+        <h1 className="text-[22px] font-semibold tracking-tight text-[var(--ink)]">{title}</h1>
         {description ? <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-[var(--muted)]">{description}</p> : null}
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
@@ -59,31 +126,92 @@ export function FadeIn({ children, delay = 0, className }: { children: React.Rea
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0, y: 6 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, delay, ease: [0.21, 0.65, 0.36, 1] }}
+      transition={{ duration: 0.3, delay, ease: [0.21, 0.65, 0.36, 1] }}
     >
       {children}
     </motion.div>
   );
 }
 
-/** Card container — one surface, one border, gentle hover lift. */
-export function Card({ children, className, pad = true }: { children: React.ReactNode; className?: string; pad?: boolean }) {
+const STAGGER: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.06 } },
+};
+const STAGGER_ITEM: Variants = {
+  hidden: { opacity: 0, y: 10 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.32, ease: [0.21, 0.65, 0.36, 1] } },
+};
+
+/** Staggered entrance for grids/lists of cards. */
+export function Stagger({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn(
-      "rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-1)]",
-      pad && "p-5", className,
-    )}>
+    <motion.div className={className} variants={STAGGER} initial="hidden" animate="show">
+      {children}
+    </motion.div>
+  );
+}
+export function StaggerItem({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <motion.div className={className} variants={STAGGER_ITEM}>
+      {children}
+    </motion.div>
+  );
+}
+
+/** Scroll-reveal for long pages (lands once). */
+export function Reveal({ children, className, delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
+  return (
+    <motion.div
+      className={className}
+      initial={{ opacity: 0, y: 22 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 0.5, delay, ease: [0.21, 0.65, 0.36, 1] }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/* ---------- cards ---------- */
+
+export function Card({
+  children,
+  className,
+  pad = true,
+  hover = false,
+  glow = false,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  pad?: boolean;
+  hover?: boolean;
+  glow?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-1)]",
+        hover && "card-hover hover:-translate-y-0.5",
+        glow && "glow-accent",
+        pad && "p-5",
+        className,
+      )}
+    >
       {children}
     </div>
   );
 }
 
-export function CardTitle({ children, hint }: { children: React.ReactNode; hint?: string }) {
+export function CardTitle({ children, hint, icon: Icon }: { children: React.ReactNode; hint?: string; icon?: LucideIcon }) {
   return (
-    <div className="mb-4 flex items-baseline justify-between gap-3">
-      <h2 className="text-sm font-medium text-[var(--ink)]">{children}</h2>
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <h2 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[var(--ink)]">
+        {Icon ? <Icon size={15} className="text-[var(--muted)]" aria-hidden="true" /> : null}
+        {children}
+      </h2>
       {hint ? <span className="text-xs text-[var(--muted)]">{hint}</span> : null}
     </div>
   );
@@ -105,10 +233,10 @@ export function CertaintyBadge({ certainty, short }: { certainty: Certainty; sho
   const label = short ? CERTAINTY_LABEL[certainty].split(" — ")[0] : CERTAINTY_LABEL[certainty];
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
-      style={{ color: style.color, background: style.bg, borderColor: `color-mix(in srgb, ${style.color} 30%, transparent)` }}
+      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[11px] font-medium leading-none"
+      style={{ color: style.color, background: style.bg, borderColor: `color-mix(in srgb, ${style.color} 32%, transparent)` }}
     >
-      <Icon size={13} aria-hidden="true" />
+      <Icon size={12} aria-hidden="true" />
       {label}
     </span>
   );
@@ -127,10 +255,10 @@ export function SeverityBadge({ severity }: { severity: string }) {
   const Icon = style.icon;
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
-      style={{ color: style.color, background: style.bg, borderColor: `color-mix(in srgb, ${style.color} 30%, transparent)` }}
+      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[11px] font-medium leading-none"
+      style={{ color: style.color, background: style.bg, borderColor: `color-mix(in srgb, ${style.color} 32%, transparent)` }}
     >
-      <Icon size={13} aria-hidden="true" />
+      <Icon size={12} aria-hidden="true" />
       {style.word}
     </span>
   );
@@ -138,19 +266,39 @@ export function SeverityBadge({ severity }: { severity: string }) {
 
 export function StatusBadge({ status }: { status: string }) {
   return (
-    <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-[var(--surface-2)] text-[var(--ink-2)]">
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--line)] bg-[var(--surface-2)] px-2.5 py-[3px] text-[11px] font-medium leading-none text-[var(--ink-2)]">
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" aria-hidden="true" />
       {STATUS_LABEL[status] ?? status.replaceAll("_", " ")}
     </span>
+  );
+}
+
+/** Small filter chip used for segmented choices. */
+export function Chip({ active, children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      className={cn(
+        "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+        active
+          ? "bg-[var(--accent)] text-white dark:text-[#06231c]"
+          : "bg-[var(--surface-2)] text-[var(--ink-2)] hover:bg-[var(--surface-3)] hover:text-[var(--ink)]",
+      )}
+      {...props}
+    >
+      {children}
+    </button>
   );
 }
 
 /* ---------- actions ---------- */
 
 const ACTION_STYLE: Record<Action, { icon: LucideIcon; classes: string }> = {
-  APPROVE: { icon: Check, classes: "bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)]" },
-  REQUEST_CLARIFICATION: { icon: MessageCircleQuestion, classes: "border border-[var(--accent)] text-[var(--accent-strong)] bg-transparent hover:bg-[var(--accent-soft)]" },
-  ESCALATE: { icon: CircleArrowUp, classes: "border border-[var(--sev-high)] text-[var(--sev-high)] bg-transparent hover:bg-[var(--sev-high-soft)]" },
-  PLACE_ON_HOLD: { icon: PauseCircle, classes: "border border-[var(--sev-critical)] text-[var(--sev-critical)] bg-transparent hover:bg-[var(--sev-critical-soft)]" },
+  APPROVE: { icon: Check, classes: "bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)] dark:text-[#06231c] shadow-[0_1px_0_rgb(0_0_0/0.2)]" },
+  REQUEST_CLARIFICATION: { icon: MessageCircleQuestion, classes: "border border-[var(--accent)]/45 text-[var(--accent-strong)] bg-transparent hover:bg-[var(--accent-soft)]" },
+  ESCALATE: { icon: CircleArrowUp, classes: "border border-[var(--sev-high)]/50 text-[var(--sev-high)] bg-transparent hover:bg-[var(--sev-high-soft)]" },
+  PLACE_ON_HOLD: { icon: PauseCircle, classes: "border border-[var(--sev-critical)]/50 text-[var(--sev-critical)] bg-transparent hover:bg-[var(--sev-critical-soft)]" },
 };
 
 export function ActionButton({
@@ -175,8 +323,8 @@ export function ActionButton({
     <button
       type="button"
       className={cn(
-        "inline-flex items-center gap-2 rounded-[var(--radius-sm)] px-4 py-2 text-sm font-medium transition-colors",
-        "disabled:opacity-50 disabled:cursor-not-allowed",
+        "inline-flex items-center gap-2 rounded-[var(--radius-sm)] px-4 py-2 text-sm font-medium transition-all duration-150 hover:-translate-y-px",
+        "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0",
         style.classes,
       )}
       disabled={disabled}
@@ -184,7 +332,7 @@ export function ActionButton({
       title={disabled ? disabledReason : undefined}
       onClick={onClick}
     >
-      <Icon size={16} aria-hidden="true" />
+      <Icon size={15} aria-hidden="true" />
       {label}
     </button>
   );
@@ -199,7 +347,22 @@ export function ActionButton({
   return button;
 }
 
-/* ---------- cards & states ---------- */
+/* ---------- stat card ---------- */
+
+/** Tiny inline sparkline (display only; values are pre-computed y-coords 0..1). */
+export function Sparkline({ points, className, color = "var(--accent)" }: { points: number[]; className?: string; color?: string }) {
+  if (points.length < 2) return null;
+  const width = 72;
+  const height = 22;
+  const step = width / (points.length - 1);
+  const path = points.map((p, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)},${(height - p * (height - 2) - 1).toFixed(1)}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className={cn("h-[22px] w-[72px] overflow-visible", className)} aria-hidden="true">
+      <path d={path} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+      <circle cx={(points.length - 1) * step} cy={height - points[points.length - 1] * (height - 2) - 1} r="2.4" fill={color} />
+    </svg>
+  );
+}
 
 export function StatCard({
   label,
@@ -208,6 +371,8 @@ export function StatCard({
   delta,
   seeWhy,
   onSeeWhy,
+  spark,
+  tone,
 }: {
   label: string;
   tip?: string;
@@ -215,23 +380,42 @@ export function StatCard({
   delta?: string;
   seeWhy?: string;
   onSeeWhy?: () => void;
+  /** Normalised sparkline points 0..1 (display only). */
+  spark?: number[];
+  tone?: "default" | "warn" | "good";
 }) {
+  const accent =
+    tone === "warn" ? "var(--sev-high)" : tone === "good" ? "var(--confirmed)" : "var(--accent)";
   return (
-    <article className="group rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)] transition-all duration-200 hover:border-[color-mix(in_srgb,var(--ink-2)_25%,transparent)] hover:shadow-[var(--shadow-2)]">
-      <p className="text-[13px] text-[var(--muted)] flex items-center gap-1">
-        {tip ? (
-          <Tooltip>
-            <TooltipTrigger className="underline decoration-dotted underline-offset-4 cursor-help">{label}</TooltipTrigger>
-            <TooltipContent side="top" className="max-w-60 text-xs">{tip}</TooltipContent>
-          </Tooltip>
-        ) : label}
-      </p>
-      <p className="mt-2.5 text-[28px] leading-8 font-semibold tnum tracking-tight text-[var(--ink)]">{value}</p>
-      <div className="mt-3 flex items-center justify-between gap-2">
-        {delta ? <span className="text-xs text-[var(--muted)]">{delta}</span> : <span />}
+    <article className="group relative overflow-hidden rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--line-strong)] hover:shadow-[var(--shadow-2)]">
+      <span
+        className="absolute inset-x-5 top-0 h-px opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+        style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }}
+        aria-hidden="true"
+      />
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[13px] text-[var(--muted)]">
+          {tip ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={0} className="underline decoration-dotted underline-offset-4 cursor-help">{label}</span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-60 text-xs">{tip}</TooltipContent>
+            </Tooltip>
+          ) : label}
+        </p>
+        {spark ? <Sparkline points={spark} color={accent} /> : null}
+      </div>
+      <p className="mt-3 text-[26px] leading-8 font-semibold tnum tracking-tight text-[var(--ink)]">{value}</p>
+      <div className="mt-3.5 flex items-center justify-between gap-2">
+        {delta ? <span className="text-xs leading-snug text-[var(--muted)]">{delta}</span> : <span />}
         {seeWhy ? (
-          <button type="button" onClick={onSeeWhy} className="text-xs font-medium text-[var(--accent)] transition-colors hover:text-[var(--accent-strong)] hover:underline">
-            {seeWhy}
+          <button
+            type="button"
+            onClick={onSeeWhy}
+            className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-[var(--accent)] transition-colors hover:text-[var(--accent-strong)]"
+          >
+            {seeWhy} <ArrowRight size={12} aria-hidden="true" />
           </button>
         ) : null}
       </div>
@@ -239,18 +423,37 @@ export function StatCard({
   );
 }
 
+/* ---------- progress ---------- */
+
+export function Progress({
+  value,
+  tone = "var(--accent)",
+  className,
+}: {
+  value: number; // 0..100
+  tone?: string;
+  className?: string;
+}) {
+  const clamped = Math.max(0, Math.min(100, value));
+  return (
+    <div className={cn("h-[5px] w-full overflow-hidden rounded-full bg-[var(--surface-3)]", className)} role="progressbar" aria-valuenow={clamped} aria-valuemin={0} aria-valuemax={100}>
+      <div className="bar-anim h-full rounded-full" style={{ width: `${clamped}%`, background: tone }} />
+    </div>
+  );
+}
+
+/* ---------- states ---------- */
+
 export function EmptyState({ title, body, actionLabel, onAction, icon: Icon = Inbox }: { title: string; body?: string; actionLabel?: string; onAction?: () => void; icon?: LucideIcon }) {
   return (
-    <div className="flex flex-col items-center rounded-[var(--radius-md)] border border-dashed border-[var(--line)] bg-[var(--surface)] px-6 py-14 text-center">
-      <div className="grid h-11 w-11 place-items-center rounded-full bg-[var(--surface-2)]">
-        <Icon size={20} className="text-[var(--muted)]" aria-hidden="true" />
+    <div className="flex flex-col items-center rounded-[var(--radius-md)] border border-dashed border-[var(--line-strong)] bg-[var(--surface)] px-6 py-14 text-center">
+      <div className="grid h-12 w-12 place-items-center rounded-full bg-[var(--accent-soft)]">
+        <Icon size={20} className="text-[var(--accent)]" aria-hidden="true" />
       </div>
       <p className="mt-4 text-[15px] font-medium text-[var(--ink)]">{title}</p>
       {body ? <p className="mt-1.5 max-w-md text-sm leading-relaxed text-[var(--muted)]">{body}</p> : null}
       {actionLabel ? (
-        <button type="button" onClick={onAction} className="mt-5 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-strong)]">
-          {actionLabel}
-        </button>
+        <Btn onClick={onAction} className="mt-5">{actionLabel}</Btn>
       ) : null}
     </div>
   );
@@ -279,3 +482,14 @@ export function StatCardSkeleton() {
     </div>
   );
 }
+
+/* ---------- table chrome ---------- */
+
+export const tableShell =
+  "overflow-hidden rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-1)]";
+export const tableHeadRow = "border-b border-[var(--line)] bg-[var(--surface-2)]/60";
+export const tableTh =
+  "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)]";
+export const tableTd = "px-4 py-3.5 text-sm text-[var(--ink-2)]";
+export const tableRow =
+  "border-b border-[var(--line)] last:border-0 transition-colors hover:bg-[var(--surface-2)]/50";

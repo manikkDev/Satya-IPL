@@ -30,13 +30,13 @@ export function DataTable<T>({
   });
 
   return (
-    <div className="overflow-x-auto rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)]">
+    <div className="overflow-x-auto rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-1)]">
       <table className="w-full text-sm" aria-label={ariaLabel}>
-        <thead className="sticky top-0 bg-[var(--surface)]">
+        <thead className="sticky top-0 bg-[var(--surface-2)]/70 backdrop-blur">
           {table.getHeaderGroups().map((group) => (
             <tr key={group.id} className="border-b border-[var(--line)]">
               {group.headers.map((header) => (
-                <th key={header.id} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+                <th key={header.id} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">
                   {header.isPlaceholder ? null : header.column.getCanSort() ? (
                     <button
                       type="button"
@@ -72,12 +72,12 @@ export function DataTable<T>({
               }
               tabIndex={onRowClick ? 0 : undefined}
               className={cn(
-                "border-b border-[var(--line)] last:border-0",
-                onRowClick && "cursor-pointer hover:bg-[var(--surface-2)] focus-visible:outline-2 focus-visible:outline-[var(--accent)]",
+                "border-b border-[var(--line)] last:border-0 transition-colors",
+                onRowClick && "cursor-pointer hover:bg-[var(--surface-2)]/60 focus-visible:outline-2 focus-visible:outline-[var(--accent)]",
               )}
             >
               {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} className="px-3 py-2.5 text-[var(--ink-2)]">
+                <td key={cell.id} className="px-4 py-3.5 text-[var(--ink-2)]">
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
               ))}

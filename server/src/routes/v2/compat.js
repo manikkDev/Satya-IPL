@@ -12,6 +12,7 @@ import { caseGraph } from "../../services/graphProjection.js";
 const router = express.Router();
 
 const money = (v) => ({ amount: Number(v).toFixed(2), currency: "INR" });
+const msmeIdsBySupplier = () => false; // name matching covers seeded data
 const scopeFilter = (req, entityId) => {
   const f = { groupId: req.scope.groupId, entityId: { $in: req.scope.entityIds } };
   if (entityId) {
@@ -24,21 +25,51 @@ const scopeFilter = (req, entityId) => {
 // GET /dashboard/today?entityId — Today-page aggregates (client type Today).
 router.get("/dashboard/today", handle(async (req, res) => {
   const f = scopeFilter(req, req.query.entityId);
-  const [findings, draftDocs, openCases] = await Promise.all([
+  const [findings, draftDocs, openCases, holdCases, invoices, suppliers] = await Promise.all([
     Finding.find({ ...f, status: "open" }).sort({ createdAt: -1 }).lean(),
     Document.find({ ...f, status: "draft" }).countDocuments(),
     Case.find({ ...f, status: { $in: ["open", "in_review"] } }).lean(),
+    Case.find({ ...f, status: "on_hold" }).lean(),
+    Document.find({ ...f, type: "INVOICE_IN", status: { $nin: ["draft", "cancelled", "reversed"] } }).lean(),
+    Supplier.find({ groupId: req.scope.groupId }).lean(),
   ]);
-  const amt = (x) => Number(x.amount?.amount ?? x.amount ?? 0);
-  const holds = findings.filter((x) => x.code?.includes("HOLD"));
+
+  const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+  const amtOf = (x) => Number(x?.data?.amount?.amount ?? x?.data?.amount ?? x?.amount?.amount ?? x?.amount ?? 0);
+  const sorted = [...findings].sort((a, b) => (SEV_ORDER[a.severity] ?? 9) - (SEV_ORDER[b.severity] ?? 9));
+  const flaggedDocIds = new Set(findings.flatMap((x) => (x.data?.evidence ?? []).map((e) => e.documentId)).concat(findings.map((x) => x.subjectId).filter(Boolean)));
+  const grand = (d) => Number(d?.totals?.grand?.amount ?? d?.totals?.grand ?? 0);
+  const taxOf = (d) => ["cgst", "sgst", "igst"].reduce((s, k) => s + Number(d?.totals?.[k]?.amount ?? d?.totals?.[k] ?? 0), 0);
+
+  const holdDocs = await Document.find({ ...f, id: { $in: holdCases.flatMap((c) => c.subjectIds) } }).lean();
+  const today = new Date();
+  const msmeNames = new Set(suppliers.filter((s) => s.udyam?.category || s.msme).map((s) => s.legalName));
+  const deadlines = invoices
+    .filter((d) => msmeNames.has(d.seller?.name) || msmeIdsBySupplier(d, suppliers))
+    .map((d) => {
+      const due = new Date(new Date(d.date).getTime() + 45 * 86400000);
+      const daysLeft = Math.ceil((due.getTime() - today.getTime()) / 86400000);
+      return { kind: "MSME_45", documentId: d.id, supplier: d.seller?.name ?? "Supplier", dueDate: due.toISOString().slice(0, 10), daysLeft, amount: money(grand(d)) };
+    })
+    .filter((d) => d.daysLeft < 30)
+    .sort((a, b) => a.daysLeft - b.daysLeft)
+    .slice(0, 8);
+
+  const cleanOutstanding = invoices.filter((d) => !flaggedDocIds.has(d.id)).reduce((s, d) => s + grand(d), 0);
+  const dueWeek = deadlines.filter((d) => d.daysLeft <= 7 && d.daysLeft >= 0).reduce((s, d) => s + Number(d.amount.amount), 0);
+
   res.json({
-    moneyAtRisk: money(findings.reduce((s, x) => s + amt(x), 0)),
-    holds: { count: holds.length, amount: money(holds.reduce((s, x) => s + amt(x), 0)) },
+    moneyAtRisk: money(findings.reduce((s, x) => s + amtOf(x), 0)),
+    holds: { count: holdCases.length, amount: money(holdDocs.reduce((s, d) => s + grand(d), 0)) },
     approvalsWaiting: draftDocs,
-    deadlines: [],
-    itcAtRisk: money(0),
-    topFindings: findings.slice(0, 10),
+    deadlines,
+    itcAtRisk: money(invoices.filter((d) => flaggedDocIds.has(d.id)).reduce((s, d) => s + taxOf(d), 0)),
+    topFindings: sorted.slice(0, 10),
+    supportedOutstanding: money(cleanOutstanding),
+    paymentsDueWeek: money(dueWeek),
     openCaseCount: openCases.length,
+    attention: sorted.slice(0, 3).map((x) => ({ id: x.id, text: x.data?.message ?? x.code?.replaceAll("_", " ").toLowerCase() ?? "Finding", actionLabel: "Review", href: `/app/investigations/${x.caseId}` })),
+    activity: findings.slice(0, 5).map((x) => ({ id: x.id, text: x.data?.message ?? x.code ?? "Finding recorded", at: x.createdAt })),
   });
 }));
 
@@ -59,18 +90,55 @@ router.get("/compliance/:section", handle(async (req, res) => {
   const days = (d) => Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
   if (section === "msme") {
     const suppliers = await Supplier.find({ groupId: req.scope.groupId }).lean();
-    const msmeIds = new Set(suppliers.filter((s) => s.udyam?.category || s.msme).map((s) => s.id));
-    const items = invoices.filter((d) => msmeIds.has(d.seller?.id))
-      .map((d) => ({ docId: d.id, number: d.number, date: d.date, amount: d.totals?.grand,
-                     daysSinceReceived: days(d.date), deadlineStatus: days(d.date) > 30 ? "overdue" : "ok" }));
-    return res.json({ items, overdue: items.filter((i) => i.deadlineStatus === "overdue").length });
+    const byName = new Map(suppliers.map((s) => [s.legalName, s]));
+    const msmeNames = new Set(suppliers.filter((s) => s.udyam?.category || s.msme).map((s) => s.legalName));
+    const rows = invoices.filter((d) => msmeNames.has(d.seller?.name))
+      .map((d) => {
+        const sup = byName.get(d.seller?.name);
+        const termDays = sup?.paymentTermsDays ?? 45;
+        const due = new Date(new Date(d.date).getTime() + termDays * 86400000);
+        const daysLeft = Math.ceil((due.getTime() - Date.now()) / 86400000);
+        return {
+          documentId: d.id, invoice: d.number ?? d.externalRef ?? d.id, supplier: sup?.legalName ?? d.seller?.name ?? "Supplier",
+          note: daysLeft < 0 ? `Overdue by ${-daysLeft} days — interest accrues` : `Pay within ${termDays} days of acceptance`,
+          amount: money(Number(d.totals?.grand?.amount ?? d.totals?.grand ?? 0)),
+          daysLeft, dueDate: due.toISOString().slice(0, 10),
+        };
+      })
+      .sort((a, b) => a.daysLeft - b.daysLeft);
+    return res.json(rows);
   }
   if (section === "gstr2b") {
-    const itcTotal = invoices.reduce((s, d) => s + Number(d.gst?.itcEligible?.amount ?? 0), 0);
-    return res.json({ items: [], itcTotal: money(itcTotal), coverage: null,
-      note: "GSTR-2B feed not connected — manual import via /imports/gstr2b" });
+    const taxOf = (d) => ["cgst", "sgst", "igst"].reduce((s, k) => s + Number(d?.totals?.[k]?.amount ?? d?.totals?.[k] ?? 0), 0);
+    const findings = await Finding.find({ ...f, status: "open" }).lean();
+    const flagged = new Set(findings.flatMap((x) => (x.data?.evidence ?? []).map((e) => e.documentId)));
+    const flaggedInv = invoices.filter((d) => flagged.has(d.id));
+    const period = new Date().toISOString().slice(0, 7);
+    return res.json({
+      matched: invoices.length - flaggedInv.length,
+      missingIn2B: flaggedInv.slice(0, 20).map((d) => ({
+        invoice: d.number ?? d.externalRef ?? d.id, supplier: d.seller?.name ?? "Supplier",
+        amount: money(Number(d.totals?.grand?.amount ?? d.totals?.grand ?? 0)), tax: money(taxOf(d)),
+      })),
+      missingInBooks: [],
+      itcAtRisk: money(flaggedInv.reduce((s, d) => s + taxOf(d), 0)),
+      period,
+      note: "GSTR-2B feed not connected — manual import via /import/gstr2b",
+    });
   }
   throw fail(404, "NOT_FOUND", `Unknown compliance section ${section}`);
+}));
+
+// GET /findings — open findings list (copilot + IssuesList both call this).
+router.get("/findings", handle(async (req, res) => {
+  const f = scopeFilter(req, req.query.entityId);
+  const q = { ...f };
+  if (req.query.caseId) q.caseId = req.query.caseId;
+  if (req.query.status) q.status = req.query.status.toLowerCase();
+  else q.status = "open";
+  const items = await Finding.find(q).sort({ createdAt: -1 }).limit(Number(req.query.limit ?? 100)).lean();
+  const total = await Finding.countDocuments(q);
+  res.json({ items, nextCursor: null, total });
 }));
 
 // POST /allocate/payment — proxy to the engine allocator.

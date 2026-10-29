@@ -42,8 +42,8 @@ export default function RootLayout({
       >
         <ThemeProvider
           attribute="class"
-          defaultTheme="light"
-          enableSystem
+          defaultTheme="dark"
+          enableSystem={false}
         >
           <div className="relative min-h-full">
             <AuthProvider>

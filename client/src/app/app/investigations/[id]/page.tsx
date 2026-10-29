@@ -16,7 +16,7 @@ const MoneyTrail = dynamic(() => import("@/components/v2/money-trail").then((m) 
 });
 import {
   Money, DateText, StatusBadge, CertaintyBadge, SeverityBadge,
-  ActionButton, ErrorState, FadeIn, Card,
+  ActionButton, ErrorState, EmptyState, FadeIn, Card, PageHeader,
 } from "@/components/ui/v2";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -135,6 +135,17 @@ export default function InvestigationDetailPage() {
   if (isLoading || !data) return <div className="space-y-4"><Skeleton className="h-28 w-full" /><Skeleton className="h-80 w-full" /></div>;
 
   const { case: caseData, snapshot, documents, decisions } = data;
+  if (!snapshot) {
+    return (
+      <FadeIn className="space-y-5">
+        <PageHeader title={caseData.title || id} description="This check has not been reconciled yet — run the check to build evidence." />
+        <EmptyState
+          title="No findings yet"
+          body="Satya has not checked this case yet. Once reconciliation runs, findings, balances and the money trail appear here."
+        />
+      </FadeIn>
+    );
+  }
   const recommendation = snapshot.recommendation;
   const balances = snapshot.balances;
   const sortedFindings = [...snapshot.findings].sort(
@@ -160,8 +171,9 @@ export default function InvestigationDetailPage() {
       </div>
 
       {/* recommendation banner */}
-      <div className="rounded-[var(--radius-md)] border border-[var(--line)] border-l-4 border-l-[var(--sev-high)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)]">
-        <p className="text-base font-medium leading-relaxed text-[var(--ink)]">
+      <div className="glow-accent relative overflow-hidden rounded-[var(--radius-md)] border border-[var(--line)] border-l-4 border-l-[var(--sev-high)] bg-[var(--surface)] p-5 shadow-[var(--shadow-2)]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--sev-high)]">Recommended next step</p>
+        <p className="mt-2 text-base font-medium leading-relaxed text-[var(--ink)]">
           {recommendation.reasons.join(" ")}
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
@@ -188,7 +200,8 @@ export default function InvestigationDetailPage() {
               { label: BALANCE_TERMS.disputedExposure.label, tip: BALANCE_TERMS.disputedExposure.tip, value: balances.disputed, tone: "var(--sev-high)" },
               { label: BALANCE_TERMS.recordedPayable.label, tip: BALANCE_TERMS.recordedPayable.tip, value: balances.recorded, tone: "var(--ink)" },
             ].map((balance) => (
-              <Card key={balance.label} className="transition-colors hover:border-[var(--ink-2)]/25">
+              <Card key={balance.label} hover className="relative overflow-hidden">
+                <span className="absolute inset-x-5 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${balance.tone}, transparent)` }} aria-hidden="true" />
                 <p className="text-[13px] text-[var(--muted)]">{balance.label}</p>
                 <p className="mt-2.5 text-[26px] font-semibold tnum tracking-tight" style={{ color: balance.tone }}>
                   <Money value={balance.value} />

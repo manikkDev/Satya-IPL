@@ -108,6 +108,9 @@ services:
       PORT: 5001
       ML_API_URL: http://ml-fl-service:8000
       GRAPH_API_URL: http://server:5002
+      FEATURE_V2_COPILOT_V2: "1"
+      FEATURE_V2_ML_V2: "1"
+      FEATURE_V2_AI_USAGE_METER: "1"
     ports:
       - "127.0.0.1:5001:5001"
     depends_on:
@@ -131,12 +134,14 @@ services:
         NEXT_PUBLIC_GRAPH_API_URL: http://localhost:5002
         NEXT_PUBLIC_ML_API_URL: http://localhost:8000
         NEXT_PUBLIC_APP_V2: "1"
+        NEXT_PUBLIC_USE_MOCKS: "0"
     environment:
       PORT: 3000
       NEXT_PUBLIC_MAIN_API_URL: http://localhost:5001
       NEXT_PUBLIC_GRAPH_API_URL: http://localhost:5002
       NEXT_PUBLIC_ML_API_URL: http://localhost:8000
       NEXT_PUBLIC_APP_V2: "1"
+      NEXT_PUBLIC_USE_MOCKS: "0"
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:

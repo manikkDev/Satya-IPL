@@ -11,7 +11,7 @@ import { v2 } from "@/lib/api/v2";
 import { useSession } from "@/components/v2/session";
 import {
   Money, StatCard, StatCardSkeleton, DateText, ErrorState, Term,
-  Card, CardTitle, FadeIn,
+  Card, CardTitle, FadeIn, Stagger, StaggerItem,
 } from "@/components/ui/v2";
 import { BALANCE_TERMS } from "@/content/copy/vocabulary";
 import { daysLeftText } from "@/lib/format";
@@ -56,29 +56,36 @@ export default function TodayPage() {
         <ErrorState message={error instanceof Error ? error.message : "Something went wrong."} onRetry={() => refetch()} />
       ) : (
         <>
-          <section aria-label="Key numbers" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Stagger className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4" key="stats" >
             {isLoading || !data ? (
               <>
                 <StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton />
               </>
             ) : (
               <>
+                <StaggerItem>
                 <StatCard
                   label={BALANCE_TERMS.evidenceSupportedPayable.label}
                   tip={BALANCE_TERMS.evidenceSupportedPayable.tip}
                   value={<Money value={data.supportedOutstanding ?? null} />}
                   delta="Backed by delivered & accepted goods"
                   seeWhy="See why"
+                  tone="good"
                   onSeeWhy={() => router.push("/app/investigations")}
                 />
+                </StaggerItem>
+                <StaggerItem>
                 <StatCard
                   label={BALANCE_TERMS.disputedExposure.label}
                   tip={BALANCE_TERMS.disputedExposure.tip}
                   value={<Money value={data.moneyAtRisk} />}
                   delta={`${data.holds.count} hold${data.holds.count === 1 ? "" : "s"} · ${data.approvalsWaiting} approvals waiting`}
                   seeWhy="See why"
+                  tone="warn"
                   onSeeWhy={() => router.push("/app/investigations")}
                 />
+                </StaggerItem>
+                <StaggerItem>
                 <StatCard
                   label={BALANCE_TERMS.itcAtRisk.label}
                   tip={BALANCE_TERMS.itcAtRisk.tip}
@@ -87,6 +94,8 @@ export default function TodayPage() {
                   seeWhy="See why"
                   onSeeWhy={() => router.push("/app/compliance")}
                 />
+                </StaggerItem>
+                <StaggerItem>
                 <StatCard
                   label="Payments due this week"
                   tip="Payments that must go out this week to stay within agreed terms."
@@ -95,9 +104,10 @@ export default function TodayPage() {
                   seeWhy="See payments"
                   onSeeWhy={() => router.push("/app/payments")}
                 />
+                </StaggerItem>
               </>
             )}
-          </section>
+          </Stagger>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
             <section aria-label="Needs your attention" className="lg:col-span-3">
