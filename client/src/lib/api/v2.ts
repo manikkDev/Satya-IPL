@@ -79,6 +79,16 @@ export type RenderModel = {
 
 export type FileDoc = { id: string; filename?: string; mime?: string; sha256?: string; entityId?: string; status?: string };
 
+export type EntityPolicy = {
+  entityId?: string;
+  tolerance?: { priceAbs?: string; pricePct?: string; qtyPctByUom?: Record<string, string> };
+  msme?: { defaultDays?: number };
+  approvals?: { requireMakerChecker?: boolean };
+  autoConfirmHighConfidence?: boolean;
+};
+
+export type ItemRow = { id: string; code: string; description: string; hsn?: string; uom?: string; gstRate?: string };
+
 export type IngestDraft = {
   id: string; fileId: string; status: "queued" | "parsing" | "extracting" | "needs_review" | "confirmed" | "failed";
   detectedType?: string; fields?: Record<string, { value?: string; confidence?: "high" | "check" | "low"; source?: string; quote?: string } | string>;
@@ -352,6 +362,21 @@ export const v2 = {
 
   confirmIngestDraft: (id: string): Promise<{ documentId: string; status: string }> =>
     fetchJson(`/api/v2/ingest/drafts/${encodeURIComponent(id)}/confirm`, { method: "POST" }),
+
+  // entity policy (B3)
+  policy: (entityId: string): Promise<EntityPolicy> =>
+    fetchJson(`/api/v2/policies/${encodeURIComponent(entityId)}`),
+  putPolicy: (entityId: string, body: Partial<EntityPolicy>): Promise<EntityPolicy> =>
+    fetchJson(`/api/v2/policies/${encodeURIComponent(entityId)}`, { method: "PUT", body: JSON.stringify(body) }),
+
+  items: (params: Record<string, string> = {}): Promise<{ items: ItemRow[] }> =>
+    fetchJson(`/api/v2/items${qs(params)}`),
+  itemSearch: (q: string): Promise<{ items: ItemRow[] }> =>
+    fetchJson(`/api/v2/items/search${qs({ q })}`),
+  createItem: (body: unknown): Promise<ItemRow> =>
+    fetchJson(`/api/v2/items`, { method: "POST", body: JSON.stringify(body) }),
+  createSupplier: (body: unknown): Promise<SupplierApi> =>
+    fetchJson(`/api/v2/suppliers`, { method: "POST", body: JSON.stringify(body) }),
 
   // public verify (02 §5.3)
   verify: (hash: string): Promise<{ valid: boolean; type?: string; number?: string; entityName?: string; date?: string; grandTotal?: string; status?: string }> =>
