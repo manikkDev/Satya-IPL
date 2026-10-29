@@ -7,7 +7,7 @@ export const ROLES = [
 ];
 
 export const PERMISSIONS = [
-  "group.manage", "entity.manage", "user.manage", "policy.manage",
+  "group.manage", "entity.manage", "user.manage", "policy.manage", "master.manage",
   "pr.raise", "po.create", "po.approve",
   "grn.record", "qc.record", "doc.upload", "import.data",
   "finding.decide",
@@ -21,20 +21,20 @@ const EVERYONE = [...ROLES];
 const ROLE_PERMISSIONS = {
   platform_admin: [...PERMISSIONS],
   group_admin: [
-    "group.manage", "entity.manage", "user.manage", "policy.manage",
+    "group.manage", "entity.manage", "user.manage", "policy.manage", "master.manage",
     "po.approve", "supplier.bank.maker", "evidence.export", "audit.read", "copilot.use",
   ],
   entity_admin: [
-    "entity.manage", "user.manage", "policy.manage",
+    "entity.manage", "user.manage", "policy.manage", "master.manage",
     "po.approve", "supplier.bank.maker", "evidence.export", "audit.read", "copilot.use",
   ],
   requester: ["pr.raise", "copilot.use"],
-  buyer: ["pr.raise", "po.create", "doc.upload", "copilot.use"],
+  buyer: ["pr.raise", "po.create", "doc.upload", "master.manage", "copilot.use"],
   stores: ["grn.record", "doc.upload", "copilot.use"],
   quality: ["qc.record", "copilot.use"],
-  ap_clerk: ["doc.upload", "import.data", "copilot.use"],
+  ap_clerk: ["doc.upload", "import.data", "master.manage", "copilot.use"],
   ap_manager: [
-    "po.approve", "doc.upload", "import.data", "finding.decide",
+    "po.approve", "doc.upload", "import.data", "master.manage", "finding.decide",
     "payment.release.maker", "supplier.bank.checker",
     "evidence.export", "audit.read", "copilot.use",
   ],

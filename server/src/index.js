@@ -4,12 +4,14 @@ import cors from "cors";
 import connectDB from "./config/db.js";
 import routes from "./routes/index.js";
 import seedDemoUsers from "./seedDemoUsers.js";
+import { seedHsnMaster } from "./services/seed/hsn.js";
 import { startWorker } from "./utils/businessService.js";
 import { statusPage } from "./statusPage.js";
 
 // Connect to database
 await connectDB();
 await seedDemoUsers();
+seedHsnMaster().then((r) => r.seeded && console.log(`HSN master seeded: ${r.seeded} codes (v${r.version})`)).catch((e) => console.warn("HSN seed skipped:", e.message));
 startWorker();
 const app = express();
 app.set("trust proxy", 1);
