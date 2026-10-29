@@ -130,7 +130,11 @@ router.post("/:id/allocate", handle(async (req, res) => {
   const payment = await loadPayment(req, req.params.id);
   if (expectedRevision !== undefined && payment.revision !== expectedRevision)
     throw fail(409, "CONFLICT", `Stale document — revision is ${payment.revision}`, { expectedRevision: payment.revision });
-  if (payment.createdBy === actor(req)) return sodDeny(res, "You recorded this payment — a colleague must allocate it", req.id);
+  // Maker–checker applies to payments a person recorded in the app — not to
+  // bank-imported lines or demo constructions (no human "maker" act exists).
+  const humanRecorded = payment.source?.channel === "created_in_satya" || payment.provenance === "USER_PROVIDED";
+  if (humanRecorded && payment.createdBy === actor(req))
+    return sodDeny(res, "You recorded this payment — a colleague must allocate it", req.id);
 
   const targets = await openTargets(req, payment);
   const valid = new Map([...targets.openInvoices.map((i) => [i.id, i]), ...targets.credits.map((c) => [c.id, c])]);

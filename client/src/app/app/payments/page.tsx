@@ -133,12 +133,12 @@ function Drawer({ paymentId, onClose }: { paymentId: string; onClose: () => void
     <motion.div className="fixed inset-0 z-50" role="dialog" aria-label="Allocate payment" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
       <motion.aside
-        className="absolute inset-y-0 right-0 flex w-full max-w-lg flex-col border-l border-[var(--line)] bg-[var(--paper)] shadow-[var(--shadow-3)]"
+        className="absolute inset-y-0 right-0 flex w-full max-w-5xl flex-col border-l border-[var(--line)] bg-[var(--paper)] shadow-[var(--shadow-3)]"
         initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
         transition={{ type: "spring", stiffness: 340, damping: 34 }}
       >
         {/* header */}
-        <div className="flex items-center gap-3 border-b border-[var(--line)] px-5 py-4">
+        <div className="flex items-center gap-3 border-b border-[var(--line)] px-6 py-4">
           <span className="grid h-9 w-9 place-items-center rounded-[var(--radius-sm)] bg-[var(--accent-soft)] text-[var(--accent)]"><Wallet size={17} /></span>
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-sm font-semibold text-[var(--ink)]">Link this payment to invoices</h2>
@@ -159,21 +159,43 @@ function Drawer({ paymentId, onClose }: { paymentId: string; onClose: () => void
               <p className="mt-1 text-sm text-[var(--muted)]">Reconciliation is running — findings update on their own.</p>
             </motion.div>
           ) : (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-              {/* step 1 — what this payment is */}
-              <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">The payment</p>
-                <div className="mt-2 flex items-baseline justify-between gap-3">
-                  <p className="tnum text-2xl font-semibold tracking-tight text-[var(--ink)]"><Money value={remaining} /></p>
-                  {payment.date && <DateText value={payment.date} className="text-xs text-[var(--muted)]" />}
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid gap-5 lg:grid-cols-[280px_1fr]">
+              {/* left rail — payment summary + stats */}
+              <div className="space-y-4">
+                <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">The payment</p>
+                  <p className="tnum mt-2 text-3xl font-semibold tracking-tight text-[var(--ink)]"><Money value={remaining} /></p>
+                  <dl className="mt-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between"><dt className="text-[var(--muted)]">Date</dt><dd className="text-[var(--ink)]">{payment.date ? <DateText value={payment.date} /> : "—"}</dd></div>
+                    <div className="flex justify-between"><dt className="text-[var(--muted)]">Bank ref</dt><dd className="font-code text-[var(--ink)]">{payment.utr || "none"}</dd></div>
+                    <div className="flex justify-between"><dt className="text-[var(--muted)]">Payment ID</dt><dd className="max-w-36 truncate font-code text-[var(--ink)]">{payment.id}</dd></div>
+                  </dl>
+                  <p className="mt-3 border-t border-[var(--line)] pt-3 text-xs leading-relaxed text-[var(--ink-2)]">
+                    {payment.utr
+                      ? "This transfer isn't tied to any invoice yet. Tell Satya which invoices it settled."
+                      : "No bank reference yet — you can still record which invoices it was for."}
+                  </p>
                 </div>
-                <p className="mt-1.5 text-xs leading-relaxed text-[var(--ink-2)]">
-                  {payment.utr
-                    ? <>Bank reference <span className="font-code">{payment.utr}</span> went out but isn&apos;t tied to any invoice yet. Say which invoices it paid.</>
-                    : <>This payment has no bank reference yet. You can still record which invoices it was for — add the UTR when you have it.</>}
-                </p>
+
+                {/* stats */}
+                <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-1">
+                  {[
+                    { label: "Open invoices", value: String(openInvoices.length), note: "in this entity" },
+                    { label: "Open value", value: `₹${openInvoices.reduce((s, i) => s + Number(i.openAmount || 0), 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`, note: "unpaid supplier bills" },
+                    { label: "Picked", value: String(Object.keys(picked).length), note: "invoices selected" },
+                    { label: "Coverage", value: `${remainingNum ? Math.min(100, Math.round((chosenTotal / remainingNum) * 100)) : 0}%`, note: "of the payment" },
+                  ].map((s) => (
+                    <div key={s.label} className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-3">
+                      <p className="text-[10px] uppercase tracking-wide text-[var(--muted)]">{s.label}</p>
+                      <p className="tnum mt-1 text-lg font-semibold tracking-tight text-[var(--ink)]">{s.value}</p>
+                      <p className="text-[10px] text-[var(--muted)]">{s.note}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
 
+              {/* right — options + manual */}
+              <div className="space-y-4">
               {/* step 2 — engine options */}
               {solutions.length > 0 && (
                 <div>
@@ -259,6 +281,7 @@ function Drawer({ paymentId, onClose }: { paymentId: string; onClose: () => void
                     ))}
                   </div>
                 )}
+              </div>
               </div>
             </motion.div>
           )}
