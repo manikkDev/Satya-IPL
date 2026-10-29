@@ -1,0 +1,28 @@
+{
+  "generatedAt": "2026-10-29T12:04:54.446144Z",
+  "seed": 42,
+  "documents": 187,
+  "links": 99,
+  "labels": 9,
+  "provenance": "CONSTRUCTED_DEMO \u2014 synthetic only, not real-world validated",
+  "blocking": {
+    "recall": 1.0,
+    "positives": 46,
+    "admitted": 46
+  },
+  "model": {
+    "task": "invoice_po_line",
+    "pairs": 138,
+    "holdout": 28,
+    "prAuc": 1.0,
+    "conformalQHat": 0.0267,
+    "conformalCoverage": 1.0,
+    "avgSetSize": 0.321,
+    "abstentionRate": 0.6786
+  },
+  "limitations": [
+    "All metrics on generator output \u2014 not validated on real data",
+    "BPI-2019 lag distributions pending (download blocked)",
+    "PR-AUC/splits are group-by-supplier only"
+  ]
+}
