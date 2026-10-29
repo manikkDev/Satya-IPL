@@ -1,3 +1,5 @@
+> **Superseded (29 Oct 2026):** this describes the hackathon prototype. The current team guide is in [`docs/team/`](team/).
+
 # Satya — Project Overview (Team & Presentation Guide)
 
 > **One-liner:** Satya reconstructs what a company ordered, received, was billed for, and actually paid — then explains every discrepancy with proof, instead of guessing.

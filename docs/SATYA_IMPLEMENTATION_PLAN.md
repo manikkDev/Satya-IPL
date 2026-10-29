@@ -1,3 +1,5 @@
+> **Superseded (29 Oct 2026):** this describes the hackathon prototype. The current plan is in [`docs/plan/00_START_HERE.md`](plan/00_START_HERE.md).
+
 # Satya — Evidence-Led Business Discrepancy Investigator
 
 ## 0. Document control and agent instructions
