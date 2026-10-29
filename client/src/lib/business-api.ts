@@ -73,9 +73,11 @@ export type ContractObligation = {
   agreementId: string;
   caseId?: string;
   poId?: string;
-  category: "DELIVERY_MILESTONE" | "UTILIZATION_CERTIFICATE" | "SLA_UPTIME" | "REPORTING";
+  category?: string;
+  type?: string;
   title: string;
-  description: string;
+  description?: string;
+  sourceClauseRef?: string;
   dueDate: string;
   status: "pending" | "satisfied" | "waived" | "disputed_superseded";
   disputeReason?: string;

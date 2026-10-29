@@ -251,22 +251,28 @@ export default function ContractsPage() {
                       <td><strong>{obl.obligationId}</strong></td>
                       <td>
                         <strong>{obl.title}</strong>
-                        <p style={{ margin: "0.2rem 0 0", fontSize: "0.825rem", color: "var(--muted-foreground)" }}>
-                          {obl.description}
-                        </p>
+                        {(obl.description || obl.sourceClauseRef) && (
+                          <p style={{ margin: "0.2rem 0 0", fontSize: "0.825rem", color: "var(--muted-foreground)" }}>
+                            {obl.description || `Clause Ref: ${obl.sourceClauseRef}`}
+                          </p>
+                        )}
                         {obl.disputeReason && (
                           <small style={{ color: "#f59e0b" }}>Note: {obl.disputeReason}</small>
                         )}
                       </td>
                       <td>
-                        <span className="satya-tag">{obl.category.replaceAll("_", " ")}</span>
+                        <span className="satya-tag">
+                          {((obl.type || obl.category || "OBLIGATION") as string).replaceAll("_", " ")}
+                        </span>
                       </td>
                       <td>
-                        {new Date(obl.dueDate).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" })}
+                        {obl.dueDate
+                          ? new Date(obl.dueDate).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" })
+                          : "—"}
                       </td>
                       <td>
                         <span className={`satya-status ${obl.status === "satisfied" ? "ok" : obl.status === "waived" ? "info" : "review"}`}>
-                          {obl.status.replaceAll("_", " ")}
+                          {(obl.status || "pending").replaceAll("_", " ")}
                         </span>
                       </td>
                       <td>

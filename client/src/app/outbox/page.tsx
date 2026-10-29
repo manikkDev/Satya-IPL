@@ -329,7 +329,7 @@ export default function OutboxPage() {
                               : ""
                           }`}
                         >
-                          {m.severity.toUpperCase()}
+                          {(m.severity || "medium").toUpperCase()}
                         </span>
                       </td>
                       <td>
@@ -344,7 +344,7 @@ export default function OutboxPage() {
                               : ""
                           }`}
                         >
-                          {m.status.replaceAll("_", " ")}
+                          {(m.status || "queued").replaceAll("_", " ")}
                         </span>
                       </td>
                       <td>{m.retryCount}</td>
