@@ -18,12 +18,6 @@ def call(method, path, **kwargs):
     return asyncio.run(request())
 
 
-@pytest.fixture
-def auth(monkeypatch):
-    monkeypatch.setenv("NODE_INTERNAL_TOKEN", "owner-test-token-not-a-production-secret")
-    return {"x-internal-token": "owner-test-token-not-a-production-secret"}
-
-
 def test_public_health_and_root():
     assert call("GET", "/").status_code == 200
     for path in ("/health", "/ready"):

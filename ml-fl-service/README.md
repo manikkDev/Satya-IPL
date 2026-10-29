@@ -28,6 +28,13 @@ only in the `test` target, never the deployed image.
 - `/internal/demo`, `/internal/evaluation`: service-token authenticated reads.
 - `/internal/import-preview`, `/internal/reconcile`: service-token authenticated
   computations.
+- `GET /v2/schema`: self-contained JSON Schemas for the frozen domain, graph,
+  tax-request and GSTIN-request types. Requires `FEATURE_V2_RECON_V2=1` and the
+  internal service token; all v2 features are off unless explicitly enabled.
+
+Unspecified nested request structures (`DocumentLink`, `entityPolicy`, scenario
+and review payloads) are awaiting the contract custodian. They are not silently
+published as permissive dictionaries.
 
 The matching model uses constructed data, not real-world accuracy evidence.
 Missing artifacts do not disable deterministic reconciliation.
