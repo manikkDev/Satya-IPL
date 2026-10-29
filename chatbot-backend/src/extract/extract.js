@@ -16,9 +16,20 @@ const schemaCache = new Map();
 const MAX_IMAGES = 3;
 const MAX_TEXT_CHARS = 60_000;
 
+// Accepts the contract task names AND lowercased DocType values (server
+// sends parsed.detectedType like "INVOICE_IN" → "invoice_in").
 const TASK_TO_SCHEMA = {
-  invoice: "invoice", po: "po", pi: "pi", grn: "grn",
-  challan: "challan", bank_statement: "bank_statement", generic: "generic",
+  invoice: "invoice", invoice_in: "invoice", invoice_out: "invoice",
+  credit_note_in: "invoice", debit_note_in: "invoice",
+  credit_note_out: "invoice", debit_note_out: "invoice",
+  po: "po", po_amendment: "po", release_order: "po", po_ack: "po",
+  pi: "pi", pi_in: "pi", pi_out: "pi", quotation: "pi",
+  grn: "grn", qc: "grn", return: "grn",
+  challan: "challan", delivery_challan: "challan", eway_bill: "challan", lr: "challan",
+  bank_statement: "bank_statement", bank_line: "bank_statement",
+  payment_out: "bank_statement", payment_in: "bank_statement",
+  advance_out: "bank_statement", remittance_advice: "bank_statement",
+  generic: "generic",
 };
 
 export function loadSchema(task) {
