@@ -22,6 +22,8 @@ const STATUS_OPTIONS = [
 
 function ProgressCell({ pct }: { pct: string }) {
   const value = Math.min(100, Math.max(0, Number(pct)));
+  if (value === 0) return <span className="text-xs text-[var(--muted)]">not started</span>;
+  if (value >= 100) return <span className="tnum text-xs font-medium text-[var(--confirmed)]">100%</span>;
   return (
     <span className="inline-flex items-center gap-2">
       <span className="h-1.5 w-14 overflow-hidden rounded-full bg-[var(--surface-2)]">

@@ -126,9 +126,34 @@ export default function OrderDetailPage() {
         </div>
       </Card>
 
+      {/* order statistics */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {(() => {
+          const ordered = lifecycle.reduce((s, l) => s + Number(l.ordered ?? 0), 0);
+          const received = lifecycle.reduce((s, l) => s + Number(l.received ?? 0), 0);
+          const invoiced = lifecycle.reduce((s, l) => s + Number(l.invoiced ?? 0), 0);
+          const paid = lifecycle.reduce((s, l) => s + Number(l.paid ?? 0), 0);
+          const pct = (n: number) => (ordered ? Math.min(100, Math.round((n / ordered) * 100)) : 0);
+          const stats = [
+            { label: "Ordered", value: String(ordered), note: "units agreed" },
+            { label: "Received", value: `${pct(received)}%`, note: `${received} of ${ordered} delivered`, tone: received > 0 ? "var(--accent)" : undefined },
+            { label: "Invoiced", value: `${pct(invoiced)}%`, note: `${invoiced} units billed`, tone: invoiced > received ? "var(--sev-high)" : undefined },
+            { label: "Paid", value: `${pct(paid)}%`, note: `${paid} units settled`, tone: paid > 0 ? "var(--confirmed)" : undefined },
+          ];
+          return stats.map((s) => (
+            <Card key={s.label} pad={false} className="p-4">
+              <p className="text-[11px] uppercase tracking-wide text-[var(--muted)]">{s.label}</p>
+              <p className="tnum mt-1.5 text-xl font-semibold tracking-tight" style={{ color: s.tone ?? "var(--ink)" }}>{s.value}</p>
+              <p className="mt-0.5 text-[11px] text-[var(--muted)]">{s.note}</p>
+            </Card>
+          ));
+        })()}
+      </div>
+
       {/* delivery schedule */}
       <Card>
         <h2 className="text-sm font-semibold text-[var(--ink)]">Delivery schedule</h2>
+        {schedule.length === 0 && <p className="mt-3 text-xs text-[var(--muted)]">No delivery batches recorded — this order has no schedule lines yet.</p>}
         <ul className="mt-3 space-y-2">
           {schedule.map((batch) => (
             <li key={batch.batch} className="flex flex-wrap items-center justify-between gap-2 text-sm">

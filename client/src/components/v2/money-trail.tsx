@@ -170,16 +170,19 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
   const [live, setLive] = useState("");
   const router = useRouter();
 
+  // B's neo4j projection carries no replay timeline — only snapshot graphs do.
+  const timeline = graph.timeline ?? [];
+
   const visibleIds = useMemo(() => {
     if (replay === null) return null;
     const nodes = new Set<string>();
     const edges = new Set<string>();
-    graph.timeline.slice(0, replay + 1).forEach((step) => {
+    timeline.slice(0, replay + 1).forEach((step) => {
       step.nodeIds.forEach((id) => nodes.add(id));
       step.edgeIds.forEach((id) => edges.add(id));
     });
     return { nodes, edges };
-  }, [replay, graph.timeline]);
+  }, [replay, timeline]);
 
   const filtered = useMemo(() => {
     const nodeOk = (node: GraphNode) => {
@@ -450,7 +453,7 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
           )}
 
           {/* replay */}
-          {graph.timeline.length > 1 && !listView && (
+          {timeline.length > 1 && !listView && (
             <div className="flex items-center gap-3 border-t border-[var(--line)] px-3 py-2.5">
               <Play size={14} className="text-[var(--muted)]" aria-hidden="true" />
               <label htmlFor="replay" className="text-xs font-medium text-[var(--ink-2)]">What did we know…</label>
@@ -458,17 +461,17 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
                 id="replay"
                 type="range"
                 min={0}
-                max={graph.timeline.length - 1}
-                value={replay ?? graph.timeline.length - 1}
+                max={timeline.length - 1}
+                value={replay ?? timeline.length - 1}
                 onChange={(event) => {
                   const value = Number(event.target.value);
-                  setReplay(value >= graph.timeline.length - 1 ? null : value);
+                  setReplay(value >= timeline.length - 1 ? null : value);
                 }}
                 className="w-48 accent-[var(--accent)]"
-                aria-valuetext={replay === null ? "Everything we know now" : `As of ${graph.timeline[replay].at}`}
+                aria-valuetext={replay === null ? "Everything we know now" : `As of ${timeline[replay].at}`}
               />
               <span className="text-xs text-[var(--muted)]">
-                {replay === null ? "Everything we know now" : `As of ${graph.timeline[replay].at}`}
+                {replay === null ? "Everything we know now" : `As of ${timeline[replay].at}`}
               </span>
               {replay !== null && (
                 <button type="button" onClick={() => setReplay(null)} className="inline-flex items-center gap-1 text-xs text-[var(--accent)]">

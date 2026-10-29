@@ -5,6 +5,7 @@
 // issues, the money trail, and the decisions behind it all.
 
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Sparkles, FileSearch, FileDown, X, ArrowUpRight } from "lucide-react";
@@ -174,11 +175,11 @@ export default function InvestigationDetailPage() {
       <div className="glow-accent relative overflow-hidden rounded-[var(--radius-md)] border border-[var(--line)] border-l-4 border-l-[var(--sev-high)] bg-[var(--surface)] p-5 shadow-[var(--shadow-2)]">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--sev-high)]">Recommended next step</p>
         <p className="mt-2 text-base font-medium leading-relaxed text-[var(--ink)]">
-          {recommendation.reasons.join(" ")}
+          {recommendation?.reasons?.length ? recommendation.reasons.join(" ") : "Review the issues below and decide the next step."}
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <ActionButton action={recommendation.action} amount={recommendation.scope?.holdAmount} />
-          {recommendation.scope?.approveAmount && (
+          {recommendation?.action && <ActionButton action={recommendation.action} amount={recommendation.scope?.holdAmount} />}
+          {recommendation?.scope?.approveAmount && (
             <ActionButton action="APPROVE" amount={recommendation.scope.approveAmount} />
           )}
           <ActionButton
@@ -253,23 +254,77 @@ export default function InvestigationDetailPage() {
             {sortedFindings.every((f) => !f.calculation.length) && (
               <p className="text-sm text-[var(--muted)]">No calculation steps recorded for this snapshot.</p>
             )}
+            {Array.isArray(snapshot.lines) && snapshot.lines.length > 0 && (
+              <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
+                <h3 className="text-sm font-semibold text-[var(--ink)]">Order line lifecycle</h3>
+                <div className="mt-2 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-[var(--line)] text-left text-xs text-[var(--muted)]">
+                        <th className="py-2 pr-3">Line</th><th className="pr-3">Ordered</th><th className="pr-3">Received</th>
+                        <th className="pr-3">Accepted</th><th className="pr-3">Invoiced</th><th className="pr-3">Paid</th><th>Open</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {snapshot.lines.map((line) => (
+                        <tr key={line.lineNo} className="border-b border-[var(--line)] last:border-0 text-[var(--ink-2)]">
+                          <td className="tnum py-2 pr-3 font-code text-xs">{line.lineNo}</td>
+                          <td className="tnum pr-3">{line.ordered}</td>
+                          <td className="tnum pr-3">{line.received}</td>
+                          <td className="tnum pr-3">{line.accepted}</td>
+                          <td className="tnum pr-3">{line.invoiced}</td>
+                          <td className="tnum pr-3">{line.paid}</td>
+                          <td className="tnum">{line.open}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         </TabsContent>
 
         <TabsContent value="documents">
-          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {documents.map((doc) => (
-              <li key={doc.id} className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium text-[var(--ink)]">{doc.number}</p>
-                  <StatusBadge status={doc.status} />
-                </div>
-                <p className="mt-1 text-xs text-[var(--muted)]">{doc.type} · <DateText value={doc.date} /></p>
-                {doc.amount && <p className="tnum mt-2 text-sm font-medium text-[var(--ink)]"><Money value={doc.amount} /></p>}
-                {doc.finding && <p className="mt-2 text-xs text-[var(--sev-high)]">{doc.finding}</p>}
-              </li>
-            ))}
-          </ul>
+          {documents.length === 0 ? (
+            <EmptyState title="No documents linked" body="Subject documents appear here once this case has been built." />
+          ) : (
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {documents.map((doc) => (
+                <li key={doc.id} className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-[var(--ink)]">{doc.number}</p>
+                    <StatusBadge status={doc.status} />
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--muted)]">{doc.type} · <DateText value={doc.date} /></p>
+                  {doc.amount && <p className="tnum mt-2 text-sm font-medium text-[var(--ink)]"><Money value={doc.amount} /></p>}
+                  {doc.finding && <p className="mt-2 text-xs text-[var(--sev-high)]">{doc.finding}</p>}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {doc.type === "PO" && (
+                      <Link href={`/app/orders/${doc.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline">
+                        Open order <ArrowUpRight size={12} />
+                      </Link>
+                    )}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const model = await v2.renderModel(doc.id);
+                          const { downloadDocumentPdf } = await import("@/components/v2/po-pdf");
+                          await downloadDocumentPdf(model);
+                        } catch (e) {
+                          alert(e instanceof Error ? e.message : "Preview could not be generated");
+                        }
+                      }}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline"
+                    >
+                      <FileDown size={12} /> Preview PDF
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </TabsContent>
 
         <TabsContent value="decisions">

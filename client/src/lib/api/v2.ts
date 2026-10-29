@@ -150,6 +150,76 @@ const normalizeFinding = (f: Record<string, unknown>, index = 0, docNames?: Map<
   } as unknown as Finding;
 };
 
+/** Engine doc types → graph lane; neo4j nodes only carry `type`. */
+const typeToStage = (type: string): GraphPayload["nodes"][number]["stage"] =>
+  type === "FINDING"
+    ? "finding"
+    : type === "SUPPLIER" || type === "ENTITY"
+      ? "party"
+      : type === "PO" || type === "PI_IN" || type === "PI_OUT"
+        ? "order"
+        : type === "DELIVERY_CHALLAN" || type === "LR"
+          ? "dispatch"
+          : type === "GRN" || type === "DELIVERY"
+            ? "receipt"
+            : type === "QC"
+              ? "inspection"
+              : type === "PAYMENT_OUT" || type === "PAYMENT_IN" || type === "ADVANCE_OUT" || type === "REMITTANCE_ADVICE" || type === "BANK_LINE"
+                ? "payment"
+                : type === "GSTR2B_ENTRY" || type === "IMS_ACTION" || type === "CREDIT_NOTE_IN" || type === "CREDIT_NOTE_OUT"
+                  ? "tax"
+                  : "invoice";
+
+/** B's /cases/:id/graph payload (neo4j or snapshot fallback) → GraphPayload.
+ *  Neo4j projections lack timeline/label/explanation — fill honest defaults. */
+const normalizeGraph = (g: GraphPayload & { snapshotId?: string }): GraphPayload => ({
+  nodes: (g.nodes ?? []).map((n) => ({
+    ...n,
+    stage: n.stage ?? typeToStage(String(n.type ?? "")),
+    label: n.label ?? (n as unknown as Record<string, unknown>).number ?? n.id,
+    type: (n.type ?? "OTHER") as GraphPayload["nodes"][number]["type"],
+  })),
+  edges: (g.edges ?? []).map((e, i) => ({
+    ...e,
+    id: e.id ?? `e-${e.source}-${e.target}-${e.kind ?? i}`,
+    kind: (e.kind ?? (e as unknown as Record<string, unknown>).type ?? "LINKED") as string,
+    label: e.label ?? String(e.kind ?? "linked").replaceAll("_", " ").toLowerCase(),
+    explanation: e.explanation ?? ((e as unknown as Record<string, unknown>).basis as string) ?? "",
+    certainty: e.certainty ?? "CONFIRMED",
+    evidenceIds: e.evidenceIds ?? [],
+  })),
+  timeline: g.timeline ?? [],
+  source: g.source ?? "snapshot",
+});
+
+/** Engine ledger (flat decimal strings) → the page's three-balance shape.
+ *  Disputed = the gap between what books show and what evidence supports. */
+const moneyOf = (v: unknown, currency = "INR") =>
+  v && typeof v === "object" ? (v as { amount: string; currency: string }) : v != null ? { amount: String(v), currency } : undefined;
+
+const ledgerToBalances = (ledger: Record<string, unknown> | undefined) => {
+  if (!ledger) return undefined;
+  const supported = moneyOf(ledger.supportedOutstanding ?? ledger.supported);
+  const recorded = moneyOf(ledger.recordedOutstanding ?? ledger.canonicalOutstanding ?? ledger.recorded);
+  if (!supported && !recorded) return undefined;
+  const s = Number(supported?.amount ?? 0);
+  const r = Number(recorded?.amount ?? 0);
+  return {
+    supported: supported ?? { amount: "0.00", currency: "INR" },
+    recorded: recorded ?? { amount: "0.00", currency: "INR" },
+    disputed: { amount: Math.max(0, r - s).toFixed(2), currency: "INR" },
+  };
+};
+
+/** Engine recommendation.reasons are finding codes — present them as
+ *  the finding titles (or readable code words), deduplicated. */
+const prettifyReasons = (reasons: unknown, findings: Finding[]): string[] => {
+  const titles = new Map(findings.map((f) => [f.code, f.title]));
+  return [...new Set((Array.isArray(reasons) ? reasons : []).map(String))].map(
+    (r) => titles.get(r) ?? r.replaceAll("_", " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase()),
+  );
+};
+
 const mock = <T>(value: T): Promise<T> => Promise.resolve(structuredClone(value));
 const qs = (params: Record<string, string>) => {
   const query = new URLSearchParams(params).toString();
@@ -268,9 +338,44 @@ export const v2 = {
           return {
             case: { id: d.id, title: d.title, status: d.status, kind: d.kind, subjectIds: d.subjectIds, entityId: d.entityId, groupId: d.groupId },
             snapshot: snap
-              ? { ...snap, findings: (Array.isArray(snap.findings) ? snap.findings : []).map((f, i) => normalizeFinding(f as Record<string, unknown>, i, docNames)) }
+              ? (() => {
+                  const snapFindings = (Array.isArray(snap.findings) ? snap.findings : []).map((f, i) =>
+                    normalizeFinding(f as Record<string, unknown>, i, docNames),
+                  );
+                  const rec = (snap.recommendation ?? null) as Record<string, unknown> | null;
+                  return {
+                    ...snap,
+                    findings: snapFindings,
+                    lines: (Array.isArray(snap.lines) ? snap.lines : []).map((l) => {
+                      const r = l as Record<string, unknown>;
+                      return {
+                        lineNo: Number(r.lineNo ?? 0),
+                        ordered: String(r.ordered ?? "0"),
+                        received: String(r.received ?? "0"),
+                        accepted: String(r.accepted ?? "0"),
+                        rejected: String(r.rejected ?? "0"),
+                        invoiced: String(r.invoiced ?? r.invoicedQty ?? "0"),
+                        paid: String(r.paid ?? r.paidValue ?? "0"),
+                        open: String(r.open ?? "0"),
+                      };
+                    }),
+                    balances: snap.balances ?? ledgerToBalances(snap.ledger as Record<string, unknown> | undefined),
+                    recommendation: rec
+                      ? { ...rec, reasons: prettifyReasons(rec.reasons, snapFindings) }
+                      : null,
+                  };
+                })()
               : null,
-            documents: d.documents ?? [],
+            documents: (Array.isArray(d.documents) ? d.documents : []).map((doc) => {
+              const raw = doc as Record<string, unknown>;
+              const totals = (raw.totals ?? {}) as Record<string, unknown>;
+              return {
+                ...raw,
+                number: raw.number ?? raw.externalRef ?? raw.id,
+                status: raw.status ?? "recorded",
+                amount: moneyOf(raw.amount ?? totals.grand),
+              };
+            }),
             decisions: (Array.isArray(d.decisions) ? d.decisions : []).map((x) => {
               const raw = x as Record<string, unknown>;
               return {
@@ -298,7 +403,9 @@ export const v2 = {
   graph: (caseId: string, asOf?: string): Promise<GraphPayload> =>
     mocksEnabled()
       ? mock(flagshipGraph)
-      : fetchJson<GraphPayload>(`/api/v2/graph/case/${encodeURIComponent(caseId)}${asOf ? `?asOf=${encodeURIComponent(asOf)}` : ""}`),
+      : fetchJson<GraphPayload>(`/api/v2/cases/${encodeURIComponent(caseId)}/graph${asOf ? `?asOf=${encodeURIComponent(asOf)}` : ""}`).then(
+          (g) => normalizeGraph(g),
+        ),
 
   drafts: (params: Record<string, string> = {}): Promise<{ items: Draft[] }> =>
     mocksEnabled()
