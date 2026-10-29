@@ -168,21 +168,7 @@ export const v2 = {
   orders: (params: Record<string, string> = {}): Promise<Page<OrderListRow>> =>
     mocksEnabled()
       ? mock({ items: mockOrders, nextCursor: null, total: mockOrders.length })
-      : fetchJson<Page<DocView>>(`/api/v2/documents${qs({ type: "PO", ...params })}`).then((page) => ({
-          items: page.items.map((doc) => ({
-            id: doc.id,
-            number: doc.number ?? doc.externalRef ?? doc.id,
-            supplier: doc.seller?.name ?? "—",
-            entity: doc.entityId,
-            date: doc.date,
-            status: doc.status,
-            value: { amount: doc.totals?.grand ?? "0.00", currency: "INR" },
-            deliveredPct: "0", invoicedPct: "0", paidPct: "0",
-            issueCount: 0,
-          })),
-          nextCursor: page.nextCursor,
-          total: page.total ?? page.items.length,
-        })),
+      : fetchJson<Page<OrderListRow>>(`/api/v2/orders${qs(params)}`),
 
   order: (id: string): Promise<OrderDetail> =>
     mocksEnabled()
@@ -196,19 +182,38 @@ export const v2 = {
           const linkedDocs = await Promise.all(
             linkedIds.slice(0, 20).map((id2) => v2.document(id2).catch(() => null)),
           );
+          const computedGrand = (doc.lines ?? []).reduce((s, l) => s + Number(l.qty ?? 0) * Number(l.rate ?? 0), 0);
+          const docWithTotals = { ...doc, totals: doc.totals ?? (computedGrand ? { grand: computedGrand.toFixed(2) } : doc.totals) };
           return {
-          order: doc as unknown as OrderDetail["order"],
-          lifecycle: ((Array.isArray(doc.lifecycle) ? doc.lifecycle : null) ?? doc.lines?.map((l) => ({
+          order: docWithTotals as unknown as OrderDetail["order"],
+          lifecycle: (((Array.isArray(doc.lifecycle) ? doc.lifecycle : (doc.lifecycle as { lines?: LifecycleLine[] } | null)?.lines) ?? doc.lines?.map((l) => ({
             lineNo: l.lineNo, ordered: l.qty ?? "0", received: "0", accepted: "0", rejected: "0",
-            invoicedQty: "0", paidValue: "0",
-          })) ?? []).map((line, i) => ({
-            lineNo: line.lineNo,
-            description: doc.lines?.[i]?.description ?? "",
-            ordered: line.ordered, received: line.received, accepted: line.accepted,
-            rejected: line.rejected ?? "0", invoiced: line.invoicedQty ?? "0",
-            paid: (line as { paidValue?: string }).paidValue ?? "0", open: "0",
-          })),
-          schedule: [] as OrderDetail["schedule"],
+            invoiced: "0", paid: "0", open: l.qty ?? "0",
+          }))) ?? []).map((line) => {
+            const raw = line as Record<string, unknown> & { lineNo: number };
+            const src = doc.lines?.find((l) => l.lineNo === raw.lineNo);
+            return {
+              lineNo: raw.lineNo,
+              description: src?.description ?? "",
+              ordered: String(raw.ordered ?? "0"), received: String(raw.received ?? "0"),
+              accepted: String(raw.accepted ?? "0"), rejected: String(raw.rejected ?? "0"),
+              invoiced: String(raw.invoicedQty ?? raw.invoiced ?? "0"),
+              paid: String(raw.paidValue ?? raw.paid ?? "0"),
+              open: String(raw.open ?? Math.max(0, Number(raw.ordered ?? 0) - Number(raw.received ?? 0))),
+            };
+          }),
+          schedule: (doc.lines ?? [])
+            .map((l, i) => {
+              const sd = (l as { scheduleDate?: string }).scheduleDate;
+              if (!sd) return null;
+              const receivedQty = 0;
+              return {
+                batch: `Batch ${i + 1}`, qty: l.qty ?? "0", dueDate: sd,
+                receivedQty: String(receivedQty),
+                overdue: new Date(`${sd}T00:00:00`).getTime() < Date.now() && receivedQty < Number(l.qty ?? 0),
+              };
+            })
+            .filter(Boolean) as OrderDetail["schedule"],
           documents: linkedDocs.filter((d): d is NonNullable<typeof d> => d !== null).map((d) => ({
             id: d.id,
             type: d.type,

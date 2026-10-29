@@ -24,15 +24,25 @@ const allocStatus = (doc) => {
 };
 
 // GET /payments — worklist: every PAYMENT_OUT/IN with computed allocation
-// state, latest-first, cursor paginated.
+// state. Page-based pagination + free-text search + sort for the workbench UI.
+// Status is derived, so we fetch the sorted slice (bounded), compute, filter,
+// then page — fine at demo scale.
 router.get("/", handle(async (req, res) => {
   const entityId = req.query.entityId || req.scope.activeEntityId;
-  const { cursor, limit = "50", status } = req.query;
+  const { status, q } = req.query;
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize) || 10));
   const filter = { groupId: req.scope.groupId, type: { $in: ["PAYMENT_OUT", "PAYMENT_IN", "ADVANCE_OUT", "ADVANCE_IN"] } };
   if (entityId && scopeAllows(req.scope, "reports.view", entityId)) filter.entityId = entityId;
-  if (cursor) filter.id = { $lt: cursor };
-  const docs = await Document.find(filter).sort({ date: -1, id: -1 }).limit(Number(limit) + 1).lean();
-  const items = docs.slice(0, Number(limit)).map((d) => ({
+  if (q && String(q).trim()) {
+    const rx = { $regex: String(q).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
+    filter.$or = [{ "payment.utr": rx }, { "seller.name": rx }, { number: rx }, { "seller.gstin": rx }, { externalRef: rx }];
+  }
+  const sorts = { date_asc: { date: 1, id: -1 }, amount_desc: { "payment.amount": -1 }, amount_asc: { "payment.amount": 1 } };
+  const sort = sorts[req.query.sort] || { date: -1, id: -1 };
+  // bounded fetch for in-memory status filter + paging (allocation status is derived).
+  const docs = await Document.find(filter).sort(sort).limit(500).lean();
+  const all = docs.map((d) => ({
     id: d.id, type: d.type, number: d.number || null, date: d.date,
     amount: d.payment?.amount || null, utr: d.payment?.utr || null,
     mode: d.payment?.mode || null, valueDate: d.payment?.valueDate || null,
@@ -44,8 +54,11 @@ router.get("/", handle(async (req, res) => {
     allocatedTotal: (d.payment?.allocations || []).reduce((s, a) => s + Number(a.amount || 0), 0).toFixed(2),
     allocations: (d.payment?.allocations || []).map((a) => ({ documentId: a.documentId, amount: a.amount, basis: a.basis })),
     provenance: d.provenance, statusDoc: d.status,
-  })).filter((i) => !status || i.status === status);
-  res.json({ items, nextCursor: docs.length > Number(limit) ? items[items.length - 1]?.id : undefined });
+  }));
+  const filtered = status ? all.filter((i) => i.status === status) : all;
+  const start = (page - 1) * pageSize;
+  const items = filtered.slice(start, start + pageSize);
+  res.json({ items, total: filtered.length, page, pageSize, pages: Math.max(1, Math.ceil(filtered.length / pageSize)) });
 }));
 
 const loadPayment = async (req, id) => {

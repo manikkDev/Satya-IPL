@@ -2,6 +2,7 @@
 // Thin shims over the same models — no new business logic lives here.
 import express from "express";
 import Document from "../../models/Document.js";
+import DocumentLink from "../../models/DocumentLink.js";
 import Case from "../../models/Case.js";
 import Finding from "../../models/Finding.js";
 import Supplier from "../../models/Supplier.js";
@@ -155,6 +156,54 @@ router.get("/compliance/:section", handle(async (req, res) => {
     });
   }
   throw fail(404, "NOT_FOUND", `Unknown compliance section ${section}`);
+}));
+
+// GET /orders — PO worklist with computed value + fulfilment percentages.
+// Raw documents have no totals stored; value = sum(qty*rate). Delivered/
+// invoiced/paid percentages come from RECEIVES/BILLS/SETTLES links.
+router.get("/orders", handle(async (req, res) => {
+  const f = scopeFilter(req, req.query.entityId);
+  const limit = Math.min(Number(req.query.limit ?? 50), 200);
+  const cursor = Number(req.query.cursor ?? 0);
+  const q = { ...f, type: "PO", status: { $nin: ["draft", "cancelled", "reversed"] } };
+  const [items, total] = await Promise.all([
+    Document.find(q).sort({ date: -1, number: -1 }).skip(cursor).limit(limit).lean(),
+    Document.countDocuments(q),
+  ]);
+  const ids = items.map((d) => d.id);
+  const links = await DocumentLink.find({ groupId: req.scope.groupId, toId: { $in: ids } }).lean();
+  const linked = await Document.find({ groupId: req.scope.groupId, id: { $in: [...new Set(links.map((l) => l.fromId))] } }).lean();
+  const byId = new Map(linked.map((d) => [d.id, d]));
+  const lineQty = (doc) => (doc.lines ?? []).reduce((s, l) => s + Number(l.qty ?? 0), 0);
+  const poValue = (doc) => Number(doc.totals?.grand?.amount ?? doc.totals?.grand ?? 0) || (doc.lines ?? []).reduce((s, l) => s + Number(l.qty ?? 0) * Number(l.rate ?? 0), 0);
+  const grandOf = (doc) => Number(doc.totals?.grand?.amount ?? doc.totals?.grand ?? 0);
+  const findingsByCase = new Set();
+  for (const x of await Finding.find({ ...f, status: "open" }, { caseId: 1 }).lean()) findingsByCase.add(x.caseId);
+  const poCases = await Case.find({ ...f, kind: "po", subjectIds: { $in: ids } }, { subjectIds: 1, id: 1 }).lean();
+  const caseFor = new Map(poCases.flatMap((c) => c.subjectIds.map((s) => [s, c.id])));
+  const rows = items.map((doc) => {
+    const ordered = lineQty(doc);
+    const value = poValue(doc);
+    let received = 0, invoicedVal = 0, paidVal = 0;
+    for (const l of links.filter((x) => x.toId === doc.id)) {
+      const src = byId.get(l.fromId);
+      if (!src) continue;
+      if (l.kind === "RECEIVES") received += lineQty(src);
+      else if (l.kind === "BILLS") invoicedVal += grandOf(src) || (src.lines ?? []).reduce((s, x) => s + Number(x.qty ?? 0) * Number(x.rate ?? 0), 0);
+      else if (l.kind === "SETTLES") paidVal += Number(l.amount?.amount ?? l.amount ?? 0);
+    }
+    const caseId = caseFor.get(doc.id);
+    return {
+      id: doc.id, number: doc.number ?? doc.externalRef ?? doc.id,
+      supplier: doc.seller?.name ?? "—", entity: doc.entityId, date: doc.date, status: doc.status,
+      value: money(value), caseId,
+      deliveredPct: ordered ? Math.min(100, (received / ordered) * 100).toFixed(0) : "0",
+      invoicedPct: value ? Math.min(100, (invoicedVal / value) * 100).toFixed(0) : "0",
+      paidPct: value ? Math.min(100, (paidVal / value) * 100).toFixed(0) : "0",
+      issueCount: caseId && findingsByCase.has(caseId) ? 1 : 0,
+    };
+  });
+  res.json({ items: rows, nextCursor: cursor + items.length < total ? String(cursor + items.length) : null, total });
 }));
 
 // GET /findings — open findings list (copilot + IssuesList both call this).
