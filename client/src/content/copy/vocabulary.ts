@@ -37,13 +37,15 @@ export const CERTAINTY_LABEL: Record<Certainty, string> = {
   INSUFFICIENT_EVIDENCE: "Missing information",
 };
 
-export type Action = "APPROVE" | "REQUEST_CLARIFICATION" | "ESCALATE" | "PLACE_ON_HOLD";
+export type Action = "APPROVE" | "REQUEST_CLARIFICATION" | "ESCALATE" | "PLACE_ON_HOLD" | "REVIEW" | "REJECT";
 
 export const ACTION_LABEL: Record<Action, string> = {
   APPROVE: "Approve",
   REQUEST_CLARIFICATION: "Ask for clarification",
   ESCALATE: "Escalate",
   PLACE_ON_HOLD: "Put on hold",
+  REVIEW: "Send for review",
+  REJECT: "Reject",
 };
 
 /** Plain words + official term. First use on a page renders a <Term> tooltip. */

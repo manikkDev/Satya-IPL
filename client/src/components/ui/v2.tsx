@@ -299,6 +299,8 @@ const ACTION_STYLE: Record<Action, { icon: LucideIcon; classes: string }> = {
   REQUEST_CLARIFICATION: { icon: MessageCircleQuestion, classes: "border border-[var(--accent)]/45 text-[var(--accent-strong)] bg-transparent hover:bg-[var(--accent-soft)]" },
   ESCALATE: { icon: CircleArrowUp, classes: "border border-[var(--sev-high)]/50 text-[var(--sev-high)] bg-transparent hover:bg-[var(--sev-high-soft)]" },
   PLACE_ON_HOLD: { icon: PauseCircle, classes: "border border-[var(--sev-critical)]/50 text-[var(--sev-critical)] bg-transparent hover:bg-[var(--sev-critical-soft)]" },
+  REVIEW: { icon: CircleAlert, classes: "border border-[var(--sev-medium)]/50 text-[var(--sev-medium)] bg-transparent hover:bg-[var(--sev-medium-soft)]" },
+  REJECT: { icon: OctagonAlert, classes: "border border-[var(--sev-critical)]/50 text-[var(--sev-critical)] bg-transparent hover:bg-[var(--sev-critical-soft)]" },
 };
 
 export function ActionButton({
@@ -316,9 +318,9 @@ export function ActionButton({
   disabledReason?: string;
   onClick?: () => void;
 }) {
-  const style = ACTION_STYLE[action];
+  const style = ACTION_STYLE[action] ?? { icon: Info, classes: "border border-[var(--line)] text-[var(--ink-2)] bg-transparent hover:bg-[var(--surface-2)]" };
   const Icon = style.icon;
-  const label = `${ACTION_LABEL[action]}${amount !== undefined ? ` ${formatMoney(amount, currency)}` : ""}`;
+  const label = `${ACTION_LABEL[action] ?? String(action ?? "Decide").replaceAll("_", " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase())}${amount !== undefined ? ` ${formatMoney(amount, currency)}` : ""}`;
   const button = (
     <button
       type="button"
