@@ -9,7 +9,8 @@ from .business_matching import evaluation
 from .auth import internal
 from .compat_v1 import router as legacy_router
 from .anomaly import score as anomaly_score
-from .contracts_v2 import AllocatePaymentRequest, AnomalyScoreRequest, ComplianceDeadlinesRequest, DocsParseRequest, DocsValidateRequest, GstinValidateRequest, ReconcileCaseRequest, TaxComputeRequest, schemas
+from .contracts_v2 import AllocatePaymentRequest, AnomalyScoreRequest, ComplianceDeadlinesRequest, DocsParseRequest, DocsValidateRequest, GstinValidateRequest, MatchCandidatesRequest, ReconcileCaseRequest, TaxComputeRequest, schemas
+from .match.candidates import candidates as match_candidates
 from .deadlines import deadlines
 from .docs import DocParseError, parse, validate
 from .recon.allocate import AllocationInputError, allocate
@@ -109,5 +110,9 @@ def create_app():
     @app.post("/v2/anomaly/score", dependencies=[Depends(require_v2), Depends(internal)])
     def anomaly(request: AnomalyScoreRequest):
         return anomaly_score(request)
+
+    @app.post("/v2/match/candidates", dependencies=[Depends(require_v2), Depends(internal)])
+    def match(request: MatchCandidatesRequest):
+        return match_candidates(request, alpha=float(request.alpha))
 
     return app
