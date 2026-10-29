@@ -8,7 +8,11 @@ const downloadDocumentPdf = async (...args: Parameters<typeof import("@/componen
   (await import("@/components/v2/po-pdf")).downloadDocumentPdf(...args);
 import { FileDown, Pencil, OctagonX, MessageSquare, AlertCircle } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
-import { MoneyTrail } from "@/components/v2/money-trail";
+import dynamic from "next/dynamic";
+const MoneyTrail = dynamic(() => import("@/components/v2/money-trail").then((m) => m.MoneyTrail), {
+  ssr: false,
+  loading: () => <div className="h-[420px] animate-pulse rounded-[var(--radius-md)] bg-[var(--surface-2)]" />,
+});
 import { Money, Qty, DateText, StatusBadge, ErrorState } from "@/components/ui/v2";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";

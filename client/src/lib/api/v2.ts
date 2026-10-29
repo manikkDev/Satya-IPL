@@ -133,7 +133,14 @@ export const v2 = {
       ? mock(mockOrderDetail)
       : fetchJson<DocView & { links: DocLink[]; lifecycle: LifecycleLine[] | null; caseId: string | null }>(
           `/api/v2/documents/${encodeURIComponent(id)}`,
-        ).then((doc) => ({
+        ).then(async (doc) => {
+          // B4 returns DocumentLinks but not the linked docs themselves —
+          // fetch each counterpart to populate the Documents tab.
+          const linkedIds = [...new Set(doc.links.flatMap((l) => [l.fromId, l.toId]))].filter((id2) => id2 !== doc.id);
+          const linkedDocs = await Promise.all(
+            linkedIds.slice(0, 20).map((id2) => v2.document(id2).catch(() => null)),
+          );
+          return {
           order: doc as unknown as OrderDetail["order"],
           lifecycle: (doc.lifecycle ?? doc.lines?.map((l) => ({
             lineNo: l.lineNo, ordered: l.qty ?? "0", received: "0", accepted: "0", rejected: "0",
@@ -146,7 +153,14 @@ export const v2 = {
             paid: (line as { paidValue?: string }).paidValue ?? "0", open: "0",
           })),
           schedule: [] as OrderDetail["schedule"],
-          documents: [] as OrderDetail["documents"],
+          documents: linkedDocs.filter((d): d is NonNullable<typeof d> => d !== null).map((d) => ({
+            id: d.id,
+            type: d.type,
+            number: d.number ?? d.externalRef ?? d.id,
+            date: d.date,
+            amount: d.totals?.grand ? { amount: d.totals.grand, currency: "INR" } : undefined,
+            status: d.status,
+          })),
           graph: {
             nodes: [
               {
@@ -171,7 +185,8 @@ export const v2 = {
           },
           history: [] as OrderDetail["history"],
           caseId: doc.caseId ?? "",
-        })),
+        };
+        }),
 
   cases: (params: Record<string, string> = {}): Promise<InvestigationsPage> =>
     mocksEnabled()

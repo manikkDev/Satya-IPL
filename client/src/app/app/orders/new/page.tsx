@@ -118,11 +118,12 @@ function HsnField({ value, onChange }: { value: string; onChange: (v: string) =>
         aria-label="HSN code"
         role="combobox"
         aria-expanded={open}
+        aria-controls="hsn-listbox"
         aria-autocomplete="list"
         className={inputCls}
       />
       {open && results.length > 0 && (
-        <ul role="listbox" className="absolute z-20 mt-1 max-h-44 w-full overflow-auto rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-1)]">
+        <ul id="hsn-listbox" role="listbox" className="absolute z-20 mt-1 max-h-44 w-full overflow-auto rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-1)]">
           {results.map((r) => (
             <li key={r.code}>
               <button

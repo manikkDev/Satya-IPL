@@ -5,10 +5,15 @@
 // issues, the money trail, and the decisions behind it all.
 
 import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Sparkles, FileSearch, FileDown } from "lucide-react";
+import { Sparkles, FileSearch, FileDown, X, ArrowUpRight } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
-import { MoneyTrail } from "@/components/v2/money-trail";
+import dynamic from "next/dynamic";
+const MoneyTrail = dynamic(() => import("@/components/v2/money-trail").then((m) => m.MoneyTrail), {
+  ssr: false,
+  loading: () => <div className="h-[420px] animate-pulse rounded-[var(--radius-md)] bg-[var(--surface-2)]" />,
+});
 import {
   Money, DateText, StatusBadge, CertaintyBadge, SeverityBadge,
   ActionButton, ErrorState,
@@ -16,7 +21,53 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BALANCE_TERMS } from "@/content/copy/vocabulary";
-import type { Finding } from "@/lib/api/types";
+import type { Finding, Evidence } from "@/lib/api/types";
+
+function EvidenceDrawer({ evidence, onClose }: { evidence: Evidence; onClose: () => void }) {
+  return (
+    <aside
+      role="dialog"
+      aria-label="Evidence detail"
+      className="fixed inset-y-0 right-0 z-40 w-80 border-l border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-2)]"
+    >
+      <div className="flex items-start justify-between">
+        <h2 className="text-sm font-semibold text-[var(--ink)]">Evidence</h2>
+        <button type="button" onClick={onClose} aria-label="Close evidence" className="text-[var(--muted)] hover:text-[var(--ink)]">
+          <X size={16} />
+        </button>
+      </div>
+      <dl className="mt-4 space-y-3 text-xs">
+        <div><dt className="text-[var(--muted)]">Document</dt><dd className="mt-0.5 font-medium text-[var(--ink)]">{evidence.documentType} · <span className="font-code">{evidence.documentId}</span></dd></div>
+        <div><dt className="text-[var(--muted)]">Field</dt><dd className="mt-0.5 font-code text-[var(--ink)]">{evidence.field}</dd></div>
+        {evidence.value && <div><dt className="text-[var(--muted)]">Value read</dt><dd className="tnum mt-0.5 font-medium text-[var(--ink)]">{evidence.value}</dd></div>}
+        {evidence.locator?.quote && (
+          <div>
+            <dt className="text-[var(--muted)]">Source text</dt>
+            <dd className="mt-1 rounded-[var(--radius-sm)] bg-[var(--accent-soft)] px-3 py-2 font-code text-[11px] leading-relaxed text-[var(--accent-strong)]">“{evidence.locator.quote}”</dd>
+          </div>
+        )}
+        <div>
+          <dt className="text-[var(--muted)]">Where it was found</dt>
+          <dd className="mt-0.5 text-[var(--ink-2)]">
+            {evidence.locator.kind === "pdf_text" && `PDF text${evidence.locator.page ? `, page ${evidence.locator.page}` : ""}`}
+            {evidence.locator.kind === "pdf_region" && `PDF region${evidence.locator.page ? `, page ${evidence.locator.page}` : ""}`}
+            {evidence.locator.kind === "csv_cell" && `CSV cell${evidence.locator.row ? ` row ${evidence.locator.row}` : ""}${evidence.locator.column ? `, ${evidence.locator.column}` : ""}`}
+            {evidence.locator.kind === "json_path" && <span className="font-code">{evidence.locator.path}</span>}
+            {evidence.locator.kind === "qr_field" && "Verified e-invoice QR"}
+            {evidence.locator.kind === "manual" && "Entered by hand"}
+          </dd>
+        </div>
+        <div><dt className="text-[var(--muted)]">Observed</dt><dd className="mt-0.5 text-[var(--ink-2)]"><DateText value={evidence.observedAt} withTime /></dd></div>
+      </dl>
+      <a
+        href={`/app/documents/${evidence.documentId}`}
+        className="mt-5 inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline"
+      >
+        Open document <ArrowUpRight size={12} />
+      </a>
+    </aside>
+  );
+}
 
 function exposureText(finding: Finding): string | null {
   if (!finding.exposure) return null;
@@ -24,7 +75,7 @@ function exposureText(finding: Finding): string | null {
   return null;
 }
 
-function FindingCard({ finding, onAsk }: { finding: Finding; onAsk: () => void }) {
+function FindingCard({ finding, onAsk, onEvidence }: { finding: Finding; onAsk: () => void; onEvidence: (e: Evidence) => void }) {
   return (
     <article className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -52,9 +103,14 @@ function FindingCard({ finding, onAsk }: { finding: Finding; onAsk: () => void }
       <p className="mt-3 text-xs text-[var(--ink-2)]"><span className="font-medium">What would settle this:</span> {finding.whatResolvesIt}</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {finding.evidence.slice(0, 4).map((evidence) => (
-          <span key={evidence.id} className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] px-2 py-0.5 text-[11px] text-[var(--muted)]">
+          <button
+            key={evidence.id}
+            type="button"
+            onClick={() => onEvidence(evidence)}
+            className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] px-2 py-0.5 text-[11px] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent-strong)]"
+          >
             <FileSearch size={11} aria-hidden="true" /> {evidence.documentType} · {evidence.field}
-          </span>
+          </button>
         ))}
         <button type="button" onClick={onAsk} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline">
           <Sparkles size={12} aria-hidden="true" /> Ask Satya about this
@@ -73,6 +129,7 @@ export default function InvestigationDetailPage() {
     queryFn: () => v2.graph(id),
     enabled: !!data,
   });
+  const [openEvidence, setOpenEvidence] = useState<Evidence | null>(null);
 
   if (error) return <ErrorState message={error instanceof Error ? error.message : "Investigation not found."} onRetry={() => refetch()} />;
   if (isLoading || !data) return <div className="space-y-4"><Skeleton className="h-28 w-full" /><Skeleton className="h-80 w-full" /></div>;
@@ -158,7 +215,7 @@ export default function InvestigationDetailPage() {
         <TabsContent value="summary">
           <div className="space-y-3">
             {sortedFindings.map((finding) => (
-              <FindingCard key={finding.id} finding={finding} onAsk={() => ask(finding.title)} />
+              <FindingCard key={finding.id} finding={finding} onAsk={() => ask(finding.title)} onEvidence={setOpenEvidence} />
             ))}
           </div>
         </TabsContent>
@@ -238,6 +295,7 @@ export default function InvestigationDetailPage() {
           </div>
         </TabsContent>
       </Tabs>
+      {openEvidence && <EvidenceDrawer evidence={openEvidence} onClose={() => setOpenEvidence(null)} />}
     </div>
   );
 }
