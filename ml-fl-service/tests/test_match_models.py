@@ -28,17 +28,15 @@ def test_train_writes_model_card_and_conformal(tmp_path):
     assert (Path(result["path"]) / "conformal.json").exists()
 
 
-def test_load_model_roundtrip_and_falls_back_cleanly(tmp_path):
+def test_load_model_roundtrip_and_falls_back_cleanly(tmp_path, monkeypatch):
     assert load_model("supplier_supplier") is None or load_model("supplier_supplier")
     train(task="invoice_po_line", seed=42, n_pos=25, out_dir=tmp_path)
     from satya_engine.match import pairs as pairs_mod
-    original = pairs_mod.MODEL_DIR
-    pairs_mod.MODEL_DIR = tmp_path
+    monkeypatch.setattr(pairs_mod, "MODEL_DIR", tmp_path)
     bundle = load_model("invoice_po_line")
     assert bundle is not None
     model, q_hat, keys, card = bundle
     assert 0 < q_hat <= 1
-    pairs_mod.MODEL_DIR = original
 
 
 def test_heuristic_path_still_works_without_artifacts():

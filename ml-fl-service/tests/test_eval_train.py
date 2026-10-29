@@ -27,7 +27,7 @@ def test_train_enabled(monkeypatch, auth, tmp_path):
     monkeypatch.setenv("FEATURE_V2_RECON_V2", "1")
     monkeypatch.setenv("ALLOW_ENGINE_TRAIN", "1")
     import satya_engine.match.pairs as pairs
-    pairs.MODEL_DIR = tmp_path
+    monkeypatch.setattr(pairs, "MODEL_DIR", tmp_path)
     response = call("POST", "/v2/train", json={"task": "invoice_po_line", "seed": 42, "n_pos": 25}, headers=auth)
     assert response.status_code == 200
     assert response.json()["pairs"] > 0
