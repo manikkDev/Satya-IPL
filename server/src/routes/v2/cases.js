@@ -93,8 +93,16 @@ router.get("/:id", handle(async (req, res) => {
 // engine graph edges can reference docs it didn't emit as nodes (e.g. a
 // payment settling an invoice) — backfill them so the trail renders whole.
 const STAGE_FOR = { PO: "order", PO_AMENDMENT: "order", GRN: "receipt", QC: "inspection", INVOICE_IN: "invoice", INVOICE_OUT: "invoice", PAYMENT_OUT: "payment", PAYMENT_IN: "payment", ADVANCE_OUT: "payment", CREDIT_NOTE_IN: "adjustment", DEBIT_NOTE_IN: "adjustment", TDS_ENTRY: "adjustment", GSTR2B_ENTRY: "adjustment" };
+const SEV_RANK = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
+
+// engine graph edges can reference docs it didn't emit as nodes (e.g. a
+// payment settling an invoice) — backfill them so the trail renders whole.
+// Then prune to nodes reachable from the case subjects: supplier-wide
+// collection pulls unrelated POs into the payload, and those are the
+// "lengthy" stray nodes. Flag nodes whose docs appear in finding evidence
+// so the "Issues only" filter has something to show.
 const enrichGraph = async (g, kase) => {
-  const nodes = g.nodes || [];
+  let nodes = g.nodes || [];
   const edges = (g.edges || []).map((e) => ({ ...e, type: e.type || e.kind }));
   const have = new Set(nodes.map((n) => n.id));
   const missing = [...new Set(edges.flatMap((e) => [e.source, e.target]).filter((x) => x && !have.has(x)))];
@@ -104,7 +112,37 @@ const enrichGraph = async (g, kase) => {
       if (!have.has(d.id)) { have.add(d.id); nodes.push({ id: d.id, type: d.type, stage: STAGE_FOR[d.type] || "order", label: d.number || d.externalRef || d.id, date: d.date, status: d.status, groupId: kase.groupId }); }
     }
   }
-  return { ...g, nodes, edges };
+  // reachability from subjects — keep every node inside the case's chain
+  const subjects = new Set(kase.subjectIds || []);
+  const adj = new Map();
+  for (const e of edges) {
+    if (!adj.has(e.source)) adj.set(e.source, []);
+    if (!adj.has(e.target)) adj.set(e.target, []);
+    adj.get(e.source).push(e.target);
+    adj.get(e.target).push(e.source);
+  }
+  const reached = new Set(subjects);
+  const queue = [...subjects];
+  while (queue.length) {
+    for (const next of adj.get(queue.pop()) || []) if (!reached.has(next)) { reached.add(next); queue.push(next); }
+  }
+  nodes = nodes.filter((n) => reached.has(n.id) || !subjects.size);
+  const keepEdges = edges.filter((e) => reached.has(e.source) && reached.has(e.target));
+
+  // stamp severity onto nodes whose docs appear in open findings
+  const findings = await Finding.find({ caseId: kase.id, status: "open" }).lean();
+  const sevByDoc = new Map();
+  for (const f of findings) {
+    for (const ev of f.evidence || f.data?.evidence || []) {
+      const docId = typeof ev === "string" ? ev : ev?.documentId;
+      if (!docId) continue;
+      const cur = SEV_RANK[sevByDoc.get(docId)] ?? -1;
+      const next = SEV_RANK[f.severity || f.data?.severity || "info"] ?? 0;
+      if (next > cur) sevByDoc.set(docId, f.severity || f.data?.severity);
+    }
+  }
+  nodes = nodes.map((n) => ({ ...n, severity: sevByDoc.get(n.id) || n.severity || null, hasFinding: sevByDoc.has(n.id) }));
+  return { ...g, nodes, edges: keepEdges };
 };
 
 // GET /cases/:id/graph — Neo4j first, snapshot.graph fallback (never blocks).

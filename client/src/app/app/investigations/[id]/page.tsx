@@ -6,9 +6,9 @@
 
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Sparkles, FileSearch, FileDown, X, ArrowUpRight } from "lucide-react";
+import { Sparkles, FileSearch, FileDown, X, ArrowUpRight, GitBranch } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
 import dynamic from "next/dynamic";
 const MoneyTrail = dynamic(() => import("@/components/v2/money-trail").then((m) => m.MoneyTrail), {
@@ -136,6 +136,14 @@ export default function InvestigationDetailPage() {
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
 
+  const CHECK_STEPS = ["Reading the documents", "Linking the money trail", "Asking the engine", "Scoring findings"];
+  const [checkStep, setCheckStep] = useState(0);
+  useEffect(() => {
+    if (!checking) { setCheckStep(0); return; }
+    const t = setInterval(() => setCheckStep((s) => (s + 1) % CHECK_STEPS.length), 1400);
+    return () => clearInterval(t);
+  }, [checking]);
+
   const [deciding, setDeciding] = useState(false);
   const [decideError, setDecideError] = useState<string | null>(null);
   const [scenarioBusy, setScenarioBusy] = useState<string | null>(null);
@@ -222,7 +230,24 @@ export default function InvestigationDetailPage() {
               Run check
             </button>
           )}
-          {checking && <Skeleton className="h-2 w-48 rounded-full" />}
+          {checking && (
+            <div className="flex flex-col items-center gap-3 pt-1">
+              <div className="relative h-14 w-14">
+                <div className="absolute inset-0 rounded-full border-2 border-[var(--accent)]/15" />
+                <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-[var(--accent)] [animation-duration:1.1s]" />
+                <div className="absolute inset-2.5 grid place-items-center rounded-full bg-[var(--accent-soft)]/60">
+                  <GitBranch size={16} className="animate-pulse text-[var(--accent-strong)]" aria-hidden="true" />
+                </div>
+              </div>
+              <p className="text-sm font-medium text-[var(--ink)]">{CHECK_STEPS[checkStep]}…</p>
+              <div className="flex gap-1.5">
+                {CHECK_STEPS.map((_, i) => (
+                  <span key={i} className={`h-1.5 rounded-full transition-all duration-500 ${i <= checkStep ? "w-6 bg-[var(--accent)]" : "w-3 bg-[var(--surface-2)]"}`} />
+                ))}
+              </div>
+              <p className="text-[11px] text-[var(--muted)]">The engine is reconstructing this case — usually a few seconds.</p>
+            </div>
+          )}
           {checkError && <p className="text-xs text-[var(--sev-critical)]">{checkError}</p>}
         </div>
       </FadeIn>
