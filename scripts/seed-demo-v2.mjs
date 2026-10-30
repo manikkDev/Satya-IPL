@@ -93,6 +93,102 @@ const caseId = await upsert("cases", { groupId, kind: "po", subjectIds: [poId] }
 });
 await db.collection("documents").updateOne({ id: poId }, { $set: { caseId } });
 
+// ---- showcase chain: every stage populated so investigations, money trail,
+// compliance and payments demo the full product on a real data spine.
+const kaveri = await upsert("suppliers", { groupId, legalName: "Kaveri Pumps & Motors Ltd" }, {
+  id: `sup_demo_kaveri`, groupId, entityId, legalName: "Kaveri Pumps & Motors Ltd",
+  gstins: [{ gstin: "29AAACK1234M1ZP", stateCode: "29", status: "active" }],
+  udyam: { number: "UDYAM-KA-20-0023456", category: "micro" }, msme: true,
+  paymentTermsDays: 45, status: "active", createdBy: actor,
+});
+
+const PO2 = await upsert("documents", { groupId, externalRef: "SHOW-PO-1" }, {
+  id: `doc_demo_po1`, groupId, entityId, type: "PO", number: "SATYAD/PO/26-27/000888", externalRef: "SHOW-PO-1",
+  date: "2026-08-20", fy: "2026-27", status: "issued", revision: 1,
+  seller: { name: "Kaveri Pumps & Motors Ltd", gstin: "29AAACK1234M1ZP", stateCode: "29", supplierId: kaveri },
+  buyer: { name: "Satya Equipment Distribution", gstin: "27AAACS1234A1Z5", stateCode: "27" },
+  supplierId: kaveri, placeOfSupply: "29", currency: "INR",
+  lines: [{ lineNo: 1, description: "Centrifugal pump 5 HP", hsn: "8413", uom: "EA", qty: "45", rate: "10000", gstRate: "18" }],
+  totals: { taxable: "450000.00", cgst: "0.00", sgst: "0.00", igst: "81000.00", cess: "0.00", roundOff: "0.00", grand: "531000.00" },
+  terms: { paymentTerms: "45 days", creditDays: 45 }, gst: {},
+  source: { channel: "created_in_satya" }, provenance: "USER_PROVIDED",
+  observedAt: new Date().toISOString(), createdBy: actor,
+});
+
+const GRN1 = await upsert("documents", { groupId, externalRef: "SHOW-GRN-1" }, {
+  id: `doc_demo_grn1`, groupId, entityId, type: "GRN", number: "GRN/26-27/0912", externalRef: "SHOW-GRN-1",
+  date: "2026-09-05", fy: "2026-27", status: "posted", revision: 0,
+  seller: { name: "Kaveri Pumps & Motors Ltd", stateCode: "29", supplierId: kaveri },
+  buyer: { name: "Satya Equipment Distribution", stateCode: "27" }, currency: "INR",
+  lines: [{ lineNo: 1, description: "Centrifugal pump 5 HP", uom: "EA", qty: "38", refs: { poId: PO2, poLineNo: 1 } }],
+  source: { channel: "api" }, provenance: "CONSTRUCTED_DEMO", observedAt: new Date().toISOString(), createdBy: actor,
+});
+
+const QC1 = await upsert("documents", { groupId, externalRef: "SHOW-QC-1" }, {
+  id: `doc_demo_qc1`, groupId, entityId, type: "QC", number: "QC/26-27/0199", externalRef: "SHOW-QC-1",
+  date: "2026-09-06", fy: "2026-27", status: "posted", revision: 0,
+  seller: { name: "Kaveri Pumps & Motors Ltd", supplierId: kaveri },
+  buyer: { name: "Satya Equipment Distribution" }, currency: "INR",
+  lines: [{ lineNo: 1, description: "Centrifugal pump 5 HP — 2 units failed bench test", uom: "EA", qty: "2", refs: { grnId: GRN1 } }],
+  source: { channel: "api" }, provenance: "CONSTRUCTED_DEMO", observedAt: new Date().toISOString(), createdBy: actor,
+});
+
+const INV1 = await upsert("documents", { groupId, externalRef: "SHOW-INV-1" }, {
+  id: `doc_demo_inv1`, groupId, entityId, type: "INVOICE_IN", externalRef: "SHOW-INV-1", number: "KAV/26-27/4410",
+  date: "2026-09-10", fy: "2026-27", status: "posted", revision: 0,
+  seller: { name: "Kaveri Pumps & Motors Ltd", gstin: "29AAACK1234M1ZP", stateCode: "29", supplierId: kaveri },
+  buyer: { name: "Satya Equipment Distribution", gstin: "27AAACS1234A1Z5", stateCode: "27" },
+  supplierId: kaveri, placeOfSupply: "29", currency: "INR",
+  lines: [{ lineNo: 1, description: "Centrifugal pump 5 HP", uom: "EA", qty: "45", rate: "10000", gstRate: "18", refs: { poId: PO2, poLineNo: 1 } }],
+  totals: { taxable: "450000.00", cgst: "0.00", sgst: "0.00", igst: "81000.00", cess: "0.00", roundOff: "0.00", grand: "531000.00" },
+  gst: { irn: "a1b2c3d4e5f6g7h8-demo" },
+  source: { channel: "api" }, provenance: "CONSTRUCTED_DEMO", observedAt: new Date().toISOString(), createdBy: actor,
+});
+
+const CN1 = await upsert("documents", { groupId, externalRef: "SHOW-CN-1" }, {
+  id: `doc_demo_cn1`, groupId, entityId, type: "CREDIT_NOTE_IN", externalRef: "SHOW-CN-1", number: "CN-KAV/0088",
+  date: "2026-09-15", fy: "2026-27", status: "posted", revision: 0,
+  seller: { name: "Kaveri Pumps & Motors Ltd", gstin: "29AAACK1234M1ZP", supplierId: kaveri },
+  buyer: { name: "Satya Equipment Distribution", gstin: "27AAACS1234A1Z5" },
+  supplierId: kaveri, currency: "INR",
+  lines: [{ lineNo: 1, description: "Adjustment for rejected units", uom: "EA", qty: "2", rate: "10000", refs: { invoiceId: INV1 } }],
+  totals: { taxable: "20000.00", cgst: "0.00", sgst: "0.00", igst: "3600.00", cess: "0.00", roundOff: "0.00", grand: "23600.00" },
+  source: { channel: "api" }, provenance: "CONSTRUCTED_DEMO", observedAt: new Date().toISOString(), createdBy: actor,
+});
+
+await upsert("documents", { groupId, externalRef: "SHOW-PAY-1" }, {
+  id: `doc_demo_pay1`, groupId, entityId, type: "PAYMENT_OUT", number: "PAY/26-27/0310", externalRef: "SHOW-PAY-1",
+  date: "2026-10-22", fy: "2026-27", status: "posted", revision: 0,
+  seller: { name: "Kaveri Pumps & Motors Ltd", supplierId: kaveri },
+  buyer: { name: "Satya Equipment Distribution" }, currency: "INR", lines: [],
+  payment: { amount: "300000.00", mode: "NEFT", utr: "UTRN990000778801", valueDate: "2026-10-22",
+    allocations: [{ documentId: INV1, amount: "300000.00", basis: "remittance" }] },
+  source: { channel: "bank_csv" }, provenance: "CONSTRUCTED_DEMO", observedAt: new Date().toISOString(), createdBy: actor,
+});
+
+await upsert("documents", { groupId, externalRef: "SHOW-PAY-2" }, {
+  id: `doc_demo_pay2`, groupId, entityId, type: "PAYMENT_OUT", number: "PAY/26-27/0321", externalRef: "SHOW-PAY-2",
+  date: "2026-10-26", fy: "2026-27", status: "posted", revision: 0,
+  seller: { name: "Kaveri Pumps & Motors Ltd", supplierId: kaveri },
+  buyer: { name: "Satya Equipment Distribution" }, currency: "INR", lines: [],
+  payment: { amount: "95000.00", mode: "NEFT", valueDate: "2026-10-26", allocations: [] },
+  source: { channel: "bank_csv" }, provenance: "CONSTRUCTED_DEMO", observedAt: new Date().toISOString(), createdBy: actor,
+});
+
+await link(GRN1, PO2, "RECEIVES");
+await link(QC1, GRN1, "INSPECTS");
+await link(INV1, PO2, "BILLS");
+await link(INV1, GRN1, "BILLS");
+await link(CN1, INV1, "ADJUSTS");
+await link(`doc_demo_pay1`, INV1, "SETTLES");
+
+const caseDemo = await upsert("cases", { groupId, kind: "po", subjectIds: [PO2] }, {
+  id: `case_seed_showcase`, groupId, entityId, kind: "po", subjectIds: [PO2],
+  title: "PO SATYAD/PO/26-27/000888 — Kaveri Pumps & Motors Ltd", status: "open", revision: 0,
+});
+await db.collection("documents").updateOne({ id: PO2 }, { $set: { caseId: caseDemo } });
+
 console.log(`Seeded: PO ${poId}, GRN ${grnId}, INV ${invId}, PAY doc_seed_pay2, case ${caseId}`);
-console.log("Run POST /api/v2/cases/" + caseId + "/reconcile to build the snapshot.");
+console.log(`Showcase: PO ${PO2} -> GRN ${GRN1} -> QC ${QC1} -> INV ${INV1} -> CN ${CN1} -> PAY doc_demo_pay1 (+doc_demo_pay2 unallocated), case ${caseDemo}`);
+console.log("Run POST /api/v2/cases/" + caseId + "/reconcile and /cases/" + caseDemo + "/reconcile to build snapshots.");
 await mongoose.disconnect();
