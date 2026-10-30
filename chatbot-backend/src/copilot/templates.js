@@ -43,7 +43,7 @@ export function deterministicAnswer(intent, registry, ctx = {}) {
     case "analytics":
     case "compare": {
       const steps = (ctx.calculation || []).map(
-        (s) => `- ${s.step}${s.factId ? ` {{${s.factId}}}` : ""}`,
+        (s) => `- ${s.step || s.label || s.description || "step"}${s.factId ? ` {{${s.factId}}}` : ""}`,
       );
       const lines = [...registry.facts.values()]
         .filter((f) => f.unit === "INR")

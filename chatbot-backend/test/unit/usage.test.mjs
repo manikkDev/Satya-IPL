@@ -95,8 +95,9 @@ test("daily counters aggregate per (day, model, task)", async () => {
   meter.record({ task: "chat", model: "model-a", usage: { inputTokens: 10, outputTokens: 5 } });
   meter.record({ task: "chat", model: "model-a", usage: { inputTokens: 4, outputTokens: 2 } });
   meter.record({ task: "extract", model: "model-a", usage: { inputTokens: 100, outputTokens: 50 } });
-  const chatRow = meter.day.get(`${ptDayKey()}|model-a|chat`);
-  const extRow = meter.day.get(`${ptDayKey()}|model-a|extract`);
+  const day = ptDayKey(Date.parse("2026-10-29T20:00:00Z"));
+  const chatRow = meter.day.get(`${day}|model-a|chat`);
+  const extRow = meter.day.get(`${day}|model-a|extract`);
   assert.deepEqual({ in: chatRow.inputTokens, out: chatRow.outputTokens, n: chatRow.requests }, { in: 14, out: 7, n: 2 });
   assert.equal(extRow.requests, 1);
 });

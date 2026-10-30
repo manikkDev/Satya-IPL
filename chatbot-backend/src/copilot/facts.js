@@ -57,7 +57,8 @@ export class FactRegistry {
    * Register a numeric/factual claim. Tools call this for every value the
    * answer may cite. Returns the assigned id ("F1", "F2", …).
    */
-  addFact({ label, value, unit = null, certainty = "CONFIRMED", evidenceIds = [], documentIds = [] }) {
+  addFact({ label = "fact", value, unit = null, certainty = "CONFIRMED", evidenceIds = [], documentIds = [] }) {
+    label = label || "fact";
     const id = `F${++this._f}`;
     this.facts.set(id, { id, label, value, unit, certainty, evidenceIds, documentIds });
     return id;

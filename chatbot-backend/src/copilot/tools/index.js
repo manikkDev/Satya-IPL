@@ -133,7 +133,8 @@ export function createTools({ call, rag = null, scope = {} }) {
       if (!f) return { data: null, missing: `finding ${findingId}` };
       if (f.exposure != null) factMoney(registry, `${f.title} exposure`, money(f.exposure) || f.exposure?.min, { documentIds: f.documentIds });
       for (const step of f.calculation || []) {
-        if (step.value != null) registry.addFact({ label: step.step, value: s(step.value), unit: step.unit || "COUNT", evidenceIds: step.evidenceIds || [] });
+        const v = step.value ?? step.result ?? step.output;
+        if (v != null) registry.addFact({ label: step.step || step.label || step.description || step.name || "calculation step", value: s(v), unit: step.unit || "COUNT", evidenceIds: step.evidenceIds || [] });
       }
       for (const e of (f.evidence || []).slice(0, 6)) evd(registry, e);
       return { data: slimFinding(f, { full: true }) };
