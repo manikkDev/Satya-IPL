@@ -292,12 +292,11 @@ function ShellInner({ children }: { children: ReactNode }) {
         {/* Sidebar — desktop */}
         <aside className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col overflow-y-auto border-r border-[var(--sidebar-line)] bg-[var(--sidebar-bg)] md:flex">
           <div className="px-5 pb-4 pt-5">
-            <Link href="/app" className="flex items-baseline gap-1.5">
+            <Link href="/app" className="flex items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/satya.svg" alt="" aria-hidden="true" className="h-7 w-7 rounded-[7px]" />
               <span className="text-[19px] font-bold tracking-tight text-[var(--ink)]">
                 satya<span className="text-[var(--accent)]">.</span>
-              </span>
-              <span className="rounded border border-[var(--line)] px-1 py-px text-[9px] font-semibold uppercase tracking-wider text-[var(--muted)]">
-                v2
               </span>
             </Link>
           </div>
