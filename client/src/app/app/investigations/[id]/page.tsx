@@ -158,6 +158,7 @@ export default function InvestigationDetailPage() {
   const [deciding, setDeciding] = useState(false);
   const [decideError, setDecideError] = useState<string | null>(null);
   const [decideDone, setDecideDone] = useState(false);
+  const [tab, setTab] = useState("summary");
   const [scenarioBusy, setScenarioBusy] = useState<string | null>(null);
   const [scenarioResult, setScenarioResult] = useState<Record<string, unknown> | null>(null);
   const [scenarioError, setScenarioError] = useState<string | null>(null);
@@ -170,6 +171,11 @@ export default function InvestigationDetailPage() {
       setDecideDone(true);
       setTimeout(() => setDecideDone(false), 5000);
       await refetch();
+      setTab("decisions");
+      if (action === "REQUEST_CLARIFICATION") {
+        const docLabel = data?.case?.title || id;
+        router.push(`/app/ask?about=${encodeURIComponent(`Draft a clarification message to the supplier about ${docLabel} — ask them to confirm the disputed items so we can close this check.`)}&case=${encodeURIComponent(id)}`);
+      }
     } catch (e) {
       setDecideError(e instanceof Error ? e.message : "Could not record the decision.");
     } finally { setDeciding(false); }
@@ -348,7 +354,7 @@ export default function InvestigationDetailPage() {
         </p>
       )}
 
-      <Tabs defaultValue="summary">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex-wrap">
           <TabsTrigger value="summary">Summary</TabsTrigger>
           <TabsTrigger value="graph">Money trail</TabsTrigger>
