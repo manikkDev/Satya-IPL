@@ -196,6 +196,7 @@ export default function InvestigationDetailPage() {
     } finally { setScenarioBusy(null); }
   };
 
+  const autoRan = useRef(false);
   const runCheck = async () => {
     setChecking(true); setCheckError(null);
     try {
@@ -217,14 +218,13 @@ export default function InvestigationDetailPage() {
     }
   };
 
-  if (error) return <ErrorState message={error instanceof Error ? error.message : "Investigation not found."} onRetry={() => refetch()} />;
-  if (isLoading || !data) return <div className="space-y-4"><Skeleton className="h-28 w-full" /><Skeleton className="h-80 w-full" /></div>;
-
   // auto-run the check once per open when the case has never been reconciled
-  const autoRan = useRef(false);
   useEffect(() => {
     if (!autoRan.current && data && !data.snapshot && !checking) { autoRan.current = true; runCheck(); }
-  }, [data]);
+  }, [data, checking]);
+
+  if (error) return <ErrorState message={error instanceof Error ? error.message : "Investigation not found."} onRetry={() => refetch()} />;
+  if (isLoading || !data) return <div className="space-y-4"><Skeleton className="h-28 w-full" /><Skeleton className="h-80 w-full" /></div>;
 
   const { case: caseData, snapshot, documents, decisions } = data;
   if (!snapshot) {
