@@ -98,7 +98,7 @@ router.get("/dashboard/today", handle(async (req, res) => {
     paymentsDueWeek: money(dueWeek),
     openCaseCount: openCases.length,
     attention: await Promise.all(sorted.slice(0, 3).map(async (x) => ({ id: x.id, text: await humanizeText(x.data?.message ?? x.code?.replaceAll("_", " ").toLowerCase() ?? "Finding", req.scope.groupId), actionLabel: "Review", href: `/app/investigations/${x.caseId}` }))),
-    activity: await Promise.all(findings.slice(0, 5).map(async (x) => ({ id: x.id, text: await humanizeText(x.data?.message ?? x.code ?? "Finding recorded", req.scope.groupId), at: x.createdAt }))),
+    activity: await Promise.all(findings.slice(0, 5).map(async (x) => ({ id: x.id, text: await humanizeText(x.data?.message ?? x.code ?? "Finding recorded", req.scope.groupId), at: x.createdAt, ...(x.caseId ? { href: `/app/investigations/${x.caseId}` } : {}) }))),
   });
 }));
 
@@ -161,31 +161,55 @@ router.get("/compliance/:section", handle(async (req, res) => {
 // GET /orders — PO worklist with computed value + fulfilment percentages.
 // Raw documents have no totals stored; value = sum(qty*rate). Delivered/
 // invoiced/paid percentages come from RECEIVES/BILLS/SETTLES links.
+// Server-side filters: status, q, hasIssues, supplierId, from, to.
+// sort=attention (default) surfaces orders that need a decision first —
+// open issues, then partially fulfilled, then newest. newest/oldest/value
+// are plain orderings. cursor is a numeric offset into the sorted rows.
+const ATTENTION_RANK = {
+  partially_fulfilled: 0, issued: 1, acknowledged: 2, approved: 3,
+  pending_approval: 4, fulfilled: 5, short_closed: 6,
+};
 router.get("/orders", handle(async (req, res) => {
   const f = scopeFilter(req, req.query.entityId);
-  const limit = Math.min(Number(req.query.limit ?? 50), 200);
+  const limit = Math.min(Number(req.query.limit ?? 25), 200);
   const cursor = Number(req.query.cursor ?? 0);
-  const q = { ...f, type: "PO", status: { $nin: ["draft", "cancelled", "reversed"] } };
-  const [items, total] = await Promise.all([
-    Document.find(q).sort({ date: -1, number: -1 }).skip(cursor).limit(limit).lean(),
-    Document.countDocuments(q),
-  ]);
+  const sort = String(req.query.sort ?? "attention");
+  const { status, q: search, hasIssues, supplierId, from, to } = req.query;
+  const q = { ...f, type: "PO" };
+  if (status) q.status = status;
+  else q.status = { $nin: ["draft", "cancelled", "reversed"] };
+  if (supplierId) q.supplierId = supplierId;
+  if (from || to) q.date = { ...(from ? { $gte: from } : {}), ...(to ? { $lte: to } : {}) };
+  if (search) {
+    const rx = { $regex: String(search).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
+    q.$or = [{ number: rx }, { "seller.name": rx }, { externalRef: rx }];
+  }
+  // Bounded working set — fulfilment is computed per row, so sorting by
+  // attention needs every matching PO, not just the page slice.
+  const items = await Document.find(q).sort({ date: -1, number: -1 }).limit(1000).lean();
   const ids = items.map((d) => d.id);
   const links = await DocumentLink.find({ groupId: req.scope.groupId, toId: { $in: ids } }).lean();
-  const linked = await Document.find({ groupId: req.scope.groupId, id: { $in: [...new Set(links.map((l) => l.fromId))] } }).lean();
+  const linked = await Document.find(
+    { groupId: req.scope.groupId, id: { $in: [...new Set(links.map((l) => l.fromId))] } },
+    { id: 1, type: 1, lines: 1, totals: 1 },
+  ).lean();
   const byId = new Map(linked.map((d) => [d.id, d]));
   const lineQty = (doc) => (doc.lines ?? []).reduce((s, l) => s + Number(l.qty ?? 0), 0);
   const poValue = (doc) => Number(doc.totals?.grand?.amount ?? doc.totals?.grand ?? 0) || (doc.lines ?? []).reduce((s, l) => s + Number(l.qty ?? 0) * Number(l.rate ?? 0), 0);
   const grandOf = (doc) => Number(doc.totals?.grand?.amount ?? doc.totals?.grand ?? 0);
-  const findingsByCase = new Set();
-  for (const x of await Finding.find({ ...f, status: "open" }, { caseId: 1 }).lean()) findingsByCase.add(x.caseId);
+  const findingsByCase = new Map();
+  for (const x of await Finding.find({ ...f, status: "open" }, { caseId: 1 }).lean()) {
+    findingsByCase.set(x.caseId, (findingsByCase.get(x.caseId) ?? 0) + 1);
+  }
   const poCases = await Case.find({ ...f, kind: "po", subjectIds: { $in: ids } }, { subjectIds: 1, id: 1 }).lean();
   const caseFor = new Map(poCases.flatMap((c) => c.subjectIds.map((s) => [s, c.id])));
-  const rows = items.map((doc) => {
+  const linksByPo = new Map();
+  for (const l of links) linksByPo.set(l.toId, [...(linksByPo.get(l.toId) ?? []), l]);
+  let rows = items.map((doc) => {
     const ordered = lineQty(doc);
     const value = poValue(doc);
     let received = 0, invoicedVal = 0, paidVal = 0;
-    for (const l of links.filter((x) => x.toId === doc.id)) {
+    for (const l of linksByPo.get(doc.id) ?? []) {
       const src = byId.get(l.fromId);
       if (!src) continue;
       if (l.kind === "RECEIVES") received += lineQty(src);
@@ -200,10 +224,23 @@ router.get("/orders", handle(async (req, res) => {
       deliveredPct: ordered ? Math.min(100, (received / ordered) * 100).toFixed(0) : "0",
       invoicedPct: value ? Math.min(100, (invoicedVal / value) * 100).toFixed(0) : "0",
       paidPct: value ? Math.min(100, (paidVal / value) * 100).toFixed(0) : "0",
-      issueCount: caseId && findingsByCase.has(caseId) ? 1 : 0,
+      issueCount: (caseId && findingsByCase.get(caseId)) || 0,
     };
   });
-  res.json({ items: rows, nextCursor: cursor + items.length < total ? String(cursor + items.length) : null, total });
+  if (hasIssues === "1" || hasIssues === "true") rows = rows.filter((r) => r.issueCount > 0);
+  if (sort === "attention") {
+    rows = [...rows].sort((a, b) =>
+      ((ATTENTION_RANK[a.status] ?? 9) - (ATTENTION_RANK[b.status] ?? 9)) ||
+      (b.issueCount - a.issueCount) ||
+      b.date.localeCompare(a.date) || b.number.localeCompare(a.number));
+  } else if (sort === "value") {
+    rows = [...rows].sort((a, b) => Number(b.value.amount) - Number(a.value.amount));
+  } else if (sort === "oldest") {
+    rows = [...rows].sort((a, b) => a.date.localeCompare(b.date) || a.number.localeCompare(b.number));
+  } // "newest" keeps the mongo ordering
+  const total = rows.length;
+  const page = rows.slice(cursor, cursor + limit);
+  res.json({ items: page, nextCursor: cursor + page.length < total ? String(cursor + page.length) : null, total });
 }));
 
 // GET /findings — open findings list (copilot + IssuesList both call this).
