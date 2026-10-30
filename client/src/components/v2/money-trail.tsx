@@ -232,7 +232,7 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
             stage: node.stage,
           },
           position: positions.get(node.id),
-          classes: `n-${node.type === "FINDING" ? "finding" : "doc"}${node.severity ? " sev" : ""}${search && node.label.toLowerCase().includes(search.toLowerCase()) ? " searched" : ""}`,
+          classes: `n-${node.type === "FINDING" ? "finding" : "doc"} s-${node.stage}${node.severity ? " sev" : ""}${search && node.label.toLowerCase().includes(search.toLowerCase()) ? " searched" : ""}`,
         })),
         ...filtered.edges.map((edge) => ({
           data: { id: edge.id, source: edge.source, target: edge.target, edge },
@@ -260,6 +260,16 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
             "line-height": 1.35,
           },
         },
+        // stage accents — the v1 look: each step of the chain reads its own colour
+        { selector: "node.s-order", style: { "border-color": "#7d8fb4" } },
+        { selector: "node.s-receipt", style: { "border-color": "#2dd4a8" } },
+        { selector: "node.s-inspection", style: { "border-color": "#f0b95c" } },
+        { selector: "node.s-invoice", style: { "border-color": "#a78bfa" } },
+        { selector: "node.s-payment", style: { "border-color": "#fb923c" } },
+        { selector: "node.s-adjustment", style: { "border-color": "#f472b6" } },
+        { selector: "node.s-party", style: { "border-color": "#94a3b8" } },
+        { selector: "node.s-tax", style: { "border-color": "#38bdf8" } },
+        { selector: "node.s-dispatch", style: { "border-color": "#94a3b8" } },
         {
           selector: "node.sev",
           style: { "border-width": 2.5, "border-color": "#c2410c" },
@@ -392,7 +402,7 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Find a document…"
+          placeholder={`Find a document — ${filtered.nodes.length} records · ${filtered.edges.length} connections`}
           aria-label="Find a document in the graph"
           className="h-8 w-44 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--paper)] px-2.5 text-xs text-[var(--ink)] outline-none focus:border-[var(--accent)]"
         />

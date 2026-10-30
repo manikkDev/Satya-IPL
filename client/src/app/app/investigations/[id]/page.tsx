@@ -25,6 +25,17 @@ import { BALANCE_TERMS } from "@/content/copy/vocabulary";
 import { DocPreviewModal } from "@/components/v2/doc-preview";
 import type { Finding, Evidence } from "@/lib/api/types";
 
+const FIELD_HINT: Record<string, string> = {
+  "seller.gstin": "correct the seller's GSTIN on this document",
+  "buyer.gstin": "correct the buyer's GSTIN on this document",
+  "payment.utr": "attach the bank UTR reference",
+  "payment.allocations": "say which invoices this payment settles",
+  "totals.grand": "recheck the invoice total against the order",
+  gstin: "correct the GSTIN",
+};
+const fieldHint = (field: string | undefined, docType: string | undefined) =>
+  FIELD_HINT[field || ""] || (field ? `check ${field} on the ${docType === "document" ? "document" : docType?.toLowerCase()}` : "see the source document");
+
 function EvidenceDrawer({ evidence, onClose }: { evidence: Evidence; onClose: () => void }) {
   return (
     <aside
@@ -111,7 +122,7 @@ function FindingCard({ finding, onAsk, onEvidence }: { finding: Finding; onAsk: 
             onClick={() => onEvidence(evidence)}
             className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] px-2 py-0.5 text-[11px] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent-strong)]"
           >
-            <FileSearch size={11} aria-hidden="true" /> {evidence.documentType} · {evidence.field}
+            <FileSearch size={11} aria-hidden="true" /> {fieldHint(evidence.field, evidence.documentType)}
           </button>
         ))}
         <button type="button" onClick={onAsk} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline">
@@ -146,6 +157,7 @@ export default function InvestigationDetailPage() {
 
   const [deciding, setDeciding] = useState(false);
   const [decideError, setDecideError] = useState<string | null>(null);
+  const [decideDone, setDecideDone] = useState(false);
   const [scenarioBusy, setScenarioBusy] = useState<string | null>(null);
   const [scenarioResult, setScenarioResult] = useState<Record<string, unknown> | null>(null);
   const [scenarioError, setScenarioError] = useState<string | null>(null);
@@ -155,6 +167,8 @@ export default function InvestigationDetailPage() {
     try {
       const reason = action === "APPROVE" ? "Approved from the investigation workbench." : action === "REQUEST_CLARIFICATION" ? "Clarification requested from the investigation workbench." : `Decision recorded: ${action.replaceAll("_", " ").toLowerCase()}.`;
       await v2.caseDecision(id, { action, reason, expectedRevision: data?.case?.revision, snapshotId: null });
+      setDecideDone(true);
+      setTimeout(() => setDecideDone(false), 5000);
       await refetch();
     } catch (e) {
       setDecideError(e instanceof Error ? e.message : "Could not record the decision.");
@@ -301,6 +315,7 @@ export default function InvestigationDetailPage() {
           />
         </div>
         {decideError && <p className="mt-2 text-xs text-[var(--sev-critical)]">{decideError}</p>}
+        {decideDone && <p className="mt-2 text-xs font-medium text-[var(--confirmed)]">Recorded — the check is re-running with your decision.</p>}
         <p className="mt-3 text-xs leading-relaxed text-[var(--muted)]">
           These record your decision — the person who created a document cannot decide on it themselves.
         </p>
