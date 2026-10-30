@@ -247,7 +247,7 @@ export type DashboardSummary = {
   aging: Record<"0-30" | "31-60" | "61-90" | "90+", number>;
   spendBySupplier: { supplierId: string; value: string; docs: number }[];
   monthlySeries: { month: string; value: string; docs: number }[];
-  unallocatedPayments: { documentId: string; amount: string; allocated: string }[];
+  unallocatedPayments: { documentId: string; amount: string; allocated: string; counterparty?: string; date?: string; utr?: string; mode?: string }[];
   recentDecisions: { id?: string; action?: string; reason?: string; actor?: string; createdAt?: string; caseId?: string }[];
 };
 
