@@ -154,6 +154,25 @@ export async function runCopilot({
   const llmAlive = skipAgentic ? false : await agenticRetrieve({ llm, tools, toolCtx, runTool, intent, message: cleanMessage, resolved, send, signal });
   if (!llmAlive) await seededRetrieve({ runTool, intent, resolved, scope, registry });
 
+  /* ---- 4b. Surface retrieved records as evidence + focus ---------------- */
+  // Facts were registered per-tool, but documents themselves often weren't —
+  // this guarantees citations, the sources panel and graphRef for any path.
+  const docPool = collectDocs(retrieved);
+  for (const d of [...docPool.values()].slice(0, 8)) {
+    registry.addEvidence({
+      evidenceId: d.id,
+      label: `${d.type || "record"} ${d.number || d.externalRef || d.id}`.trim(),
+      documentId: d.id,
+    });
+  }
+  if (!resolved.documentId && !resolved.caseId) {
+    const first = [...docPool.values()][0];
+    if (first) {
+      resolved.documentId = first.id;
+      if (first.type === "PO") resolved.caseId = first.id;
+    }
+  }
+
   /* ---- 5. Check (sufficiency) ------------------------------------------ */
   send("status", { stage: "checking", detail: "Checking the evidence covers the answer" });
   const need = requiredSlots(intent.intent);
@@ -410,6 +429,19 @@ function draftText(registry, retrieved, intent) {
   const refs = [...registry.facts.values()].filter((f) => f.label).slice(0, 4).map((f) => `{{${f.id}}}`).join(", ");
   return `Draft message for ${supplier} — copy and send yourself:\n\nSubject: Clarification needed on our records\n\nDear ${supplier} team,\n\nWhile checking our records we found items we can't match yet (${refs || "the referenced documents"}). Please share the supporting document (remittance advice, credit note, or PO reference as applicable) so we can complete the reconciliation.\n\nRegards,\nAccounts team`;
 }
+/** Pull document-shaped objects out of tool payloads at any depth. */
+const collectDocs = (retrieved) => {
+  const out = new Map();
+  const walk = (v, depth) => {
+    if (!v || typeof v !== "object" || depth > 4) return;
+    if (Array.isArray(v)) { for (const x of v) walk(x, depth + 1); return; }
+    if (v.id && (v.number || v.externalRef || v.type)) { out.set(v.id, v); return; }
+    for (const key of ["items", "documents", "document", "nodes", "po", "invoice"]) if (v[key]) walk(v[key], depth + 1);
+  };
+  for (const data of Object.values(retrieved)) walk(data, 0);
+  return out;
+};
+
 const slimRecords = (retrieved) =>
   Object.fromEntries(Object.entries(retrieved).map(([k, v]) => [k, JSON.stringify(v).slice(0, 1500)]));
 const sanitizeArgs = (args) =>

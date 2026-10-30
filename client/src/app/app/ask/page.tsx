@@ -4,7 +4,7 @@
 // status/tool events, never a fake typing animation. Inline citation chips
 // resolve to evidence; cards render only when the backend sends them.
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -45,6 +45,23 @@ function CitationChip({ citation, onOpen }: { citation: NonNullable<Answer["cita
       {citation.n}
     </button>
   );
+}
+
+const DOC_REF_RE = /\b[A-Z]{2,6}\/(?:PO|PI|INV|GRN|DC|PAY|ADV|CN|DVI|SHK|BHA)\/[\w/-]+/g;
+
+/** Split string children on doc refs → clickable links to the record page. */
+function linkify(node: ReactNode, resolve: (ref: string) => string): ReactNode {
+  if (typeof node === "string") {
+    const parts = node.split(DOC_REF_RE);
+    const refs = node.match(DOC_REF_RE) ?? [];
+    if (!refs.length) return node;
+    return parts.flatMap((part, i) => {
+      const ref = refs[i];
+      return [part, ref ? <Link key={`${ref}-${i}`} href={resolve(ref)} className="font-code text-[12.5px] font-medium text-[var(--accent)] underline decoration-[var(--accent)]/40 underline-offset-2 hover:decoration-[var(--accent)]">{ref}</Link> : null];
+    });
+  }
+  if (Array.isArray(node)) return node.map((child, i) => <Fragment key={i}>{linkify(child, resolve)}</Fragment>);
+  return node;
 }
 
 const STAGE_ORDER = ["order", "dispatch", "receipt", "inspection", "invoice", "payment", "adjustment"];
@@ -102,6 +119,12 @@ function AnswerCard({ answer, onOpenCitation, onPick, messageId }: { answer: Ans
   const citations = answer.citations ?? [];
   const options = answer.options ?? [];
   const followUps = answer.suggestedFollowUps ?? answer.followUps ?? [];
+  // A doc ref in prose links to its order page when a citation maps it, else Documents.
+  const resolveRef = (ref: string) => {
+    const hit = citations.find((c) => c.label?.includes(ref) || ref.includes(c.documentId));
+    if (hit?.documentId) return ref.includes("/PO/") ? `/app/orders/${hit.documentId}` : `/app/documents`;
+    return "/app/documents";
+  };
   const rate = (next: "up" | "down") => {
     const value = rating === next ? null : next;
     setRating(value);
@@ -138,6 +161,8 @@ function AnswerCard({ answer, onOpenCitation, onPick, messageId }: { answer: Ans
             h1: ({ children }) => <p className="font-semibold">{children}</p>,
             h2: ({ children }) => <p className="font-semibold">{children}</p>,
             h3: ({ children }) => <p className="font-semibold">{children}</p>,
+            p: ({ children }) => <p>{linkify(children, resolveRef)}</p>,
+            li: ({ children }) => <li>{linkify(children, resolveRef)}</li>,
           }}
         >
           {answer.content}
