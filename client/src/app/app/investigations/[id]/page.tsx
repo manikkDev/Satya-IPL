@@ -321,6 +321,11 @@ export default function InvestigationDetailPage() {
           </>
         )}
       </div>
+      {balances && [balances.supported, balances.disputed, balances.recorded].every((v) => !Number(typeof v === "object" ? v?.amount : v) || !Number(v)) && (
+        <p className="text-xs leading-relaxed text-[var(--muted)]">
+          Nothing has been delivered, invoiced or paid against this order yet — the amounts fill in as goods arrive and bills are recorded. If invoices exist, check that they reference this PO.
+        </p>
+      )}
 
       <Tabs defaultValue="summary">
         <TabsList className="flex-wrap">
