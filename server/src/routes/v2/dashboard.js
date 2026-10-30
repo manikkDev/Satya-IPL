@@ -60,7 +60,13 @@ router.get("/summary", handle(async (req, res) => {
     const total = Number(d.payment?.amount || 0);
     const allocated = (d.payment?.allocations || []).reduce((s, a) => s + Number(a.amount || 0), 0);
     return total > 0 && allocated < total - 0.01;
-  }).map((d) => ({ documentId: d.id, amount: d.payment?.amount, allocated: String((d.payment?.allocations || []).reduce((s, a) => s + Number(a.amount || 0), 0).toFixed(2)) }));
+  }).map((d) => ({
+    documentId: d.id, amount: d.payment?.amount,
+    allocated: String((d.payment?.allocations || []).reduce((s, a) => s + Number(a.amount || 0), 0).toFixed(2)),
+    counterparty: d.seller?.name || d.buyer?.name || null,
+    date: d.date || d.payment?.valueDate || null,
+    utr: d.payment?.utr || null, mode: d.payment?.mode || null,
+  }));
 
   res.json({
     openValue: openValue.toFixed(2),
