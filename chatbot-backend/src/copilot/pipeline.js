@@ -96,8 +96,13 @@ export async function runCopilot({
     ...(intent.entities.grnNumbers || []).map((v) => ({ q: v, type: "GRN" })),
     ...(intent.entities.suppliers || []).map((v) => ({ q: v, type: null })),
   ];
+  // Drop shadowed mentions: a supplier/generic token contained in a doc ref
+  // ("SATYAD" inside "SATYAD/PO/26-27/100009") must not re-clarify after the
+  // exact doc already resolved.
+  const docQs = [...(intent.entities.docRefs || []), ...(intent.entities.poNumbers || []), ...(intent.entities.invoiceNumbers || []), ...(intent.entities.grnNumbers || [])];
+  const unshadowed = mentions.filter((m) => !docQs.some((q) => q !== m.q && q.includes(m.q)));
   const resolutionOptions = [];
-  for (const m of mentions.slice(0, 4)) {
+  for (const m of unshadowed.slice(0, 4)) {
     const r = await runTool("search_records", { query: m.q, type: m.type || undefined });
     const items = r.data?.items || [];
     // If the message names one candidate verbatim (option pick, or the user
@@ -117,7 +122,10 @@ export async function runCopilot({
       }
     }
   }
-  if (resolutionOptions.length) {
+  // Never clarify once a document is resolved — remaining ambiguity in other
+  // mentions is noise, not a question.
+  const stillAmbiguous = resolutionOptions.filter((o) => !resolved.documentId);
+  if (stillAmbiguous.length) {
     return finish({
       answerType: "clarification",
       content: `I found more than one match for ${resolutionOptions.map((o) => o.mention).join(", ")}. Which one do you mean?`,
@@ -139,7 +147,11 @@ export async function runCopilot({
     ? `the record named in the question`
     : null;
 
-  const llmAlive = await agenticRetrieve({ llm, tools, toolCtx, runTool, intent, message: cleanMessage, resolved, send, signal });
+  // Resolved doc + simple intent → deterministic retrieve; the LLM tool loop
+  // (up to 4 rounds) is only worth the calls for reasoning-heavy intents.
+  const SIMPLE = new Set(["status", "lookup", "why_amount", "summary"]);
+  const skipAgentic = (resolved.documentId || resolved.caseId) && SIMPLE.has(intent.intent);
+  const llmAlive = skipAgentic ? false : await agenticRetrieve({ llm, tools, toolCtx, runTool, intent, message: cleanMessage, resolved, send, signal });
   if (!llmAlive) await seededRetrieve({ runTool, intent, resolved, scope, registry });
 
   /* ---- 5. Check (sufficiency) ------------------------------------------ */
