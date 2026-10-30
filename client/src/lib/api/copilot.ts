@@ -20,7 +20,11 @@ export type CopilotEvent =
       citations?: { n: number; evidenceId: string; label: string; documentId: string; href?: string }[];
       facts?: Record<string, string>;
       cards?: { label: string; value: string; detail?: string }[];
+      /** Clarification choices — render as clickable chips that send the pick. */
+      options?: { label: string; action?: string; hint?: string }[];
+      /** Pipeline emits `followUps`; older shape was `suggestedFollowUps` — render either. */
       suggestedFollowUps?: string[];
+      followUps?: string[];
     }
   | { type: "usage"; usage: Parameters<typeof pushAiUsage>[0] }
   | { type: "error"; code?: string; message: string }

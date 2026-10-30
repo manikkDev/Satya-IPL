@@ -43,10 +43,12 @@ function CitationChip({ citation, onOpen }: { citation: NonNullable<Answer["cita
   );
 }
 
-function AnswerCard({ answer, onOpenCitation, messageId }: { answer: Answer; onOpenCitation: (c: NonNullable<Answer["citations"]>[number]) => void; messageId?: string }) {
+function AnswerCard({ answer, onOpenCitation, onPick, messageId }: { answer: Answer; onOpenCitation: (c: NonNullable<Answer["citations"]>[number]) => void; onPick: (prompt: string) => void; messageId?: string }) {
   const [copied, setCopied] = useState(false);
   const [rating, setRating] = useState<"up" | "down" | null>(null);
   const citations = answer.citations ?? [];
+  const options = answer.options ?? [];
+  const followUps = answer.suggestedFollowUps ?? answer.followUps ?? [];
   const rate = (next: "up" | "down") => {
     const value = rating === next ? null : next;
     setRating(value);
@@ -97,6 +99,40 @@ function AnswerCard({ answer, onOpenCitation, messageId }: { answer: Answer; onO
           </p>
         )}
       </div>
+
+      {(options.length > 0 || followUps.length > 0) && (
+        <div className="mt-4 space-y-2">
+          {options.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {options.map((option, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => onPick(option.action || option.label)}
+                  className="rounded-[var(--radius-sm)] border border-[var(--accent)]/50 bg-[var(--accent-soft)]/60 px-3.5 py-2 text-left text-[13px] font-medium text-[var(--accent-strong)] transition-colors hover:bg-[var(--accent-soft)]"
+                >
+                  {option.label}
+                  {option.hint ? <span className="block text-[11px] font-normal opacity-75">{option.hint}</span> : null}
+                </button>
+              ))}
+            </div>
+          )}
+          {followUps.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {followUps.slice(0, 4).map((followUp, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => onPick(followUp)}
+                  className="rounded-full border border-[var(--line)] px-3 py-1 text-[11px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]/60 hover:text-[var(--accent-strong)]"
+                >
+                  {followUp}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--line)] pt-3">
         {answer.certainty ? <CertaintyBadge certainty={answer.certainty} /> : null}
@@ -333,7 +369,7 @@ function Copilot() {
                 <span className="sr-only">You asked: </span>{turn.prompt}
               </p>
               {turn.answer ? (
-                <AnswerCard answer={turn.answer} onOpenCitation={setSelectedCitation} messageId={turn.serverMessageId} />
+                <AnswerCard answer={turn.answer} onOpenCitation={setSelectedCitation} onPick={send} messageId={turn.serverMessageId} />
               ) : turn.error ? (
                 <div role="alert" className="rounded-[var(--radius-md)] border border-[var(--sev-critical)] bg-[var(--sev-critical-soft)] p-4 text-sm text-[var(--ink-2)]">
                   {turn.error}

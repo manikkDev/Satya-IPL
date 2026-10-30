@@ -15,12 +15,18 @@ import {
 
 /** Uniform supplier row for the UI — covers both mock and real API shapes. */
 export type SupplierRow = {
-  id: string; name: string; legalName?: string; gstin: string;
-  msme?: string; udyam?: { number: string; category: string; verifiedAt?: string };
+  id: string; name: string; legalName?: string; tradeNames?: string[]; gstin: string;
+  msme?: string; msmeFlag?: boolean;
+  udyam?: { number: string; category: string; verifiedAt?: string };
   paymentTermsDays?: number;
   pan?: string;
   gstins?: { gstin: string; stateCode?: string; status?: string }[];
-  bankAccounts?: { masked?: string; ifsc?: string; accountHash?: string; status?: string }[];
+  bankAccounts?: {
+    id?: string; masked?: string; accountMasked?: string; ifsc?: string;
+    holderName?: string; accountHash?: string; status?: string;
+    proposedBy?: string; approvedBy?: string[];
+  }[];
+  contacts?: { name?: string; email?: string; phone?: string }[];
   addresses?: { label?: string; line1?: string; city?: string; stateCode?: string; pin?: string }[];
   tags?: string[];
   openValue?: { amount: string; currency: string };
@@ -38,10 +44,37 @@ type SupplierApi = {
   gstins?: { gstin: string; stateCode?: string; status?: string }[];
   pan?: string; udyam?: { number: string; category: "micro" | "small" | "medium"; verifiedAt?: string };
   msme?: boolean; paymentTermsDays?: number;
-  bankAccounts?: { masked?: string; ifsc?: string; accountHash?: string; status?: string }[];
+  bankAccounts?: {
+    id?: string; accountMasked?: string; masked?: string; ifsc?: string;
+    holderName?: string; accountHash?: string; status?: string;
+    proposedBy?: string; approvedBy?: string[];
+  }[];
+  contacts?: { name?: string; email?: string; phone?: string }[];
   addresses?: { label?: string; line1?: string; city?: string; stateCode?: string; pin?: string }[];
   tags?: string[];
 };
+
+/** API supplier master record → the uniform row the UI renders. */
+const normalizeSupplier = (s: SupplierApi): SupplierRow => ({
+  id: s.id,
+  name: s.legalName,
+  legalName: s.legalName,
+  tradeNames: s.tradeNames,
+  gstin: s.gstins?.[0]?.gstin ?? "",
+  msme: s.udyam?.category,
+  msmeFlag: s.msme ?? Boolean(s.udyam?.category),
+  udyam: s.udyam,
+  paymentTermsDays: s.paymentTermsDays,
+  pan: s.pan,
+  gstins: s.gstins,
+  bankAccounts: s.bankAccounts,
+  contacts: s.contacts,
+  addresses: s.addresses,
+  tags: s.tags,
+  openValue: undefined,
+  overdue: undefined,
+  issueCount: 0,
+});
 
 /** Shape returned by GET /api/v2/me (B). */
 export type MeResponse = {
@@ -445,6 +478,31 @@ export const v2 = {
   complianceSummary: (): Promise<ComplianceSummary> =>
     fetchJson<ComplianceSummary>(`/api/v2/compliance/summary`),
 
+  /** MSME 45-day list — supplier page reads `data.msme` rows. */
+  compliance: (): Promise<{ msme: unknown[]; [k: string]: unknown }> =>
+    mocksEnabled()
+      ? mock({ msme: [] })
+      : fetchJson<{ items?: unknown[]; msme?: unknown[] }>(`/api/v2/compliance/msme`)
+        .then((d) => ({ ...d, msme: d.msme ?? d.items ?? [] })),
+
+  /** Sectioned compliance endpoint: msme | gstr2b | rule37 | tds | eway | lut (+?period). */
+  complianceSection: <T = Record<string, unknown>>(section: string, params: Record<string, string> = {}): Promise<T> =>
+    mocksEnabled()
+      ? mock({ items: [], summary: {} } as T)
+      : fetchJson<T>(`/api/v2/compliance/${encodeURIComponent(section)}${qs(params)}`),
+
+  importGstr2b: (entityId: string, gstr2b: unknown, period?: string): Promise<{ created: number; deduped: number; period?: string }> =>
+    fetchJson(`/api/v2/import/gstr2b`, { method: "POST", body: JSON.stringify({ entityId, gstr2b, period }) }),
+
+  markItcReversed: (documentId: string, reversed: boolean, note?: string): Promise<unknown> =>
+    fetchJson(`/api/v2/compliance/itc-reversal`, { method: "POST", body: JSON.stringify({ documentId, reversed, note }) }),
+
+  saveGstMeta: (documentId: string, body: { irn?: string; ewb?: string; irnStatus?: string; ewbStatus?: string; note?: string }): Promise<unknown> =>
+    fetchJson(`/api/v2/compliance/gst-meta`, { method: "POST", body: JSON.stringify({ documentId, ...body }) }),
+
+  tdsDecision: (body: { paymentId: string; action: "record" | "waive"; section?: string; rate?: string; amount?: string; note?: string }): Promise<unknown> =>
+    fetchJson(`/api/v2/compliance/tds-decision`, { method: "POST", body: JSON.stringify(body) }),
+
   findings: (params: Record<string, string> = {}): Promise<Page<Finding>> =>
     mocksEnabled()
       ? mock({ items: mockToday.topFindings, nextCursor: null, total: mockToday.topFindings.length })
@@ -534,27 +592,16 @@ export const v2 = {
       ? mock(mockSuppliers)
       : fetchJson<{ items: SupplierApi[]; nextCursor: string | null }>(`/api/v2/suppliers${qs(params)}`).then(
           (page) => ({
-            items: page.items.map((s) => ({
-              id: s.id,
-              name: s.legalName,
-              legalName: s.legalName,
-              gstin: s.gstins?.[0]?.gstin ?? "",
-              msme: s.udyam?.category,
-              udyam: s.udyam,
-              paymentTermsDays: s.paymentTermsDays,
-              pan: s.pan,
-              gstins: s.gstins,
-              bankAccounts: s.bankAccounts,
-              addresses: s.addresses,
-              tags: s.tags,
-              openValue: undefined,
-              overdue: undefined,
-              issueCount: 0,
-            })),
+            items: page.items.map(normalizeSupplier),
             nextCursor: page.nextCursor,
             total: page.items.length,
           }),
         ),
+
+  supplier: (id: string): Promise<SupplierRow | null> =>
+    mocksEnabled()
+      ? mock(((mockSuppliers.items as SupplierRow[]).find((s) => s.id === id) ?? null) as SupplierRow | null)
+      : fetchJson<SupplierApi>(`/api/v2/suppliers/${encodeURIComponent(id)}`).then(normalizeSupplier),
 
   me: (): Promise<MeResponse> => fetchJson(`/api/v2/me`),
 
@@ -680,27 +727,25 @@ export const v2 = {
   hsnSearch: (q: string, date?: string): Promise<{ items: HsnResult[] }> =>
     fetchJson(`/api/v2/hsn/search${qs({ q, ...(date ? { date } : {}) })}`),
 
-  compliance: (): Promise<Compliance> =>
+  complianceSection: <S extends keyof Compliance>(section: S, params: Record<string, string> = {}): Promise<Compliance[S]> =>
     mocksEnabled()
-      ? mock(mockCompliance)
-      : Promise.all([
-          fetchJson<unknown>(`/api/v2/compliance/msme`),
-          fetchJson<unknown>(`/api/v2/compliance/gstr2b`),
-        ]).then(([msme, gstr2b]) => {
-          const msmeObj = (msme ?? {}) as Record<string, unknown>;
-          const gstrObj = (gstr2b ?? {}) as Record<string, unknown>;
-          const g2b = (gstrObj.gstr2b ?? gstrObj) as Record<string, unknown>;
-          return {
-            msme: Array.isArray(msme) ? msme : (msmeObj.items ?? []),
-            gstr2b: {
-              matched: g2b.matched ?? 0,
-              missingIn2B: g2b.missingIn2B ?? [],
-              missingInBooks: g2b.missingInBooks ?? [],
-              itcAtRisk: g2b.itcAtRisk ?? null,
-              period: g2b.period ?? "",
-            },
-          } as unknown as Compliance;
-        }),
+      ? mock(mockCompliance[section])
+      : fetchJson<Compliance[S]>(`/api/v2/compliance/${section}${qs(params)}`),
+
+  markItcReversed: (documentId: string, reversed: boolean, note?: string): Promise<{ documentId: string; itcReversed: unknown }> =>
+    fetchJson(`/api/v2/compliance/itc-reversal`, { method: "POST", body: JSON.stringify({ documentId, reversed, note }) }),
+
+  saveGstMeta: (documentId: string, body: { irn?: string; ewb?: string; irnStatus?: "not_applicable" | null; ewbStatus?: "not_required" | null; note?: string }): Promise<{ documentId: string; gst: Record<string, unknown> }> =>
+    fetchJson(`/api/v2/compliance/gst-meta`, { method: "POST", body: JSON.stringify({ documentId, ...body }) }),
+
+  tdsDecision: (body: { paymentId: string; action: "record" | "waive"; section?: string; rate?: string; amount?: string; note?: string }): Promise<{ paymentId: string; tdsEntryId?: string }> =>
+    fetchJson(`/api/v2/compliance/tds-decision`, { method: "POST", body: JSON.stringify(body) }),
+
+  importGstr2b: (entityId: string, gstr2b: unknown, period?: string): Promise<{ created: number; deduped: number; errors?: number }> =>
+    fetchJson(`/api/v2/import/gstr2b`, { method: "POST", body: JSON.stringify({ entityId, gstr2b, period }) }),
+
+  updateEntity: (id: string, body: Record<string, unknown>): Promise<Record<string, unknown>> =>
+    fetchJson(`/api/v2/entities/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
 
   entities: (): Promise<{ entities: typeof mockEntities }> =>
     mocksEnabled() ? mock({ entities: mockEntities }) : fetchJson(`/api/v2/entities`),
