@@ -130,7 +130,7 @@ export async function runCopilot({
       answerType: "clarification",
       content: `I found more than one match for ${resolutionOptions.map((o) => o.mention).join(", ")}. Which one do you mean?`,
       options: resolutionOptions.flatMap((o) =>
-        o.items.slice(0, 5).map((i) => ({ id: i.id, label: i.number || i.name || i.id, kind: i.kind })),
+        o.items.slice(0, 5).map((i) => ({ id: i.id, label: i.number || i.name || i.id, kind: i.kind, hint: i.supplier || i.name })),
       ),
       certainty: "AMBIGUOUS",
     });

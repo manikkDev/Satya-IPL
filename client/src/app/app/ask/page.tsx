@@ -216,7 +216,9 @@ function Copilot() {
 
   const [convos, setConvos] = useState<Convo[]>([{ id: "c1", title: "New conversation", turns: [] }]);
   const [activeConvo, setActiveConvo] = useState("c1");
-  const [question, setQuestion] = useState(about ? `Tell me about ${about}` : "");
+  // `about` arrives as a full instruction ("Explain this money trail") from
+  // deep-links — send it verbatim instead of wrapping it in "Tell me about".
+  const [question, setQuestion] = useState(about ?? "");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
   const [evidenceOnly, setEvidenceOnly] = useState(false);
@@ -229,7 +231,13 @@ function Copilot() {
   const convo = convos.find((item) => item.id === activeConvo) ?? convos[0];
   const suggested = context
     ? [`Summarise ${context}`, `What needs my decision on ${context}?`, `Which documents are still missing?`]
-    : ["How much do we really owe on PO-1001?", "Why is INV-041 flagged?", "Which payments are unclear?", "What MSME deadlines are close?"];
+    : [
+        "Which open PO is costing us the most money, and why?",
+        "Which supplier invoices are missing from GSTR-2B this month?",
+        "Any MSME payments close to the 45-day limit?",
+        "Show me payments that haven't been allocated to an invoice.",
+        "What are the critical findings I should review first?",
+      ];
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
