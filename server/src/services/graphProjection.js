@@ -23,7 +23,7 @@ export const projectGraph = async (groupId, snapshotId, graphPayload) => {
     const edges = (graphPayload.edges || []).map((e) => ({ ...e, key: `${groupId}:${snapshotId}:${e.id || `${e.source}-${e.target}-${e.type}`}`, snapshotId, groupId }));
     await session.executeWrite(async (tx) => {
       if (nodes.length) await tx.run(
-        "UNWIND $rows AS r MERGE (n:V2Node {key:r.key}) SET n += {id:r.id, groupId:r.groupId, type:r.type, label:r.label, stage:r.stage, date:r.date, status:r.status}",
+        "UNWIND $rows AS r MERGE (n:V2Node {key:r.key}) SET n += {id:r.id, groupId:r.groupId, snapshotId:r.snapshotId, type:r.type, label:r.label, stage:r.stage, date:r.date, status:r.status}",
         { rows: nodes }
       );
       if (edges.length) await tx.run(
@@ -40,10 +40,14 @@ export const projectGraph = async (groupId, snapshotId, graphPayload) => {
 export const caseGraph = async (groupId, snapshotId) => {
   const session = graph().session();
   try {
-    const nodes = await session.run("MATCH (n:V2Node {groupId:$g}) RETURN n", { g: groupId });
+    const nodes = await session.run(
+      `MATCH (n:V2Node {groupId:$g, snapshotId:$s}) RETURN n
+       UNION MATCH (a:V2Node {groupId:$g})-[:V2LINK {groupId:$g, snapshotId:$s}]-(n:V2Node {groupId:$g}) RETURN DISTINCT n`,
+      { g: groupId, s: snapshotId }
+    );
     const rels = await session.run(
-      "MATCH (a:V2Node {groupId:$g})-[l:V2LINK {groupId:$g}]->(b:V2Node) RETURN l, a.id AS source, b.id AS target",
-      { g: groupId }
+      "MATCH (a:V2Node {groupId:$g})-[l:V2LINK {groupId:$g, snapshotId:$s}]->(b:V2Node {groupId:$g}) RETURN l, a.id AS source, b.id AS target",
+      { g: groupId, s: snapshotId }
     );
     return {
       nodes: nodes.records.map((r) => r.get("n").properties),

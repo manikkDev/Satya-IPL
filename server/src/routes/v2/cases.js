@@ -96,7 +96,8 @@ router.get("/:id/graph", handle(async (req, res) => {
   const snapshot = await Snapshot.findOne({ caseId: kase.id, scenario: false }).sort({ createdAt: -1 }).lean();
   try {
     const g = await caseGraph(kase.groupId, snapshot?.id);
-    return res.json({ ...g, snapshotId: snapshot?.id || null });
+    if (g.nodes?.length) return res.json({ ...g, snapshotId: snapshot?.id || null });
+    throw new Error("empty projection");
   } catch {
     if (snapshot?.result?.graph) return res.json({ ...snapshot.result.graph, source: "snapshot", snapshotId: snapshot.id });
     throw fail(503, "UPSTREAM_UNAVAILABLE", "Graph store unavailable", { service: "neo4j", retryAfterMs: 15000 });
