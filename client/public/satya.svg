@@ -1,1 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="18" fill="#161927"/><path d="M43 19H29c-13 0-15 15-2 17l9 1c9 1 7 10-2 10H20" fill="none" stroke="#f2b76c" stroke-width="6" stroke-linecap="round"/><circle cx="45" cy="47" r="3" fill="#baa4ef"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="satya-tile" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#12181f"/>
+      <stop offset="1" stop-color="#0d1013"/>
+    </linearGradient>
+    <linearGradient id="satya-check" x1="16" y1="40" x2="48" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2dd4a8"/>
+      <stop offset="1" stop-color="#5eead4"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="17" fill="url(#satya-tile)"/>
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="16.25" stroke="#2dd4a8" stroke-opacity="0.22" stroke-width="1.5"/>
+  <!-- ledger lines — the scattered records -->
+  <path d="M15 19h26" stroke="#9fa7b3" stroke-opacity="0.45" stroke-width="5" stroke-linecap="round"/>
+  <path d="M15 27h18" stroke="#9fa7b3" stroke-opacity="0.3" stroke-width="5" stroke-linecap="round"/>
+  <!-- the check — evidence resolving into truth -->
+  <path d="M15 40.5l8.5 8.5L49 28" stroke="url(#satya-check)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

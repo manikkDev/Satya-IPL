@@ -20,7 +20,13 @@ const links = [
 ];
 
 export function Brand() {
-  return <Link href="/" className="satya-brand" aria-label="Satya home"><span className="satya-mark" aria-hidden="true">S</span><span>satya<span className="satya-brand-dot">.</span></span></Link>;
+  return (
+    <Link href="/" className="satya-brand" aria-label="Satya home">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/satya.svg" alt="" aria-hidden="true" className="satya-mark-img h-7 w-7 rounded-[7px]" />
+      <span>satya<span className="satya-brand-dot">.</span></span>
+    </Link>
+  );
 }
 
 export default function BusinessShell({ children, title, subtitle }: { children: React.ReactNode; title: string; subtitle: string }) {

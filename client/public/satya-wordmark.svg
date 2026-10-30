@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 172 48" fill="none">
+  <defs>
+    <linearGradient id="wm-tile" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#12181f"/>
+      <stop offset="1" stop-color="#0d1013"/>
+    </linearGradient>
+    <linearGradient id="wm-check" x1="12" y1="30" x2="36" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2dd4a8"/>
+      <stop offset="1" stop-color="#5eead4"/>
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="13" fill="url(#wm-tile)"/>
+  <rect x="0.6" y="0.6" width="46.8" height="46.8" rx="12.4" stroke="#2dd4a8" stroke-opacity="0.22" stroke-width="1.2"/>
+  <path d="M11 15h19.5" stroke="#9fa7b3" stroke-opacity="0.45" stroke-width="3.75" stroke-linecap="round"/>
+  <path d="M11 21h13.5" stroke="#9fa7b3" stroke-opacity="0.3" stroke-width="3.75" stroke-linecap="round"/>
+  <path d="M11 30.5l6.5 6.5 19-15.75" stroke="url(#wm-check)" stroke-width="5.25" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="58" y="31" font-family="ui-sans-serif, system-ui, sans-serif" font-size="21" font-weight="600" letter-spacing="-0.4" fill="#ecedef">satya</text>
+  <circle cx="117.5" cy="29" r="2.4" fill="#2dd4a8"/>
+</svg>
