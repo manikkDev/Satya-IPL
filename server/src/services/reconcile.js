@@ -77,14 +77,19 @@ const toEntityPolicy = (_p, kase) => ({ entityId: kase.entityId });
 // exists, else drop it (optional evidence — better absent than fabricated).
 const shapeDoc = (d) => {
   const doc = { ...d };
-  // engine totals is required; imported docs often carry only line qty/rate —
-  // derive the grand total from the lines instead of letting ledger read 0.
-  if (!doc.totals || !doc.totals.grand) {
+  // engine totals is required AND takes plain decimal strings — mongo docs
+  // store Money {amount,currency} or numbers; normalize every field.
+  const t = doc.totals || {};
+  const dec = (v) => (v === null || v === undefined ? "0.00" : typeof v === "object" ? String(v.amount ?? "0.00") : String(v));
+  if (!dec(t.grand || t.grandTotal) || dec(t.grand) === "0.00") {
     const sum = (doc.lines || []).reduce((s, l) => s + (l.amount !== undefined ? Number(l.amount) : Number(l.qty || 0) * Number(l.rate || 0)), 0);
-    if (sum > 0) {
-      const zero = { amount: "0.00", currency: doc.currency || "INR" };
-      doc.totals = { ...(doc.totals || {}), taxable: { amount: sum.toFixed(2), currency: doc.currency || "INR" }, cgst: zero, sgst: zero, igst: zero, cess: zero, roundOff: { ...zero }, grand: { amount: sum.toFixed(2), currency: doc.currency || "INR" } };
-    }
+    doc.totals = {
+      taxable: dec(t.taxable) !== "0.00" ? dec(t.taxable) : sum.toFixed(2),
+      cgst: dec(t.cgst), sgst: dec(t.sgst), igst: dec(t.igst), cess: dec(t.cess),
+      roundOff: dec(t.roundOff), grand: dec(t.grand || t.grandTotal) !== "0.00" ? dec(t.grand || t.grandTotal) : sum.toFixed(2),
+    };
+  } else {
+    doc.totals = { taxable: dec(t.taxable), cgst: dec(t.cgst), sgst: dec(t.sgst), igst: dec(t.igst), cess: dec(t.cess), roundOff: dec(t.roundOff), grand: dec(t.grand || t.grandTotal) };
   }
   if (doc.shipTo) {
     const s = doc.shipTo;
