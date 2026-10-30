@@ -56,16 +56,17 @@ router.post(
       if (!controller.signal.aborted) res.write(": heartbeat\n\n");
     }, 8000);
     try {
+      // First paint immediately — inits (LLM pool, RAG index, store) can take
+      // seconds on a cold start; the client should never sit on "Starting…".
+      send("status", { stage: "understanding", detail: "Reading your question" });
       const userToken = (req.headers.authorization || "").replace(/^Bearer /, "");
       const call = createServerCall({ userToken });
-      const llm = await getGateway();
-      const convs = await store();
+      const [llm, convs, rag] = await Promise.all([getGateway(), store(), getRag().catch(() => null)]);
       let conversation = null;
       if (conversationId) {
         conversation = await convs.get(conversationId, { userId: req.auth.userId, groupId: req.auth.groupId });
         if (!conversation) send("error", { code: "NOT_FOUND", message: "Conversation not found — starting a new one" });
       }
-      const rag = await getRag().catch(() => null);
       const result = await runCopilot({
         message,
         context,

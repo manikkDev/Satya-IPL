@@ -11,6 +11,12 @@ if (!isVercel) {
   app.listen(PORT, () => {
     console.log(`🚀 Server running at http://localhost:${PORT}`);
     console.log(`Environment: ${env.NODE_ENV || 'development'}`);
+    // Warm the RAG help index in the background — the first copilot request
+    // shouldn't pay the 32-article embed cost inline.
+    import('./rag/index.js')
+      .then(({ getRag }) => getRag())
+      .then((rag) => { if (rag) console.log('[rag] help index warm'); })
+      .catch(() => undefined);
   });
 }
 
