@@ -270,12 +270,23 @@ export default function TodayPage() {
                   <div className="space-y-3">{[0, 1].map((i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
                 ) : (
                   <ul className="divide-y divide-[var(--line)]">
-                    {(data?.activity ?? []).slice(0, 6).map((item) => (
-                      <li key={item.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                        <p className="text-sm text-[var(--ink-2)]">{item.text}</p>
-                        <span className="shrink-0 text-xs text-[var(--muted)]"><DateText value={item.at} /></span>
-                      </li>
-                    ))}
+                    {(data?.activity ?? []).slice(0, 6).map((item) => {
+                      const row = (
+                        <>
+                          <p className="text-sm text-[var(--ink-2)]">{item.text}</p>
+                          <span className="shrink-0 text-xs text-[var(--muted)]"><DateText value={item.at} /></span>
+                        </>
+                      );
+                      return (
+                        <li key={item.id}>
+                          {"href" in item && item.href ? (
+                            <Link href={item.href} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0 hover:opacity-75">{row}</Link>
+                          ) : (
+                            <div className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">{row}</div>
+                          )}
+                        </li>
+                      );
+                    })}
                     {data && !data.activity?.length && <li className="text-sm text-[var(--muted)]">Nothing recorded yet.</li>}
                   </ul>
                 )}

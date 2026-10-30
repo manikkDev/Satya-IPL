@@ -290,7 +290,7 @@ function ShellInner({ children }: { children: ReactNode }) {
 
       <div className="mx-auto flex min-h-screen max-w-[var(--app-max)]">
         {/* Sidebar — desktop */}
-        <aside className="hidden md:flex w-[232px] shrink-0 flex-col border-r border-[var(--sidebar-line)] bg-[var(--sidebar-bg)]">
+        <aside className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col overflow-y-auto border-r border-[var(--sidebar-line)] bg-[var(--sidebar-bg)] md:flex">
           <div className="px-5 pb-4 pt-5">
             <Link href="/app" className="flex items-baseline gap-1.5">
               <span className="text-[19px] font-bold tracking-tight text-[var(--ink)]">
