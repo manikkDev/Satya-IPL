@@ -317,6 +317,29 @@ export default function TodayPage() {
       {drill === "disputed" && summary && (
         <KpiDrillDown title={`${BALANCE_TERMS.disputedExposure.label} — what the issues look like`} onClose={() => setDrill(null)}>
           <IssueBreakdown summary={summary} />
+          {data?.topFindings?.length ? (
+            <div className="mt-5">
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Highest-severity issues</p>
+              <ul className="divide-y divide-[var(--line)]">
+                {data.topFindings.slice(0, 5).map((f) => (
+                  <li key={f.id}>
+                    <Link href={(f as { caseId?: string }).caseId ? `/app/investigations/${(f as { caseId?: string }).caseId}` : "/app/investigations"} className="block py-2.5 hover:opacity-75">
+                      <div className="flex items-center gap-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${{
+                          critical: "bg-[var(--sev-critical-soft)] text-[var(--sev-critical)]",
+                          high: "bg-[var(--sev-high-soft)] text-[var(--sev-high)]",
+                          medium: "bg-[var(--sev-medium-soft)] text-[var(--sev-medium)]",
+                          low: "bg-[var(--sev-low-soft)] text-[var(--sev-low)]",
+                        }[f.severity as "critical" | "high" | "medium" | "low"] ?? "bg-[var(--surface-2)] text-[var(--muted)]"}`}>{f.severity}</span>
+                        <p className="min-w-0 flex-1 truncate text-sm text-[var(--ink-2)]">{f.title}</p>
+                      </div>
+                      {f.whatResolvesIt && <p className="mt-0.5 pl-1 text-[11px] text-[var(--muted)]">Settles it: {f.whatResolvesIt}</p>}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <Link href="/app/investigations" className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline">
             Open investigations <ArrowUpRight size={12} />
           </Link>

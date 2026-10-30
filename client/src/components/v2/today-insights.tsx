@@ -111,23 +111,57 @@ export function SeriesBars({ series }: { series: DashboardSummary["monthlySeries
   );
 }
 
-/** Severity/certainty breakdown for the "under question" drill-down. */
+const SEV_TONE: Record<string, string> = {
+  critical: "var(--sev-critical)", high: "var(--sev-high)", medium: "var(--sev-medium)",
+  low: "var(--sev-low)", info: "var(--sev-info)",
+};
+const CERT_STYLE: Record<string, string> = {
+  CONFIRMED: "bg-[var(--confirmed-soft)] text-[var(--confirmed)]",
+  PROBABLE: "bg-[var(--likely-soft)] text-[var(--likely)]",
+  POSSIBLE: "bg-[var(--possible-soft)] text-[var(--possible)]",
+  AMBIGUOUS: "bg-[var(--unclear-soft)] text-[var(--unclear)]",
+  INSUFFICIENT_EVIDENCE: "bg-[var(--missing-soft)] text-[var(--missing)]",
+};
+
+/** Severity/certainty breakdown for the "under question" drill-down —
+ *  bar-proportioned severity, badge-styled certainty, totals up top. */
 export function IssueBreakdown({ summary }: { summary: DashboardSummary }) {
   const sevOrder = ["critical", "high", "medium", "low", "info"];
   const certOrder = ["CONFIRMED", "PROBABLE", "POSSIBLE", "AMBIGUOUS", "INSUFFICIENT_EVIDENCE"];
+  const totalIssues = sevOrder.reduce((s, k) => s + (summary.issuesBySeverity[k] ?? 0), 0);
+  const maxSev = Math.max(1, ...sevOrder.map((k) => summary.issuesBySeverity[k] ?? 0));
   return (
-    <div className="grid grid-cols-2 gap-6">
-      <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">By severity</p>
-        {sevOrder.map((s) => (
-          <DrillRow key={s} label={<span className="capitalize">{s}</span>} value={summary.issuesBySeverity[s] ?? 0} />
-        ))}
-      </div>
-      <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">By certainty</p>
-        {certOrder.map((c) => (
-          <DrillRow key={c} label={c.toLowerCase().replaceAll("_", " ")} value={summary.findingsByCertainty[c] ?? 0} />
-        ))}
+    <div>
+      <p className="mb-3 text-sm text-[var(--muted)]">
+        <span className="tnum text-lg font-semibold text-[var(--ink)]">{totalIssues}</span> open issues —{" "}
+        <span style={{ color: "var(--sev-critical)" }}>{summary.issuesBySeverity.critical ?? 0} critical</span>,{" "}
+        <span style={{ color: "var(--sev-high)" }}>{summary.issuesBySeverity.high ?? 0} high</span> need eyes first.
+      </p>
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">By severity</p>
+          {sevOrder.map((s) => (
+            <div key={s} className="py-1.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="capitalize text-[var(--ink-2)]">{s}</span>
+                <span className="tnum text-xs font-semibold text-[var(--ink)]">{summary.issuesBySeverity[s] ?? 0}</span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]">
+                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max((summary.issuesBySeverity[s] ? 2 : 0), ((summary.issuesBySeverity[s] ?? 0) / maxSev) * 100)}%`, background: SEV_TONE[s] }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">How sure are we</p>
+          {certOrder.map((c) => (
+            <div key={c} className="flex items-center justify-between gap-2 border-b border-[var(--line)] py-2 last:border-0">
+              <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${CERT_STYLE[c]}`}>{c.toLowerCase().replaceAll("_", " ")}</span>
+              <span className="tnum text-sm font-medium text-[var(--ink)]">{summary.findingsByCertainty[c] ?? 0}</span>
+            </div>
+          ))}
+          <p className="mt-2 text-[10px] leading-relaxed text-[var(--muted)]">Confirmed = proven by a document. Anything less still needs your review — never guessed.</p>
+        </div>
       </div>
     </div>
   );
@@ -146,9 +180,14 @@ export function UnallocatedList({ summary }: { summary: DashboardSummary }) {
       <ul className="divide-y divide-[var(--line)]">
         {summary.unallocatedPayments.slice(0, 8).map((p) => (
           <li key={p.documentId}>
-            <Link href="/app/payments" className="flex items-center justify-between gap-3 py-2 hover:opacity-75">
-              <span className="font-code text-xs text-[var(--ink-2)]">{p.documentId}</span>
-              <span className="tnum text-sm"><Money value={{ amount: p.amount, currency: "INR" }} /></span>
+            <Link href="/app/payments" className="group flex items-center justify-between gap-3 py-2 transition-opacity hover:opacity-75">
+              <span className="min-w-0">
+                <span className="block truncate text-xs font-medium text-[var(--ink)]">{p.counterparty || p.documentId}</span>
+                <span className="mt-0.5 block text-[10px] text-[var(--muted)]">
+                  {p.date || "—"}{p.utr ? ` · UTR ${p.utr}` : " · no bank ref"}{p.mode ? ` · ${p.mode}` : ""}
+                </span>
+              </span>
+              <span className="tnum shrink-0 text-sm"><Money value={{ amount: p.amount, currency: "INR" }} /></span>
             </Link>
           </li>
         ))}
