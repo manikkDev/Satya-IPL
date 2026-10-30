@@ -90,6 +90,7 @@ export async function runCopilot({
   /* ---- 3. Resolve ------------------------------------------------------ */
   const resolved = { caseId: context.caseId, documentId: context.documentId, supplierId: context.supplierId };
   const mentions = [
+    ...(intent.entities.docRefs || []).map((v) => ({ q: v, type: null })),
     ...(intent.entities.poNumbers || []).map((v) => ({ q: v, type: "PO" })),
     ...(intent.entities.invoiceNumbers || []).map((v) => ({ q: v, type: "INVOICE_IN" })),
     ...(intent.entities.grnNumbers || []).map((v) => ({ q: v, type: "GRN" })),
@@ -99,6 +100,14 @@ export async function runCopilot({
   for (const m of mentions.slice(0, 4)) {
     const r = await runTool("search_records", { query: m.q, type: m.type || undefined });
     const items = r.data?.items || [];
+    // If the message names one candidate verbatim (option pick, or the user
+    // typed a full number), resolve it instead of asking again.
+    const direct = items.length > 1 && items.find((i) => i.number && cleanMessage.includes(i.number));
+    if (direct) {
+      resolved.documentId ||= direct.id;
+      if (direct.type === "PO") resolved.caseId ||= direct.id;
+      continue;
+    }
     if (items.length > 1) resolutionOptions.push({ mention: m.q, items });
     else if (items.length === 1) {
       if (items[0].kind === "supplier") resolved.supplierId ||= items[0].id;

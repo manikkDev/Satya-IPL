@@ -33,7 +33,7 @@ export const UNDERSTAND_SCHEMA = {
 };
 
 const emptyEntities = () => ({
-  poNumbers: [], invoiceNumbers: [], grnNumbers: [], utrs: [],
+  docRefs: [], poNumbers: [], invoiceNumbers: [], grnNumbers: [], utrs: [],
   suppliers: [], items: [], amounts: [], dates: [], periods: [],
 });
 
@@ -78,6 +78,8 @@ const grab = (re, text) => [...text.matchAll(re)].map((m) => m[1] || m[0]);
 export function understandFallback(message) {
   const text = String(message);
   const entities = emptyEntities();
+  // Full doc refs like SATYAD/PO/27-28/000013 — verbatim, highest-priority match.
+  entities.docRefs = grab(/\b[A-Z]{2,6}\/(?:PO|PI|INV|GRN|DC|PAY|ADV|CN|CN_IN)\/[\w/-]+/gi, text);
   entities.poNumbers = grab(/\bpo[\s/-]*(\d[\w/-]*)/gi, text).map((v) => `PO-${v.replace(/^po[-\s/]*/i, "")}`);
   entities.invoiceNumbers = grab(/\b(?:inv|invoice)[\s/-]*([\w/-]*\d[\w/-]*)/gi, text);
   entities.grnNumbers = grab(/\bgrn[\s/-]*(\d[\w/-]*)/gi, text).map((v) => `GRN-${v.replace(/^grn[-\s/]*/i, "")}`);
@@ -113,6 +115,11 @@ export function understandFallback(message) {
 
 export async function understand(llm, { message, contextText }) {
   const llmResult = await understandWithLlm(llm, { message, contextText });
-  if (llmResult) return { ...llmResult, via: "llm" };
+  if (llmResult) {
+    // Verbatim doc refs are always overlaid — exact-match gold regardless
+    // of what the LLM decides to call the mention.
+    const docRefs = grab(/\b[A-Z]{2,6}\/(?:PO|PI|INV|GRN|DC|PAY|ADV|CN|CN_IN)\/[\w/-]+/gi, message);
+    return { ...llmResult, entities: { ...llmResult.entities, docRefs }, via: "llm" };
+  }
   return understandFallback(message);
 }
