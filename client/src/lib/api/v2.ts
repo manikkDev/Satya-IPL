@@ -399,7 +399,7 @@ export const v2 = {
       : fetchJson(`/api/v2/cases${qs(params)}`),
 
   reconcileCase: (id: string): Promise<{ job?: { id: string; status: string } }> =>
-    fetchJson(`/api/v2/cases/${encodeURIComponent(id)}/reconcile`, { method: "POST", body: JSON.stringify({}) }),
+    fetchJson(`/api/v2/cases/${encodeURIComponent(id)}/reconcile`, { method: "POST", body: {} }),
 
   job: (id: string): Promise<{ id: string; status: string; result?: Record<string, unknown>; error?: string }> =>
     fetchJson(`/api/v2/jobs/${encodeURIComponent(id)}`),
@@ -564,10 +564,10 @@ export const v2 = {
       : fetchJson(`/api/v2/payments/${encodeURIComponent(id)}/allocate`),
 
   allocatePayment: (id: string, body: { allocations: { documentId: string; amount: string }[]; reason: string; expectedRevision?: number }) =>
-    fetchJson(`/api/v2/payments/${encodeURIComponent(id)}/allocate`, { method: "POST", body: JSON.stringify(body) }),
+    fetchJson(`/api/v2/payments/${encodeURIComponent(id)}/allocate`, { method: "POST", body }),
 
   importBankCsv: (entityId: string, mapping: Record<string, string>, rows: Record<string, string>[]): Promise<{ created: number; deduped: number; errors: number }> =>
-    fetchJson(`/api/v2/import/bank-csv`, { method: "POST", body: JSON.stringify({ entityId, mapping, rows }) }),
+    fetchJson(`/api/v2/import/bank-csv`, { method: "POST", body: { entityId, mapping, rows } }),
 
   suppliers: (params: Record<string, string> = {}): Promise<SuppliersPage> =>
     mocksEnabled()
@@ -644,14 +644,14 @@ export const v2 = {
   documentAction: (id: string, action: "compute" | "submit" | "approve" | "reject" | "issue" | "amend" | "short-close" | "cancel", body?: unknown) =>
     fetchJson(`/api/v2/documents/${encodeURIComponent(id)}/${action}`, {
       method: "POST",
-      body: body ? JSON.stringify(body) : undefined,
+      body: body,
     }),
 
   createDraft: (body: unknown): Promise<DocView> =>
-    fetchJson(`/api/v2/documents/draft`, { method: "POST", body: JSON.stringify(body) }),
+    fetchJson(`/api/v2/documents/draft`, { method: "POST", body }),
 
   patchDocument: (id: string, body: unknown): Promise<DocView> =>
-    fetchJson(`/api/v2/documents/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
+    fetchJson(`/api/v2/documents/${encodeURIComponent(id)}`, { method: "PATCH", body }),
 
   // files + ingestion (B5)
   uploadFile: async (file: File, entityId?: string): Promise<FileDoc> => {
@@ -682,7 +682,7 @@ export const v2 = {
     fetchJson(`/api/v2/ingest/drafts/${encodeURIComponent(id)}`),
 
   patchIngestDraft: (id: string, body: unknown): Promise<IngestDraft> =>
-    fetchJson(`/api/v2/ingest/drafts/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
+    fetchJson(`/api/v2/ingest/drafts/${encodeURIComponent(id)}`, { method: "PATCH", body }),
 
   confirmIngestDraft: (id: string): Promise<{ documentId: string; status: string }> =>
     fetchJson(`/api/v2/ingest/drafts/${encodeURIComponent(id)}/confirm`, { method: "POST" }),
@@ -691,16 +691,16 @@ export const v2 = {
   policy: (entityId: string): Promise<EntityPolicy> =>
     fetchJson(`/api/v2/policies/${encodeURIComponent(entityId)}`),
   putPolicy: (entityId: string, body: Partial<EntityPolicy>): Promise<EntityPolicy> =>
-    fetchJson(`/api/v2/policies/${encodeURIComponent(entityId)}`, { method: "PUT", body: JSON.stringify(body) }),
+    fetchJson(`/api/v2/policies/${encodeURIComponent(entityId)}`, { method: "PUT", body }),
 
   items: (params: Record<string, string> = {}): Promise<{ items: ItemRow[] }> =>
     fetchJson(`/api/v2/items${qs(params)}`),
   itemSearch: (q: string): Promise<{ items: ItemRow[] }> =>
     fetchJson(`/api/v2/items/search${qs({ q })}`),
   createItem: (body: unknown): Promise<ItemRow> =>
-    fetchJson(`/api/v2/items`, { method: "POST", body: JSON.stringify(body) }),
+    fetchJson(`/api/v2/items`, { method: "POST", body }),
   createSupplier: (body: unknown): Promise<SupplierApi> =>
-    fetchJson(`/api/v2/suppliers`, { method: "POST", body: JSON.stringify(body) }),
+    fetchJson(`/api/v2/suppliers`, { method: "POST", body }),
 
   // public verify (02 §5.3)
   verify: (hash: string): Promise<{ valid: boolean; type?: string; number?: string; entityName?: string; date?: string; grandTotal?: string; status?: string }> =>
@@ -715,19 +715,22 @@ export const v2 = {
       : fetchJson<Compliance[S]>(`/api/v2/compliance/${section}${qs(params)}`),
 
   markItcReversed: (documentId: string, reversed: boolean, note?: string): Promise<{ documentId: string; itcReversed: unknown }> =>
-    fetchJson(`/api/v2/compliance/itc-reversal`, { method: "POST", body: JSON.stringify({ documentId, reversed, note }) }),
+    fetchJson(`/api/v2/compliance/itc-reversal`, { method: "POST", body: { documentId, reversed, note } }),
 
   saveGstMeta: (documentId: string, body: { irn?: string; ewb?: string; irnStatus?: "not_applicable" | null; ewbStatus?: "not_required" | null; note?: string }): Promise<{ documentId: string; gst: Record<string, unknown> }> =>
-    fetchJson(`/api/v2/compliance/gst-meta`, { method: "POST", body: JSON.stringify({ documentId, ...body }) }),
+    fetchJson(`/api/v2/compliance/gst-meta`, { method: "POST", body: { documentId, ...body } }),
 
   tdsDecision: (body: { paymentId: string; action: "record" | "waive"; section?: string; rate?: string; amount?: string; note?: string }): Promise<{ paymentId: string; tdsEntryId?: string }> =>
-    fetchJson(`/api/v2/compliance/tds-decision`, { method: "POST", body: JSON.stringify(body) }),
+    fetchJson(`/api/v2/compliance/tds-decision`, { method: "POST", body }),
 
   importGstr2b: (entityId: string, gstr2b: unknown, period?: string): Promise<{ created: number; deduped: number; errors?: number }> =>
-    fetchJson(`/api/v2/import/gstr2b`, { method: "POST", body: JSON.stringify({ entityId, gstr2b, period }) }),
+    fetchJson(`/api/v2/import/gstr2b`, { method: "POST", body: { entityId, gstr2b, period } }),
+
+  saveLut: (entityId: string, entry: { arn: string; fy: string; validFrom: string; validTo: string }, remove = false): Promise<{ entityId: string; lut: unknown[] }> =>
+    fetchJson(`/api/v2/compliance/lut`, { method: "POST", body: { entityId, ...entry, remove } }),
 
   updateEntity: (id: string, body: Record<string, unknown>): Promise<Record<string, unknown>> =>
-    fetchJson(`/api/v2/entities/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
+    fetchJson(`/api/v2/entities/${encodeURIComponent(id)}`, { method: "PATCH", body }),
 
   entities: (): Promise<{ entities: typeof mockEntities }> =>
     mocksEnabled() ? mock({ entities: mockEntities }) : fetchJson(`/api/v2/entities`),
