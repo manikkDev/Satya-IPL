@@ -64,10 +64,15 @@ export type HsnResult = {
 export type DocView = {
   id: string; type: string; status: string; number?: string | null;
   externalRef?: string | null; date: string; entityId: string; supplierId?: string;
-  seller?: { name?: string; gstin?: string }; buyer?: { name?: string; gstin?: string };
-  lines?: { lineNo: number; description: string; hsn?: string; qty?: string; uom?: string; rate?: string; taxableValue?: string; gstRate?: string; lineTotal?: string; cgst?: string; sgst?: string; igst?: string }[];
-  totals?: { taxable?: string; cgst?: string; sgst?: string; igst?: string; grand?: string };
-  terms?: Record<string, unknown>; contentHash?: string | null;
+  fy?: string; revision?: number; issuedAt?: string; createdBy?: string; irn?: string;
+  seller?: { name?: string; gstin?: string; stateCode?: string; address?: string }; buyer?: { name?: string; gstin?: string; stateCode?: string };
+  shipTo?: { label?: string; line1?: string; city?: string; state?: string; stateCode?: string; pin?: string; contact?: string };
+  placeOfSupply?: string; currency?: string;
+  lines?: { lineNo: number; description: string; hsn?: string; qty?: string; uom?: string; rate?: string; taxableValue?: string; gstRate?: string; lineTotal?: string; cgst?: string; sgst?: string; igst?: string; scheduleDate?: string; brand?: string; mfr?: string }[];
+  charges?: { label?: string; amount?: string }[];
+  totals?: { taxable?: string; cgst?: string; sgst?: string; igst?: string; cess?: string; roundOff?: string; grand?: string };
+  terms?: Record<string, unknown>; approvals?: { actor?: string; action?: string; role?: string; comment?: string; at?: string }[];
+  contentHash?: string | null;
 };
 
 export type DocLink = { fromId: string; toId: string; kind: string; certainty: string; basis?: string };
@@ -79,10 +84,24 @@ export type LifecycleLine = {
 
 export type RenderModel = {
   document: DocView;
-  entity: { legalName?: string; tradeName?: string; code?: string; gstin?: string; pan?: string; cin?: string; stateCode?: string; addresses?: unknown; letterhead?: unknown } | null;
-  supplier: { id: string; legalName: string; gstins?: { gstin: string; stateCode?: string }[]; contacts?: unknown[] } | null;
+  entity: { legalName?: string; tradeName?: string; code?: string; gstin?: string; pan?: string; cin?: string; stateCode?: string; addresses?: { billing?: { line1?: string; city?: string; state?: string; pin?: string }; shipping?: { label?: string; line1?: string; city?: string; state?: string; pin?: string; contact?: string }[] } | null; letterhead?: { footerText?: string } | null } | null;
+  supplier: {
+    id: string; legalName: string; gstins?: { gstin: string; stateCode?: string }[];
+    contacts?: { name?: string; email?: string; phone?: string }[];
+    addresses?: { label?: string; line1?: string; city?: string; stateCode?: string; pin?: string }[];
+    pan?: string; udyam?: { number?: string; category?: string }; paymentTermsDays?: number;
+    bankAccounts?: { masked?: string; ifsc?: string }[];
+  } | null;
   taxSummary: unknown[]; amountInWords: string | null; terms: Record<string, unknown> | null;
   verify: { url: string; hash: string } | null;
+};
+
+export type OrderActivity = {
+  approvals: { actor?: string; action?: string; role?: string; comment?: string; at?: string }[];
+  audit: { id: string; action: string; event: string; actor?: string; actorRole?: string; at?: string; statusCode?: number }[];
+  decisions: { id: string; action?: string; reason?: string; scope?: unknown; findingId?: string; actor?: string; actorRole?: string; createdAt?: string }[];
+  amendments: { id: string; number?: string; type?: string; status?: string; revision?: number; date?: string; supersedes?: string }[];
+  meta: { createdBy?: string; createdAt?: string; issuedAt?: string | null; revision?: number; status?: string; contentHash?: string | null };
 };
 
 export type FileDoc = { id: string; filename?: string; mime?: string; sha256?: string; entityId?: string; status?: string };
@@ -221,6 +240,27 @@ const prettifyReasons = (reasons: unknown, findings: Finding[]): string[] => {
   );
 };
 
+export type DashboardSummary = {
+  openValue: string; casesByStatus: Record<string, number>;
+  issuesBySeverity: Record<string, number>; findingsByCertainty: Record<string, number>;
+  openInvestigations: number;
+  aging: Record<"0-30" | "31-60" | "61-90" | "90+", number>;
+  spendBySupplier: { supplierId: string; value: string; docs: number }[];
+  monthlySeries: { month: string; value: string; docs: number }[];
+  unallocatedPayments: { documentId: string; amount: string; allocated: string }[];
+  recentDecisions: { id?: string; action?: string; reason?: string; actor?: string; createdAt?: string; caseId?: string }[];
+};
+
+export type ComplianceSummary = {
+  msme45: { count: number; items: { documentId?: string; supplier?: string; dueDate?: string; amount?: unknown }[] };
+  rule37: { count: number; items: { documentId?: string; itcAtRisk?: string }[]; itcAtRisk: string };
+  tdsSummary: Record<string, number>;
+  itcSummary: { total: string; blockedOrAtRisk: string };
+  einvoiceCoverage: { withIrn: number; invoices: number; pct: number };
+  creditNotesUnapplied: { count: number; items: { documentId: string; number?: string; date?: string; total?: string }[] };
+  note?: string;
+};
+
 const mock = <T>(value: T): Promise<T> => Promise.resolve(structuredClone(value));
 const qs = (params: Record<string, string>) => {
   const query = new URLSearchParams(params).toString();
@@ -325,6 +365,12 @@ export const v2 = {
       ? mock(mockInvestigations)
       : fetchJson(`/api/v2/cases${qs(params)}`),
 
+  reconcileCase: (id: string): Promise<{ job?: { id: string; status: string } }> =>
+    fetchJson(`/api/v2/cases/${encodeURIComponent(id)}/reconcile`, { method: "POST", body: JSON.stringify({}) }),
+
+  job: (id: string): Promise<{ id: string; status: string; result?: Record<string, unknown>; error?: string }> =>
+    fetchJson(`/api/v2/jobs/${encodeURIComponent(id)}`),
+
   case: (id: string): Promise<typeof mockCaseDetail> =>
     mocksEnabled()
       ? mock(mockCaseDetail)
@@ -392,6 +438,12 @@ export const v2 = {
             findings: (Array.isArray(d.findings) ? d.findings : []).map((f, i) => normalizeFinding(f as Record<string, unknown>, i, docNames)),
           } as unknown as typeof mockCaseDetail;
         }),
+
+  dashboardSummary: (): Promise<DashboardSummary> =>
+    fetchJson<DashboardSummary>(`/api/v2/dashboard/summary`),
+
+  complianceSummary: (): Promise<ComplianceSummary> =>
+    fetchJson<ComplianceSummary>(`/api/v2/compliance/summary`),
 
   findings: (params: Record<string, string> = {}): Promise<Page<Finding>> =>
     mocksEnabled()
@@ -514,6 +566,20 @@ export const v2 = {
   document: (id: string): Promise<DocView & { links: DocLink[]; lifecycle: LifecycleLine[] | null; caseId: string | null }> =>
     fetchJson(`/api/v2/documents/${encodeURIComponent(id)}`),
 
+  orderActivity: (id: string): Promise<OrderActivity> =>
+    mocksEnabled()
+      ? mock({
+          approvals: [{ actor: "usr_sanjay", action: "issue", role: "ap_manager", at: "2026-10-05T10:00:00+05:30" }],
+          audit: [
+            { id: "aud_1", action: "POST /api/v2/documents/doc_po1001/submit", event: "submit", actor: "usr_sanjay", actorRole: "buyer", at: "2026-10-05T09:30:00+05:30", statusCode: 200 },
+            { id: "aud_2", action: "POST /api/v2/documents/doc_po1001/approve", event: "approve", actor: "usr_priya", actorRole: "ap_manager", at: "2026-10-05T09:55:00+05:30", statusCode: 200 },
+          ],
+          decisions: [{ id: "dec_1", action: "REQUEST_CLARIFICATION", reason: "Asked supplier for the missing remittance advice.", actor: "usr_priya", actorRole: "ap_manager", createdAt: "2026-10-27T16:40:00+05:30" }],
+          amendments: [],
+          meta: { createdBy: "usr_sanjay", createdAt: "2026-10-05T09:00:00+05:30", issuedAt: "2026-10-05T10:00:00+05:30", revision: 1, status: "partially_fulfilled" },
+        })
+      : fetchJson(`/api/v2/documents/${encodeURIComponent(id)}/activity`),
+
   renderModel: (id: string): Promise<RenderModel> =>
     mocksEnabled()
       ? mock({
@@ -533,7 +599,10 @@ export const v2 = {
           entity: {
             legalName: mockEntities[0].legalName, tradeName: mockEntities[0].tradeName, code: mockEntities[0].code,
             gstin: mockEntities[0].gstin, stateCode: mockEntities[0].stateCode,
-            addresses: [{ kind: "billing", line1: "Plot 42, MIDC Phase II", city: "Pune", state: "Maharashtra", pin: "411019" }],
+            addresses: {
+              billing: { line1: "Plot 42, MIDC Phase II", city: "Pune", state: "Maharashtra", pin: "411019" },
+              shipping: [{ label: "Works", line1: "Plot 42, MIDC Phase II", city: "Pune", state: "Maharashtra", pin: "411019", contact: "Stores · 98220 00000" }],
+            },
           },
           supplier: { id: "sup_mehta", legalName: "Mehta Engineering Works", gstins: [{ gstin: "27AAAPM1120F1Z5", stateCode: "27" }] },
           taxSummary: [{ gstRate: "18", taxable: "100000.00", cgst: "9000.00", sgst: "9000.00", igst: "0.00" }],
