@@ -25,6 +25,8 @@ export type CopilotEvent =
       /** Pipeline emits `followUps`; older shape was `suggestedFollowUps` — render either. */
       suggestedFollowUps?: string[];
       followUps?: string[];
+      /** Resolved focus — drives the sources-panel graph + deep links. */
+      graphRef?: { caseId?: string | null; documentId?: string | null; supplierId?: string | null };
     }
   | { type: "usage"; usage: Parameters<typeof pushAiUsage>[0] }
   | { type: "error"; code?: string; message: string }

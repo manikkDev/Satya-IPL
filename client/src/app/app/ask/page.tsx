@@ -4,17 +4,21 @@
 // status/tool events, never a fake typing animation. Inline citation chips
 // resolve to evidence; cards render only when the backend sends them.
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Send, Plus, FileSearch, Copy, Check, ThumbsUp, ThumbsDown, X, ArrowUpRight, MessageSquare, Trash2 } from "lucide-react";
+import { Send, Plus, FileSearch, Copy, Check, ThumbsUp, ThumbsDown, X, ArrowUpRight, MessageSquare, Trash2, Workflow } from "lucide-react";
+import { v2 } from "@/lib/api/v2";
+import type { GraphPayload } from "@/lib/api/types";
+import { Skeleton } from "@/components/ui/skeleton";
 import { streamCopilotChat, stageText, listConversations, getConversation, deleteConversation, sendFeedback, type CopilotEvent } from "@/lib/api/copilot";
 import { mocksEnabled } from "@/lib/flags";
 import { pushAiUsage } from "@/lib/ai-usage";
 import { AiCapacityPill } from "@/components/AiCapacityPill";
-import { CertaintyBadge, FadeIn, Card } from "@/components/ui/v2";
+import { CertaintyBadge, FadeIn } from "@/components/ui/v2";
 import { useSession } from "@/components/v2/session";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -40,6 +44,55 @@ function CitationChip({ citation, onOpen }: { citation: NonNullable<Answer["cita
     >
       {citation.n}
     </button>
+  );
+}
+
+const STAGE_ORDER = ["order", "dispatch", "receipt", "inspection", "invoice", "payment", "adjustment"];
+const STAGE_LABEL: Record<string, string> = { order: "Ordered", dispatch: "Dispatched", receipt: "Received", inspection: "Inspected", invoice: "Invoiced", payment: "Paid", adjustment: "Adjustment" };
+
+/** Compact money trail for the sources panel — same data as the
+ *  investigation graph, sized for a 16rem column. */
+function MiniTrail({ caseId }: { caseId: string }) {
+  const { data: graph } = useQuery({
+    queryKey: ["copilot-graph", caseId],
+    queryFn: () => v2.graph(caseId),
+    staleTime: 60_000,
+  });
+  const stages = useMemo(() => {
+    const groups = new Map<string, GraphPayload["nodes"]>();
+    for (const node of graph?.nodes ?? []) {
+      const stage = node.stage ?? "order";
+      groups.set(stage, [...(groups.get(stage) ?? []), node]);
+    }
+    return STAGE_ORDER.filter((s) => groups.has(s)).map((s) => ({ stage: s, nodes: groups.get(s)! }));
+  }, [graph]);
+  return (
+    <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
+      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--ink)]">
+        <Workflow size={15} aria-hidden="true" /> Money trail
+      </h2>
+      {!graph ? (
+        <div className="mt-3 space-y-2"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>
+      ) : (
+        <ol className="mt-3 space-y-0">
+          {stages.map(({ stage, nodes }, i) => (
+            <li key={stage} className="relative pb-3 pl-4 last:pb-0">
+              {i < stages.length - 1 && <span className="absolute left-[5px] top-4 h-full w-px bg-[var(--line-strong)]" aria-hidden="true" />}
+              <span className="absolute left-0 top-1.5 h-[11px] w-[11px] rounded-full border-2 border-[var(--accent)] bg-[var(--paper)]" aria-hidden="true" />
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">{STAGE_LABEL[stage] ?? stage}</p>
+              {nodes.slice(0, 2).map((n) => (
+                <p key={n.id} className="truncate text-[11px] text-[var(--ink-2)]" title={n.label}>{n.label}</p>
+              ))}
+              {nodes.length > 2 && <p className="text-[10px] text-[var(--muted)]">+{nodes.length - 2} more</p>}
+            </li>
+          ))}
+          {!stages.length && <li className="text-xs text-[var(--muted)]">Graph has no trail yet — run the check on the investigation.</li>}
+        </ol>
+      )}
+      <Link href={`/app/investigations/${caseId}`} className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline">
+        Full graph <ArrowUpRight size={12} />
+      </Link>
+    </div>
   );
 }
 
@@ -433,8 +486,10 @@ function Copilot() {
         </form>
       </div>
 
-      {/* right panel — sources */}
-      <aside className="hidden w-64 shrink-0 xl:block" aria-label="Sources">
+      {/* right panel — sources + mini money trail */}
+      <aside className="hidden w-64 shrink-0 space-y-4 xl:block" aria-label="Sources">
+        {(convo.turns.at(-1)?.answer?.graphRef?.caseId) && <MiniTrail caseId={convo.turns.at(-1)!.answer!.graphRef!.caseId!} />}
+
         <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
           <h2 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--ink)]">
             <FileSearch size={15} aria-hidden="true" /> Sources & graph

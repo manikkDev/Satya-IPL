@@ -423,9 +423,19 @@ async function finalize(result, { registry, conversation, store, auth, message, 
     content,
     answerType: result.answerType || "answer",
     certainty: result.certainty || registry.weakestCertainty(),
-    citations: registry.citations(result.content),
+    // When the writer skipped [E#] markers, still surface the evidence used —
+    // labeled as sources, not inline cites.
+    citations: registry.citations(result.content).length
+      ? registry.citations(result.content)
+      : [...registry.evidence.values()].slice(0, 6).map((e) => ({ n: e.n, evidenceId: e.evidenceId, label: e.label, documentId: e.documentId, href: e.href })),
     facts: registry.forAnswer(),
-    cards: result.cards,
+    // Fill missing card values from the fact registry — the LLM often emits
+    // label+detail but drops the number it was given.
+    cards: (result.cards || []).map((c) => {
+      if (c?.value) return c;
+      const fact = [...registry.facts.values()].find((f) => f.label.toLowerCase().includes((c?.label || "").toLowerCase()) || (c?.label || "").toLowerCase().includes(f.label.toLowerCase()));
+      return { ...c, value: fact ? fact.value : c?.value };
+    }),
     suggestedFollowUps: result.suggestedFollowUps || [],
     options: result.options,
     responseMode: result.responseMode || "evidence_tools",
