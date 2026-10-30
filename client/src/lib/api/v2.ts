@@ -485,24 +485,6 @@ export const v2 = {
       : fetchJson<{ items?: unknown[]; msme?: unknown[] }>(`/api/v2/compliance/msme`)
         .then((d) => ({ ...d, msme: d.msme ?? d.items ?? [] })),
 
-  /** Sectioned compliance endpoint: msme | gstr2b | rule37 | tds | eway | lut (+?period). */
-  complianceSection: <T = Record<string, unknown>>(section: string, params: Record<string, string> = {}): Promise<T> =>
-    mocksEnabled()
-      ? mock({ items: [], summary: {} } as T)
-      : fetchJson<T>(`/api/v2/compliance/${encodeURIComponent(section)}${qs(params)}`),
-
-  importGstr2b: (entityId: string, gstr2b: unknown, period?: string): Promise<{ created: number; deduped: number; period?: string }> =>
-    fetchJson(`/api/v2/import/gstr2b`, { method: "POST", body: JSON.stringify({ entityId, gstr2b, period }) }),
-
-  markItcReversed: (documentId: string, reversed: boolean, note?: string): Promise<unknown> =>
-    fetchJson(`/api/v2/compliance/itc-reversal`, { method: "POST", body: JSON.stringify({ documentId, reversed, note }) }),
-
-  saveGstMeta: (documentId: string, body: { irn?: string; ewb?: string; irnStatus?: string; ewbStatus?: string; note?: string }): Promise<unknown> =>
-    fetchJson(`/api/v2/compliance/gst-meta`, { method: "POST", body: JSON.stringify({ documentId, ...body }) }),
-
-  tdsDecision: (body: { paymentId: string; action: "record" | "waive"; section?: string; rate?: string; amount?: string; note?: string }): Promise<unknown> =>
-    fetchJson(`/api/v2/compliance/tds-decision`, { method: "POST", body: JSON.stringify(body) }),
-
   findings: (params: Record<string, string> = {}): Promise<Page<Finding>> =>
     mocksEnabled()
       ? mock({ items: mockToday.topFindings, nextCursor: null, total: mockToday.topFindings.length })
