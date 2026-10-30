@@ -136,6 +136,44 @@ export default function InvestigationDetailPage() {
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
 
+  const [deciding, setDeciding] = useState(false);
+  const [decideError, setDecideError] = useState<string | null>(null);
+  const [scenarioBusy, setScenarioBusy] = useState<string | null>(null);
+  const [scenarioResult, setScenarioResult] = useState<Record<string, unknown> | null>(null);
+  const [scenarioError, setScenarioError] = useState<string | null>(null);
+
+  const decide = async (action: string) => {
+    setDeciding(true); setDecideError(null);
+    try {
+      const reason = action === "APPROVE" ? "Approved from the investigation workbench." : action === "REQUEST_CLARIFICATION" ? "Clarification requested from the investigation workbench." : `Decision recorded: ${action.replaceAll("_", " ").toLowerCase()}.`;
+      await v2.caseDecision(id, { action, reason, expectedRevision: data?.case?.revision, snapshotId: null });
+      await refetch();
+    } catch (e) {
+      setDecideError(e instanceof Error ? e.message : "Could not record the decision.");
+    } finally { setDeciding(false); }
+  };
+
+  const runScenario = async (label: string, changes: Record<string, unknown>[]) => {
+    setScenarioBusy(label); setScenarioResult(null); setScenarioError(null);
+    try {
+      const { job } = await v2.caseScenario(id, changes);
+      if (!job?.id) throw new Error("The engine did not start the scenario.");
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 1500));
+        const j = await v2.job(job.id);
+        if (j.status === "completed") {
+          const snap = await v2.caseSnapshot(id, (j.result as { snapshotId?: string })?.snapshotId || undefined);
+          setScenarioResult(snap as unknown as Record<string, unknown>);
+          return;
+        }
+        if (j.status === "dead") throw new Error(j.error || "The scenario failed — try again.");
+      }
+      throw new Error("Still running — refresh in a moment.");
+    } catch (e) {
+      setScenarioError(e instanceof Error ? e.message : "Could not run the scenario.");
+    } finally { setScenarioBusy(null); }
+  };
+
   const runCheck = async () => {
     setChecking(true); setCheckError(null);
     try {
@@ -221,15 +259,17 @@ export default function InvestigationDetailPage() {
           {recommendation?.reasons?.length ? recommendation.reasons.join(" ") : "Review the issues below and decide the next step."}
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          {recommendation?.action && <ActionButton action={recommendation.action} amount={recommendation.scope?.holdAmount} />}
+          {recommendation?.action && <ActionButton action={recommendation.action} amount={recommendation.scope?.holdAmount} onClick={() => decide(recommendation.action)} disabled={deciding} />}
           {recommendation?.scope?.approveAmount && (
-            <ActionButton action="APPROVE" amount={recommendation.scope.approveAmount} />
+            <ActionButton action="APPROVE" amount={recommendation.scope.approveAmount} onClick={() => decide("APPROVE")} disabled={deciding} />
           )}
           <ActionButton
             action="REQUEST_CLARIFICATION"
-            onClick={() => ask("Draft a message to the supplier asking which invoice the ₹15,000 transfer is for")}
+            onClick={() => decide("REQUEST_CLARIFICATION")}
+            disabled={deciding}
           />
         </div>
+        {decideError && <p className="mt-2 text-xs text-[var(--sev-critical)]">{decideError}</p>}
         <p className="mt-3 text-xs leading-relaxed text-[var(--muted)]">
           These record your decision — the person who created a document cannot decide on it themselves.
         </p>
@@ -281,6 +321,42 @@ export default function InvestigationDetailPage() {
 
         <TabsContent value="calculations">
           <div className="space-y-4">
+            {Array.isArray(snapshot.ledger) && snapshot.ledger.length > 0 && (
+              <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
+                <h3 className="text-sm font-semibold text-[var(--ink)]">Per order line — the math</h3>
+                <p className="mt-0.5 text-xs text-[var(--muted)]">What was ordered, what arrived, what was accepted and what got billed.</p>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-[var(--line)] text-[11px] uppercase tracking-wide text-[var(--muted)]">
+                        <th className="py-2 pr-4 font-medium">Order line</th>
+                        <th className="py-2 pr-4 text-right font-medium">Ordered</th>
+                        <th className="py-2 pr-4 text-right font-medium">Received</th>
+                        <th className="py-2 pr-4 text-right font-medium">Accepted</th>
+                        <th className="py-2 pr-4 text-right font-medium">Invoiced</th>
+                        <th className="py-2 text-right font-medium">Billed value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {snapshot.ledger.map((row: Record<string, string>, i: number) => {
+                        const po = documents.find((d) => d.id === row.poId);
+                        const billed = Number(row.invoicedValue || 0);
+                        return (
+                          <tr key={i} className="border-b border-[var(--line)]/60 last:border-0">
+                            <td className="py-2.5 pr-4 font-code text-xs text-[var(--ink-2)]">{po?.number || row.poId}{row.poLineNo ? ` · line ${row.poLineNo}` : ""}</td>
+                            <td className="py-2.5 pr-4 text-right tnum">{row.ordered || "0"}</td>
+                            <td className="py-2.5 pr-4 text-right tnum">{row.received || "0"}</td>
+                            <td className="py-2.5 pr-4 text-right tnum">{row.accepted || "0"}</td>
+                            <td className="py-2.5 pr-4 text-right tnum">{row.invoicedQty || "0"}</td>
+                            <td className={`py-2.5 text-right tnum${billed > 0 ? " text-[var(--ink)] font-medium" : ""}`}>{billed ? <Money value={row.invoicedValue} /> : "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
             {sortedFindings.filter((f) => f.calculation.length).map((finding) => (
               <div key={finding.id} className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
                 <h3 className="text-sm font-semibold text-[var(--ink)]">{finding.title}</h3>
@@ -382,17 +458,45 @@ export default function InvestigationDetailPage() {
           <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--line)] bg-[var(--surface)] p-6">
             <p className="text-sm font-medium text-[var(--ink)]">Try a scenario — nothing is saved</p>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              Preview how balances and issues change if, say, the remaining 40 pumps arrive, or T03 turns out to pay INV-042.
-              The scenario builder connects to <span className="font-code">POST /cases/:id/scenarios</span> once the engine is wired.
+              Preview how balances and issues change under different realities — nothing is saved. Pick a scenario and the engine re-checks the case as if it were true.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <button type="button" className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--ink-2)]">If the remaining 40 pumps arrive…</button>
-              <button type="button" className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--ink-2)]">If T03 is for INV-042…</button>
-              <button type="button" className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--ink-2)]">If the second INV-041 is rejected…</button>
+              {documents.filter((d) => d.type === "INVOICE_IN").slice(0, 1).map((inv) => (
+                <button key="reject" type="button" disabled={!!scenarioBusy} onClick={() => runScenario(`Reject ${inv.number || inv.id}`, [{ op: "remove_document", documentId: inv.id }])}
+                  className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]/60 disabled:opacity-50">
+                  {scenarioBusy ? scenarioBusy : `If ${inv.number || "the invoice"} is rejected…`}
+                </button>
+              ))}
+              {documents.filter((d) => d.type === "PAYMENT_OUT").slice(0, 1).map((pay) => documents.filter((d) => d.type === "INVOICE_IN").slice(0, 1).map((inv) => (
+                <button key="settle" type="button" disabled={!!scenarioBusy} onClick={() => runScenario("Apply payment to invoice", [{ op: "add_link", link: { fromId: pay.id, toId: inv.id, kind: "SETTLES", certainty: "CONFIRMED", basis: "reference" } }])}
+                  className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]/60 disabled:opacity-50">
+                  If {(pay as { payment?: { utr?: string } }).payment?.utr || pay.number || "the transfer"} covers {inv.number || "the invoice"}…
+                </button>
+              )))}
+              {documents.filter((d) => d.type === "PO").slice(0, 1).map((po) => documents.filter((d) => d.type === "INVOICE_IN").slice(0, 1).map((inv) => (
+                <button key="dup" type="button" disabled={!!scenarioBusy} onClick={() => runScenario("Remove the invoice", [{ op: "remove_document", documentId: inv.id }])}
+                  className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]/60 disabled:opacity-50">
+                  If {po.number || "the order"} was never billed…
+                </button>
+              )))}
+              {!documents.some((d) => d.type === "INVOICE_IN") && !documents.some((d) => d.type === "PAYMENT_OUT") && (
+                <p className="text-xs text-[var(--muted)]">No invoices or payments in this case yet — scenarios need documents to act on.</p>
+              )}
             </div>
-            <p className="mt-4 rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]">
-              Preview — nothing saved.
-            </p>
+            {scenarioError && <p className="mt-3 text-xs text-[var(--sev-critical)]">{scenarioError}</p>}
+            {scenarioBusy && <p className="mt-4 rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]">Running “{scenarioBusy}”…</p>}
+            {scenarioResult && (() => {
+              const b = (scenarioResult.snapshot as Record<string, unknown> | undefined)?.balances as Record<string, string> | undefined;
+              const f = (scenarioResult.snapshot as Record<string, unknown> | undefined)?.findings as unknown[] | undefined;
+              return (
+                <div className="mt-4 rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-4 py-3 text-xs text-[var(--ink-2)]">
+                  <p className="font-medium text-[var(--ink)]">Scenario result — not saved</p>
+                  <p className="mt-1">
+                    Owed: <Money value={b?.evidenceSupportedPayable || b?.recordedPayable || "0"} /> · Recorded: <Money value={b?.recordedPayable || "0"} /> · Under question: <Money value={b?.disputedExposure || "0"} /> · Findings: {f?.length ?? 0}
+                  </p>
+                </div>
+              );
+            })()}
           </div>
         </TabsContent>
       </Tabs>

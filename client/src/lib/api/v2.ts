@@ -404,6 +404,15 @@ export const v2 = {
   job: (id: string): Promise<{ id: string; status: string; result?: Record<string, unknown>; error?: string }> =>
     fetchJson(`/api/v2/jobs/${encodeURIComponent(id)}`),
 
+  caseDecision: (id: string, body: { action: string; reason: string; expectedRevision?: number; snapshotId?: string | null; scope?: unknown }): Promise<{ decision: Record<string, unknown>; job?: { id: string } }> =>
+    fetchJson(`/api/v2/cases/${encodeURIComponent(id)}/decisions`, { method: "POST", body }),
+
+  caseScenario: (id: string, changes: Record<string, unknown>[]): Promise<{ job?: { id: string; status: string } }> =>
+    fetchJson(`/api/v2/cases/${encodeURIComponent(id)}/scenarios`, { method: "POST", body: { changes } }),
+
+  caseSnapshot: (id: string, snapshotId?: string): Promise<Record<string, unknown>> =>
+    fetchJson(`/api/v2/cases/${encodeURIComponent(id)}${snapshotId ? `?snapshot=${encodeURIComponent(snapshotId)}` : ""}`),
+
   case: (id: string): Promise<typeof mockCaseDetail> =>
     mocksEnabled()
       ? mock(mockCaseDetail)

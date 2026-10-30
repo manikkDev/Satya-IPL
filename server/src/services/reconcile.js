@@ -13,16 +13,34 @@ import { newId } from "../lib/ids.js";
 // findings, bump the case revision.
 export const collectCaseInputs = async (kase) => {
   const subjectDocs = await Document.find({ groupId: kase.groupId, id: { $in: kase.subjectIds } }).lean();
+  const supplierIds = subjectDocs.flatMap((d) => [d.supplierId, d.seller?.supplierId].filter(Boolean));
   const extra = await Document.find({
     groupId: kase.groupId,
     id: { $nin: kase.subjectIds },
     $or: [
       { "lines.refs.poId": { $in: kase.subjectIds } },
-      { supplierId: { $in: subjectDocs.map((d) => d.supplierId).filter(Boolean) } },
+      { "lines.refs.grnId": { $in: kase.subjectIds } },
+      { "lines.refs.invoiceId": { $in: kase.subjectIds } },
+      { "payment.allocations.documentId": { $in: kase.subjectIds } },
+      { "seller.supplierId": { $in: supplierIds } },
+      { supplierId: { $in: supplierIds } },
     ],
     status: { $nin: ["cancelled", "draft"] },
   }).lean();
-  const documents = [...subjectDocs, ...extra];
+  // second pass — payments/adjustments settle docs found in the first pass
+  // (a payment allocates to the invoice, which references the PO — one hop out)
+  const passIds = [...kase.subjectIds, ...extra.map((d) => d.id)];
+  const second = await Document.find({
+    groupId: kase.groupId,
+    id: { $nin: passIds },
+    $or: [
+      { "payment.allocations.documentId": { $in: passIds } },
+      { "lines.refs.invoiceId": { $in: passIds } },
+      { "lines.refs.grnId": { $in: passIds } },
+    ],
+    status: { $nin: ["cancelled", "draft"] },
+  }).lean();
+  const documents = [...subjectDocs, ...extra, ...second];
   const ids = documents.map((d) => d.id);
   const links = await DocumentLink.find({ groupId: kase.groupId, $or: [{ fromId: { $in: ids } }, { toId: { $in: ids } }] }).lean();
   return { documents, links };

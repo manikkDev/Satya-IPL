@@ -90,16 +90,33 @@ router.get("/:id", handle(async (req, res) => {
   res.json({ ...kase.toObject(), snapshot: snapshot?.result || null, snapshotId: snapshot?.id || null, findings, decisions, documents });
 }));
 
+// engine graph edges can reference docs it didn't emit as nodes (e.g. a
+// payment settling an invoice) — backfill them so the trail renders whole.
+const STAGE_FOR = { PO: "order", PO_AMENDMENT: "order", GRN: "receipt", QC: "inspection", INVOICE_IN: "invoice", INVOICE_OUT: "invoice", PAYMENT_OUT: "payment", PAYMENT_IN: "payment", ADVANCE_OUT: "payment", CREDIT_NOTE_IN: "adjustment", DEBIT_NOTE_IN: "adjustment", TDS_ENTRY: "adjustment", GSTR2B_ENTRY: "adjustment" };
+const enrichGraph = async (g, kase) => {
+  const nodes = g.nodes || [];
+  const edges = (g.edges || []).map((e) => ({ ...e, type: e.type || e.kind }));
+  const have = new Set(nodes.map((n) => n.id));
+  const missing = [...new Set(edges.flatMap((e) => [e.source, e.target]).filter((x) => x && !have.has(x)))];
+  if (missing.length) {
+    const docs = await Document.find({ groupId: kase.groupId, id: { $in: missing } }).lean();
+    for (const d of docs) {
+      if (!have.has(d.id)) { have.add(d.id); nodes.push({ id: d.id, type: d.type, stage: STAGE_FOR[d.type] || "order", label: d.number || d.externalRef || d.id, date: d.date, status: d.status, groupId: kase.groupId }); }
+    }
+  }
+  return { ...g, nodes, edges };
+};
+
 // GET /cases/:id/graph — Neo4j first, snapshot.graph fallback (never blocks).
 router.get("/:id/graph", handle(async (req, res) => {
   const kase = await loadCase(req);
   const snapshot = await Snapshot.findOne({ caseId: kase.id, scenario: false }).sort({ createdAt: -1 }).lean();
   try {
     const g = await caseGraph(kase.groupId, snapshot?.id);
-    if (g.nodes?.length) return res.json({ ...g, snapshotId: snapshot?.id || null });
+    if (g.nodes?.length) return res.json({ ...(await enrichGraph(g, kase)), snapshotId: snapshot?.id || null });
     throw new Error("empty projection");
   } catch {
-    if (snapshot?.result?.graph) return res.json({ ...snapshot.result.graph, source: "snapshot", snapshotId: snapshot.id });
+    if (snapshot?.result?.graph) return res.json({ ...(await enrichGraph(snapshot.result.graph, kase)), source: "snapshot", snapshotId: snapshot.id });
     throw fail(503, "UPSTREAM_UNAVAILABLE", "Graph store unavailable", { service: "neo4j", retryAfterMs: 15000 });
   }
 }));
