@@ -6,7 +6,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Sparkles, FileSearch, FileDown, X, ArrowUpRight, GitBranch } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
@@ -205,6 +205,12 @@ export default function InvestigationDetailPage() {
 
   if (error) return <ErrorState message={error instanceof Error ? error.message : "Investigation not found."} onRetry={() => refetch()} />;
   if (isLoading || !data) return <div className="space-y-4"><Skeleton className="h-28 w-full" /><Skeleton className="h-80 w-full" /></div>;
+
+  // auto-run the check once per open when the case has never been reconciled
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (!autoRan.current && data && !data.snapshot && !checking) { autoRan.current = true; runCheck(); }
+  }, [data]);
 
   const { case: caseData, snapshot, documents, decisions } = data;
   if (!snapshot) {
