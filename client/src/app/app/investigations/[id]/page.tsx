@@ -133,6 +133,29 @@ export default function InvestigationDetailPage() {
   });
   const [openEvidence, setOpenEvidence] = useState<Evidence | null>(null);
   const [previewDocId, setPreviewDocId] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(null);
+
+  const runCheck = async () => {
+    setChecking(true); setCheckError(null);
+    try {
+      const { job } = await v2.reconcileCase(id);
+      if (job?.id) {
+        for (let i = 0; i < 40; i++) {
+          await new Promise((r) => setTimeout(r, 1500));
+          const j = await v2.job(job.id);
+          if (j.status === "completed") { await refetch(); return; }
+          if (j.status === "dead") throw new Error(j.error || "The check failed — try again.");
+        }
+        throw new Error("The check is still running — refresh in a moment.");
+      }
+      await refetch();
+    } catch (e) {
+      setCheckError(e instanceof Error ? e.message : "Could not start the check.");
+    } finally {
+      setChecking(false);
+    }
+  };
 
   if (error) return <ErrorState message={error instanceof Error ? error.message : "Investigation not found."} onRetry={() => refetch()} />;
   if (isLoading || !data) return <div className="space-y-4"><Skeleton className="h-28 w-full" /><Skeleton className="h-80 w-full" /></div>;
@@ -142,10 +165,28 @@ export default function InvestigationDetailPage() {
     return (
       <FadeIn className="space-y-5">
         <PageHeader title={caseData.title || id} description="This check has not been reconciled yet — run the check to build evidence." />
-        <EmptyState
-          title="No findings yet"
-          body="Satya has not checked this case yet. Once reconciliation runs, findings, balances and the money trail appear here."
-        />
+        <div className="flex flex-col items-center gap-3 rounded-[var(--radius-md)] border border-dashed border-[var(--line)] bg-[var(--surface)] py-14 text-center">
+          <FileSearch size={26} className="text-[var(--muted)]" aria-hidden="true" />
+          <div>
+            <p className="text-sm font-medium text-[var(--ink)]">{checking ? "Checking…" : "No findings yet"}</p>
+            <p className="mt-1 max-w-sm text-xs leading-relaxed text-[var(--muted)]">
+              {checking
+                ? "The engine is reconstructing this case — usually a few seconds."
+                : "Satya has not checked this case yet. Run the check to see findings, balances and the money trail."}
+            </p>
+          </div>
+          {!checking && (
+            <button
+              type="button"
+              onClick={runCheck}
+              className="mt-1 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-strong)]"
+            >
+              Run check
+            </button>
+          )}
+          {checking && <Skeleton className="h-2 w-48 rounded-full" />}
+          {checkError && <p className="text-xs text-[var(--sev-critical)]">{checkError}</p>}
+        </div>
       </FadeIn>
     );
   }

@@ -28,6 +28,8 @@ export const collectCaseInputs = async (kase) => {
   return { documents, links };
 };
 
+const DROP_NESTED = new Set(["packing", "remarks"]);
+
 // strip mongo noise + server-only fields; Dates -> ISO (engine requires
 // createdAt/updatedAt/createdBy as strings). NOTE: engine EntityPolicy per
 // A's live schema is {entityId} — the richer 02 §6.1 policy block was not
@@ -42,13 +44,28 @@ const strip = (v) => {
         "_id", "__v", "supplierId",
         "approvals", "requiredApprovers", "contentHash", "issuedAt",
         "caseId", "taxSummary", "taxWarnings",
-      ].includes(k) && v[k] !== undefined)
+      ].includes(k) && !DROP_NESTED.has(k) && v[k] !== undefined)
       .map(([k, x]) => [k, strip(x)]));
   }
   return v;
 };
 
 const toEntityPolicy = (_p, kase) => ({ entityId: kase.entityId });
+
+// engine shipTo is a strict address {line1, city, stateCode, pincode, country}
+// — mapped docs carry {label, state, pin, contact}. Reshape when a pincode
+// exists, else drop it (optional evidence — better absent than fabricated).
+const shapeDoc = (d) => {
+  const doc = { ...d };
+  if (doc.shipTo) {
+    const s = doc.shipTo;
+    const pincode = s.pincode || s.pin;
+    doc.shipTo = pincode
+      ? { line1: s.line1 || s.address || s.label || "—", city: s.city || "—", stateCode: s.stateCode || s.state || "—", pincode, country: s.country || "IN" }
+      : undefined;
+  }
+  return doc;
+};
 
 // links are stricter than documents: no groupId/createdAt/updatedAt allowed.
 const stripLink = (l) => {
@@ -64,7 +81,7 @@ export const runReconcile = async (payload, job) => {
   const entityPolicy = toEntityPolicy(await ensurePolicy(kase.entityId, kase.groupId), kase);
   const result = await enginePost("/v2/reconcile/case", {
     caseId, entityPolicy, ...(payload.knowledgeTime ? { knowledgeTime: payload.knowledgeTime } : {}),
-    documents: strip(documents), links: links.map(stripLink), reviews: payload.reviews || {},
+    documents: strip(documents.map(shapeDoc)), links: links.map(stripLink), reviews: payload.reviews || {},
     ...(scenario ? { scenario } : {}),
   }, { timeoutMs: 60000 });
 

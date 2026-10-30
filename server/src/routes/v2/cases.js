@@ -18,12 +18,63 @@ const loadCase = async (req) => {
   return kase;
 };
 
+// GET /cases — investigation worklist with per-case stats so the UI can show
+// finding counts, top severity and open value before you ever open a case.
+// page/pageSize/q/status/kind params give numbered pagination + search.
 router.get("/", handle(async (req, res) => {
+  const { status, kind } = req.query;
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize) || 10));
   const filter = { groupId: req.scope.groupId };
-  if (req.query.status) filter.status = req.query.status;
+  if (status) filter.status = status;
+  if (kind) filter.kind = kind;
   if (req.query.entityId) filter.entityId = req.query.entityId;
-  const items = await Case.find(filter).sort({ updatedAt: -1 }).limit(100).lean();
-  res.json({ items, nextCursor: null });
+  if (req.query.q && String(req.query.q).trim()) {
+    const rx = { $regex: String(req.query.q).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
+    filter.$or = [{ id: rx }, { title: rx }, { subjectIds: rx }];
+  }
+  const cases = await Case.find(filter).sort({ updatedAt: -1 }).limit(500).lean();
+  if (!cases.length) return res.json({ items: [], total: 0, page, pageSize, pages: 0 });
+
+  const ids = cases.map((c) => c.id);
+  // findings per case (severity counts) + latest live snapshot per case
+  const [findingAgg, snapshots] = await Promise.all([
+    Finding.aggregate([
+      { $match: { groupId: req.scope.groupId, caseId: { $in: ids } } },
+      { $group: {
+        _id: "$caseId",
+        findings: { $sum: 1 },
+        critical: { $sum: { $cond: [{ $eq: ["$severity", "critical"] }, 1, 0] } },
+        high: { $sum: { $cond: [{ $eq: ["$severity", "high"] }, 1, 0] } },
+        medium: { $sum: { $cond: [{ $eq: ["$severity", "medium"] }, 1, 0] } },
+        low: { $sum: { $cond: [{ $eq: ["$severity", "low"] }, 1, 0] } },
+      } },
+    ]),
+    Snapshot.find({ caseId: { $in: ids }, scenario: false }).sort({ createdAt: -1 }).lean(),
+  ]);
+  const stats = new Map(findingAgg.map((f) => [f._id, f]));
+  const latestSnap = new Map();
+  for (const s of snapshots) if (!latestSnap.has(s.caseId)) latestSnap.set(s.caseId, s);
+
+  const sevRank = (f) => (f?.critical ? 4 : f?.high ? 3 : f?.medium ? 2 : f?.low ? 1 : 0);
+  const items = cases.map((c) => {
+    const f = stats.get(c.id);
+    const snap = latestSnap.get(c.id);
+    const balances = snap?.result?.balances || snap?.result?.ledger?.balances;
+    return {
+      id: c.id, title: c.title, kind: c.kind, status: c.status, entityId: c.entityId,
+      subjectIds: c.subjectIds, revision: c.revision, createdAt: c.createdAt, updatedAt: c.updatedAt,
+      reconciled: !!snap, lastReconciledAt: snap?.createdAt || null, snapshotId: snap?.id || null,
+      findings: f?.findings || 0,
+      severity: { critical: f?.critical || 0, high: f?.high || 0, medium: f?.medium || 0, low: f?.low || 0 },
+      topSeverity: sevRank(f) >= 4 ? "critical" : sevRank(f) === 3 ? "high" : sevRank(f) === 2 ? "medium" : sevRank(f) === 1 ? "low" : null,
+      openValue: balances?.recordedPayable || balances?.canonicalOutstanding || null,
+      disputedValue: balances?.disputedExposure || null,
+      recommendation: snap?.result?.recommendation?.action || null,
+    };
+  });
+  const start = (page - 1) * pageSize;
+  res.json({ items: items.slice(start, start + pageSize), total: items.length, page, pageSize, pages: Math.max(1, Math.ceil(items.length / pageSize)) });
 }));
 
 router.get("/:id", handle(async (req, res) => {
