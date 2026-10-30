@@ -98,7 +98,17 @@ router.get("/dashboard/today", handle(async (req, res) => {
     paymentsDueWeek: money(dueWeek),
     openCaseCount: openCases.length,
     attention: await Promise.all(sorted.slice(0, 3).map(async (x) => ({ id: x.id, text: await humanizeText(x.data?.message ?? x.code?.replaceAll("_", " ").toLowerCase() ?? "Finding", req.scope.groupId), actionLabel: "Review", href: `/app/investigations/${x.caseId}` }))),
-    activity: await Promise.all(findings.slice(0, 5).map(async (x) => ({ id: x.id, text: await humanizeText(x.data?.message ?? x.code ?? "Finding recorded", req.scope.groupId), at: x.createdAt, ...(x.caseId ? { href: `/app/investigations/${x.caseId}` } : {}) }))),
+    activity: await Promise.all(findings.slice(0, 5).map(async (x) => {
+      const f = x.data || {};
+      const docId = f.evidence?.[0]?.documentId;
+      const doc = docId ? await Document.findOne({ groupId: req.scope.groupId, id: docId }).select("number externalRef").lean() : null;
+      return {
+        id: x.id, kind: "finding", severity: f.severity || "info", code: x.code || f.code,
+        text: await humanizeText(f.message ?? x.code ?? "Finding recorded", req.scope.groupId),
+        docRef: doc?.number || doc?.externalRef || docId || null,
+        at: x.createdAt, ...(x.caseId ? { href: `/app/investigations/${x.caseId}` } : {}),
+      };
+    })),
   });
 }));
 

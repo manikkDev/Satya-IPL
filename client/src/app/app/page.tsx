@@ -271,18 +271,25 @@ export default function TodayPage() {
                 ) : (
                   <ul className="divide-y divide-[var(--line)]">
                     {(data?.activity ?? []).slice(0, 6).map((item) => {
+                      const sevTone: Record<string, string> = { critical: "var(--sev-critical)", high: "var(--sev-high)", medium: "var(--sev-medium)", low: "var(--sev-low)", info: "var(--sev-info)" };
+                      const tone = sevTone[(item as { severity?: string }).severity ?? "info"];
+                      const docRef = (item as { docRef?: string | null }).docRef;
                       const row = (
                         <>
-                          <p className="text-sm text-[var(--ink-2)]">{item.text}</p>
+                          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: tone }} aria-hidden="true" />
+                          <span className="min-w-0 flex-1">
+                            {docRef && <span className="mr-1.5 font-code text-[11px] text-[var(--muted)]">{docRef}</span>}
+                            <span className="text-sm text-[var(--ink-2)]">{item.text}</span>
+                          </span>
                           <span className="shrink-0 text-xs text-[var(--muted)]"><DateText value={item.at} /></span>
                         </>
                       );
                       return (
                         <li key={item.id}>
                           {"href" in item && item.href ? (
-                            <Link href={item.href} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0 hover:opacity-75">{row}</Link>
+                            <Link href={item.href} className="flex items-start gap-2.5 py-2.5 first:pt-0 last:pb-0 transition-opacity hover:opacity-75">{row}</Link>
                           ) : (
-                            <div className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">{row}</div>
+                            <div className="flex items-start gap-2.5 py-2.5 first:pt-0 last:pb-0">{row}</div>
                           )}
                         </li>
                       );
