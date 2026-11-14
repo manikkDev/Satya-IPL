@@ -1,0 +1,4 @@
+# file: /w/satya_engine/recon/detectors/flows.py
+# hypothesis_version: 6.142.4
+
+['0', 'ADVANCE_OUT', 'CONFIRMED', 'CREDIT_NOTE_IN', 'DOC_MISSING_INVOICE', 'DUP_PAYMENT', 'GRN', 'INVOICE_IN', 'PAYMENT_OUT', 'PO', 'PO_AMENDMENT', 'PROBABLE', 'SETTLES', 'TAX_ARITHMETIC', 'TAX_GSTIN_INVALID', 'TAX_TYPE_MISMATCH', '__doc__', 'allocations', 'amount', 'buyer', 'cancelled', 'certainty', 'cess', 'cgst', 'checksumValid', 'date', 'documentId', 'field', 'fromId', 'grand', 'gstin', 'high', 'id', 'igst', 'kind', 'lineNo', 'lines', 'low', 'medium', 'observedAt', 'payment', 'placeOfSupply', 'poId', 'refs', 'reversed', 'roundOff', 'seller', 'sgst', 'stateCode', 'status', 'supersedes', 'taxable', 'toId', 'totals', 'type', 'utr', 'valueDate', 'wellFormed']

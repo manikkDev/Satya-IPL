@@ -1,0 +1,4 @@
+# file: /w/satya_engine/api.py
+# hypothesis_version: 6.142.4
+
+[403, 404, 422, 500, '/', '/health', '/ready', '/v2/allocate/payment', '/v2/anomaly/score', '/v2/docs/parse', '/v2/docs/validate', '/v2/match/candidates', '/v2/models/status', '/v2/reconcile/case', '/v2/schema', '/v2/tax/compute', '/v2/train', '/v2/validate/gstin', '1', 'ALLOW_ENGINE_TRAIN', 'ALLOW_TRAIN', 'FEATURE_V2_RECON_V2', 'HSN_MASTER_PATH', 'INTERNAL_ERROR', 'TRAINING_DISABLED', 'VALIDATION_FAILED', 'code', 'dataSources', 'details', 'engineVersion', 'error', 'fallback', 'fields', 'grn_po_line', 'hsnMasterVersion', 'invoice_invoice_dup', 'invoice_po_line', 'item_item', 'labelledPairs', 'limitations', 'message', 'metrics', 'modelReady', 'modelVersion', 'models', 'n_pos', 'ok', 'payment_invoice', 'ready', 'requestId', 'rulesReady', 'satya-engine', 'satya-reconciliation', 'schemas', 'seed', 'service', 'supplier_supplier', 'task', 'trainedAt', 'version']

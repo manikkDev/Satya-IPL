@@ -1,0 +1,4 @@
+# file: /w/satya_engine/evaluate.py
+# hypothesis_version: 6.142.4
+
+[0.0, 0.1, 0.5, 0.8, 0.95, 150, 'CONFIRMED', 'Z', 'abstentionRate', 'admitted', 'avgSetSize', 'blocking', 'certainty', 'conformalCoverage', 'conformalQHat', 'datetime', 'documents', 'fromId', 'generatedAt', 'holdout', 'id', 'invoice_po_line', 'kind', 'labels', 'limitations', 'links', 'logloss', 'model', 'note', 'pairs', 'positives', 'prAuc', 'provenance', 'recall', 'seed', 'task', 'toId']

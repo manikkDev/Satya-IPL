@@ -1,0 +1,4 @@
+# file: /w/satya_engine/deadlines.py
+# hypothesis_version: 6.142.4
+
+[180, 'EINVOICE_30', 'INVOICE_IN', 'MSME_45', 'PO', 'PO_DELIVERY', 'RULE_37_180', 'SETTLES', 'amount', 'basis', 'cancelled', 'currency', 'date', 'daysLeft', 'deadlines', 'documentId', 'draft', 'dueDate', 'einvoiceDays', 'grand', 'gst', 'id', 'irn', 'kind', 'lines', 'micro', 'msmeDays', 'reversed', 'rule37Days', 'scheduleDate', 'seller', 'small', 'status', 'supplierId', 'toId', 'totals', 'type']

@@ -1,0 +1,4 @@
+# file: /w/satya_engine/recon/detectors/terms.py
+# hypothesis_version: 6.142.4
+
+[100, 180, 50000, '0', '0.01', '5-10cr', '>=10cr', 'CONFIRMED', 'DELIVERY_CHALLAN', 'GRN', 'GSTR2B_ENTRY', 'IMS_ACTION', 'INVOICE_IN', 'INVOICE_OUT', 'PAY_COMBINED', 'PAY_SPLIT', 'POSSIBLE', 'PRICE_VARIANCE', 'PROBABLE', 'QTY_CHALLAN_VS_GRN', 'SETTLES', 'TAX_EINVOICE_MISSING', 'TAX_EWAYBILL_MISSING', 'TAX_NOT_IN_GSTR2B', 'TAX_RATE_MISMATCH', 'TAX_RULE37_RISK', 'aatoBand', 'action', 'amount', 'cancelled', 'certainty', 'cgst', 'challanId', 'challanLineNo', 'charges', 'date', 'deliveryTerms', 'documentId', 'ewayBillNo', 'fromId', 'grand', 'gst', 'high', 'hsn', 'id', 'igst', 'included', 'inclusive', 'invoiceId', 'irn', 'kind', 'lineNo', 'lines', 'low', 'medium', 'name', 'number', 'poId', 'poLineNo', 'qty', 'rate', 'refs', 'reject', 'reversed', 'seller', 'sgst', 'status', 'supplyType', 'tax', 'taxable', 'terms', 'toId', 'totals', 'type', 'uncertain', 'uom']

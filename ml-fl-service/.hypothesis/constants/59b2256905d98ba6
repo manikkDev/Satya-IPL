@@ -1,0 +1,4 @@
+# file: /w/satya_engine/business_training.py
+# hypothesis_version: 6.142.4
+
+[0.08, 0.35, 0.45, 0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.98, 1.2, 100, 200, 230, 1000, 1600, 20000, 'A', 'CONSTRUCTED', 'V', '__main__', 'artifactSha256', 'automaticApproval', 'balance', 'baselines', 'brier', 'calibration', 'coefficient', 'count', 'coverage', 'description', 'episodeCount', 'equipment-pairs-v2', 'evaluation.json', 'featureSchema', 'g', 'generatorVersion', 'held_out_sigmoid', 'high', 'highConfidence', 'intercept', 'kW', 'kind', 'limitations', 'logistic', 'logloss', 'low', 'mm', 'model.json', 'modelVersion', 'motor', 'observed', 'pairCount', 'poId', 'prAuc', 'precision', 'predicted', 'pump', 'quantity', 'ready', 'recall', 'reliabilityBins', 'rocAuc', 'samples', 'satya-pair-xgb-v2', 'seed', 'sku', 'source', 'splitCounts', 'splitManifestHash', 'splits.json', 'switch', 'task', 'test', 'threshold', 'train', 'trainedAt', 'unitPrice', 'validation', 'valve']

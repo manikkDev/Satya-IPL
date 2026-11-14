@@ -1,0 +1,4 @@
+# file: /w/satya_engine/recon/detectors/payments.py
+# hypothesis_version: 6.142.4
+
+['ADVANCE_OUT', 'CONFIRMED', 'EXPWOP', 'GRN', 'INVOICE_IN', 'PAYMENT_IN', 'PAYMENT_OUT', 'PAY_BEFORE_RECEIPT', 'PAY_OVERPAYMENT', 'PAY_UNALLOCATED', 'POSSIBLE', 'PROBABLE', 'SETTLES', 'SEZWOP', 'TAX_LUT_MISSING', '__doc__', 'arn', 'bankAccountMasked', 'cancelled', 'date', 'documentId', 'fromId', 'fy', 'gst', 'gstin', 'high', 'id', 'invoiceId', 'kind', 'lineNo', 'lines', 'low', 'lut', 'medium', 'name', 'payment', 'poId', 'purpose', 'refs', 'reversed', 'seller', 'status', 'supplierId', 'supplyType', 'type', 'utr']

@@ -51,11 +51,18 @@ def events(documents, links, knowledge_time=None):
                 (l.toId for l in link_index.get(doc.id, [])
                  if l.kind in {"FULFILS", "RECEIVES", "BILLS", "SETTLES"}
                  and l.certainty == "CONFIRMED"), None)
+            po_line_no = refs.poLineNo if refs else None
+            # A PO's own lines ARE its ordered quantity: they need no
+            # self-reference (created-in-app POs never carry one).
+            if doc.type == "PO" and not po_id:
+                po_id = doc.id
+            if doc.type == "PO" and po_id == doc.id and po_line_no is None:
+                po_line_no = line.lineNo
             if not po_id:
                 continue
             event = {
                 "docId": doc.id, "docType": doc.type, "kind": kind, "poId": po_id,
-                "poLineNo": refs.poLineNo if refs else None,
+                "poLineNo": po_line_no,
                 "supplierId": doc.seller.supplierId,
                 "currency": doc.currency, "date": doc.date,
                 "observedAt": doc.observedAt,

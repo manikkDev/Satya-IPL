@@ -1,0 +1,4 @@
+# file: /w/satya_engine/business_contracts.py
+# hypothesis_version: 6.142.4
+
+[100, 120, 160, 500, 1000, 1500, 2000, 2001, '-1000000000000', '0', '1000000000000', 'BOX', 'CESS', 'CGST', 'CONSTRUCTED', 'CREDIT_NOTE', 'EA', 'EUR', 'GRN', 'IGST', 'INR', 'INVOICE', 'Invalid decimal', 'KG', 'M', 'PAYMENT', 'PO', 'PROFORMA', 'PUBLIC_REAL', 'PUBLIC_SYNTHETIC', 'RETURN', 'Reserved identifier', 'SET', 'SGST', 'USD', 'USER_PROVIDED', '^[A-Za-z0-9_.:-]+$', '__proto__', 'acceptedQuantity', 'after', 'amount', 'approved', 'before', 'complete', 'constructor', 'dueAt', 'failed', 'forbid', 'four_way', 'id', 'netAmount', 'observedAt', 'observedBefore', 'occurredAt', 'occurredBefore', 'packSize', 'partial', 'pending', 'posted', 'prototype', 'quantity', 'reversed', 'settled', 'status', 'taxes', 'three_way', 'unitPrice', 'unknown']
