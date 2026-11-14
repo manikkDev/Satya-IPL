@@ -14,6 +14,7 @@ const auditSchema = new mongoose.Schema(
     statusCode: Number,
     ip: String,
     at: { type: String, required: true },          // hashed ISO event time (createdAt is only an index convenience)
+    seq: Number,                                   // per-group chain position (absent on legacy rows)
     prevHash: { type: String, required: true },
     hash: { type: String, required: true },
   },
@@ -22,5 +23,8 @@ const auditSchema = new mongoose.Schema(
 
 auditSchema.index({ groupId: 1, id: 1 }, { unique: true });
 auditSchema.index({ groupId: 1, createdAt: -1 });
+// serialises appends per group (services/audit.js): racing writers for the
+// same seq get E11000 and retry against the new head
+auditSchema.index({ groupId: 1, seq: 1 }, { unique: true, partialFilterExpression: { seq: { $type: "number" } } });
 
 export default mongoose.model("Audit", auditSchema);

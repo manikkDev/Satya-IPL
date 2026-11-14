@@ -65,6 +65,8 @@ documentSchema.index({ groupId: 1, "seller.gstin": 1, number: 1, fy: 1 });
 documentSchema.index({ "payment.utr": 1 }, { sparse: true });
 documentSchema.index({ groupId: 1, id: 1 }, { unique: true });
 documentSchema.index({ "lines.refs.poId": 1 }, { sparse: true });
+documentSchema.index({ groupId: 1, "payment.allocations.documentId": 1 });
+documentSchema.index({ groupId: 1, supplierId: 1, type: 1 });
 
 export const DOC_TYPES_LIST = DOC_TYPES;
 export default mongoose.model("Document", documentSchema);
