@@ -153,7 +153,7 @@ export function planNeedsInput(text, opts) {
 }
 
 export const PLAN_QUESTION = {
-  content: "**How much cash can go out, and by when?** Tell me a budget and a date (for example \"₹5 lakh by Friday\"), or pick a window below and I'll plan without a budget limit.",
+  content: "**How much cash can go out, and by when?** Tell me your cash budget and the date you are paying by — or pick a window below and I will plan without a budget limit.",
   options: [
     { id: "plan_7", label: "Everything due in 7 days", hint: "No budget limit · overdue included", action: "Plan payments for everything due in the next 7 days, no budget limit" },
     { id: "plan_15", label: "Everything due in 15 days", hint: "No budget limit · overdue included", action: "Plan payments for everything due in the next 15 days, no budget limit" },

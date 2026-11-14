@@ -1,0 +1,135 @@
+/* Ask Satya — assistant-only motion and reading typography.
+   Scoped with the .sx- prefix; colours come from the app's design tokens so
+   light and dark themes work without overrides. */
+
+@keyframes sx-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sx-word-in {
+  from { opacity: 0; filter: blur(1.5px); }
+  to { opacity: 1; filter: blur(0); }
+}
+@keyframes sx-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes sx-blink {
+  0%, 45% { opacity: 1; }
+  55%, 100% { opacity: 0; }
+}
+@keyframes sx-shimmer {
+  from { background-position: 150% 0; }
+  to { background-position: -50% 0; }
+}
+@keyframes sx-pulse {
+  0%, 100% { transform: scale(0.85); opacity: 0.55; }
+  50% { transform: scale(1); opacity: 1; }
+}
+@keyframes sx-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes sx-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  70% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+/* streamed words fade in softly as they are revealed */
+.sx-w { animation: sx-word-in 380ms ease-out both; }
+.sx-fade { animation: sx-fade-in 260ms ease-out both; }
+.sx-rise { animation: sx-rise 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.sx-pop { animation: sx-pop 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.sx-spin { animation: sx-spin 0.9s linear infinite; }
+
+.sx-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.15em;
+  margin-left: 2px;
+  vertical-align: -0.2em;
+  border-radius: 1px;
+  background: var(--accent);
+  animation: sx-blink 1s step-end infinite;
+}
+
+.sx-shimmer {
+  background: linear-gradient(90deg, var(--muted) 0%, var(--muted) 35%, var(--ink) 50%, var(--muted) 65%, var(--muted) 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: sx-shimmer 2.2s linear infinite;
+}
+
+.sx-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--accent);
+  animation: sx-pulse 1.2s ease-in-out infinite;
+}
+.sx-dot:nth-child(2) { animation-delay: 0.15s; }
+.sx-dot:nth-child(3) { animation-delay: 0.3s; }
+
+/* ------------------------------------------------------- answer prose */
+
+.sx-prose {
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.sx-prose > :first-child { margin-top: 0; }
+.sx-prose > :last-child { margin-bottom: 0; }
+.sx-prose p { margin: 0.7em 0; }
+.sx-prose .sx-lead {
+  font-size: 17.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  margin-bottom: 0.9em;
+}
+.sx-prose .sx-lead strong { font-weight: 600; }
+.sx-prose strong { font-weight: 600; color: var(--ink); }
+.sx-prose em { color: var(--muted); }
+.sx-prose h1, .sx-prose h2, .sx-prose h3, .sx-prose .sx-h {
+  margin: 1.35em 0 0.45em;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+.sx-prose h1 { font-size: 18px; }
+.sx-prose h2 { font-size: 16.5px; }
+.sx-prose ul, .sx-prose ol { margin: 0.5em 0 0.9em; padding-left: 1.35em; }
+.sx-prose ul { list-style: disc; }
+.sx-prose ol { list-style: decimal; }
+.sx-prose li { margin: 0.35em 0; padding-left: 0.2em; }
+.sx-prose li::marker { color: var(--muted); }
+.sx-prose a:not(.sx-cite) { color: var(--accent-strong); text-decoration: underline; text-underline-offset: 2px; }
+.sx-prose code {
+  font-family: var(--font-code);
+  font-size: 0.86em;
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+.sx-prose blockquote {
+  margin: 0.9em 0;
+  padding: 0.2em 0 0.2em 1em;
+  border-left: 3px solid var(--line-strong);
+  color: var(--ink-2);
+}
+.sx-prose hr { border: 0; border-top: 1px solid var(--line); margin: 1.4em 0; }
+
+/* thin scrollbars inside panels */
+.sx-scroll { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sx-w, .sx-fade, .sx-rise, .sx-pop { animation: none !important; }
+  .sx-caret { animation: none; }
+  .sx-shimmer { animation: none; color: var(--muted); background: none; }
+  .sx-dot { animation: none; }
+  .sx-spin { animation-duration: 2.4s; }
+}

@@ -44,6 +44,35 @@ export function formatCell(value: unknown, format?: ColumnFormat): string {
   }
 }
 
+/** "0.4s", "1.2s", "12s" */
+export function duration(ms?: number | null): string {
+  if (ms == null || !Number.isFinite(ms)) return "";
+  if (ms < 100) return "0.1s";
+  if (ms < 10_000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.round(ms / 1000)}s`;
+}
+
+/** Time-of-day greeting in IST. */
+export function greeting(name?: string | null): string {
+  const hour = new Date(Date.now() + 330 * 60000).getUTCHours();
+  const part = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const first = (name || "").trim().split(/[\s@]+/)[0];
+  return first ? `${part}, ${first[0].toUpperCase()}${first.slice(1)}` : part;
+}
+
+/** Bucket for the history rail. */
+export function dayBucket(iso?: string): "Today" | "Yesterday" | "Previous 7 days" | "Older" {
+  if (!iso) return "Older";
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "Older";
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (t >= start) return "Today";
+  if (t >= start - 86400000) return "Yesterday";
+  if (t >= start - 7 * 86400000) return "Previous 7 days";
+  return "Older";
+}
+
 export function relativeTime(iso?: string): string {
   if (!iso) return "";
   const diff = Date.now() - Date.parse(iso);

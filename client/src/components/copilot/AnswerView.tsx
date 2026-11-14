@@ -1,257 +1,320 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
-import Link from "next/link";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Check, Copy, Download, ThumbsDown, ThumbsUp, ShieldCheck, ShieldAlert, Sparkles, Database, ChevronDown, CircleCheck, CircleX, Loader2, ArrowUpRight, CornerDownRight } from "lucide-react";
-import type { ActionCardData, Citation, CopilotAnswer, ToolStep } from "@/lib/api/copilot";
-import { sendFeedback, tableToCsv, downloadText } from "@/lib/api/copilot";
+// One question + answer: the user's bubble, then the assistant's bubble-less
+// answer — working steps, progressively revealed text with a caret, tables,
+// action cards, follow-ups and the per-answer toolbar.
+
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  BookOpen, Check, Copy, CornerDownRight, Database, FileText, ListChecks, RefreshCw, RotateCcw, ShieldAlert, ShieldCheck, Sparkles, ThumbsDown, ThumbsUp,
+} from "lucide-react";
+import type { ActionCardData, AgentOptions, CopilotAnswer } from "@/lib/api/copilot";
+import { sendFeedback } from "@/lib/api/copilot";
+import { Prose, segmentAnswer, citationNumbers } from "./Prose";
+import { WorkingSteps, type LiveStep } from "./Steps";
 import { MiniTable } from "./MiniTable";
 import { ActionCard } from "./ActionCard";
+import { MODE_META } from "./modes";
 import { cn } from "@/lib/utils";
-
-/* ------------------------------------------------------------- citations */
-
-function CitationChip({ citation }: { citation: Citation }) {
-  return (
-    <Link
-      href={citation.href}
-      title={`${citation.label} — open record`}
-      aria-label={`Source ${citation.n}: ${citation.label}`}
-      className="mx-0.5 inline-flex h-[18px] min-w-[18px] -translate-y-px items-center justify-center rounded-[5px] bg-[var(--accent-soft)] px-1 align-middle text-[11px] font-semibold leading-none text-[var(--accent-strong)] no-underline transition-colors hover:bg-[var(--accent)] hover:text-[var(--on-accent)]"
-    >
-      {citation.n}
-    </Link>
-  );
-}
-
-/** [S12] → a numbered chip linking to the record (unknown refs are dropped). */
-function withCitations(markdown: string, citations: Citation[]): string {
-  const grouped = markdown.replace(/\[\s*((?:S\d+\s*[,;]\s*)+S\d+)\s*\]/g, (_m, list: string) => list.split(/[,;]/).map((s) => `[${s.trim()}]`).join(" "));
-  return grouped.replace(/\s?\[S(\d+)\]/g, (_m, n) => {
-    const hit = citations.find((c) => c.ref === `S${n}`);
-    return hit ? ` [${hit.n}](cite:${hit.ref})` : "";
-  });
-}
-
-export function Markdown({ text, citations = [] }: { text: string; citations?: Citation[] }) {
-  const prepared = useMemo(() => withCitations(text, citations), [text, citations]);
-  return (
-    <div className="satya-answer text-[15.5px] leading-[1.65] text-[var(--ink-2)] [&_li]:my-1 [&_li]:pl-1 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:my-2.5 [&_strong]:font-semibold [&_strong]:text-[var(--ink)] [&_ul]:ml-5 [&_ul]:list-disc [&>p:first-child]:mt-0 [&>p:first-child]:text-[17px] [&>p:first-child]:leading-snug [&>p:first-child]:text-[var(--ink)]">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        urlTransform={(url) => url}
-        components={{
-          h1: ({ children }) => <p className="font-semibold text-[var(--ink)]">{children}</p>,
-          h2: ({ children }) => <p className="font-semibold text-[var(--ink)]">{children}</p>,
-          h3: ({ children }) => <p className="font-semibold text-[var(--ink)]">{children}</p>,
-          em: ({ children }) => (String(children).trim() === "Evidence:"
-            ? <em className="mr-1 not-italic text-[12px] font-semibold uppercase tracking-wide text-[var(--muted)]">Evidence</em>
-            : <em className="text-[var(--muted)]">{children}</em>),
-          a: ({ href, children }) => {
-            if (href?.startsWith("cite:")) {
-              const c = citations.find((x) => x.ref === href.slice(5));
-              return c ? <CitationChip citation={c} /> : null;
-            }
-            const safe = href && (href.startsWith("/") || /^https?:\/\//.test(href)) ? href : undefined;
-            return safe ? <a href={safe} className="text-[var(--accent-strong)] underline underline-offset-2">{children}</a> : <span>{children}</span>;
-          },
-          table: ({ children }) => <div className="my-3 overflow-x-auto"><table className="w-full text-[13px]">{children}</table></div>,
-          code: ({ children }) => <code className="rounded bg-[var(--surface-2)] px-1 font-code text-[13px]">{children}</code>,
-        }}
-      >
-        {prepared}
-      </ReactMarkdown>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------- progress */
-
-export function ProgressTrace({ steps, stage, live }: { steps: ToolStep[]; stage?: string; live: boolean }) {
-  const [open, setOpen] = useState(false);
-  const done = steps.filter((s) => s.status === "done");
-  if (!live && !steps.length) return null;
-  const visible = live || open;
-  return (
-    <div className="text-[13px] text-[var(--muted)]">
-      {!live && (
-        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="inline-flex items-center gap-1.5 rounded px-1 py-0.5 hover:text-[var(--ink)]">
-          <Database size={13} aria-hidden="true" />
-          Checked {done.length} source{done.length === 1 ? "" : "s"} in your records
-          <ChevronDown size={13} className={cn("transition-transform", open && "rotate-180")} aria-hidden="true" />
-        </button>
-      )}
-      {visible && (
-        <ol className={cn("space-y-1", !live && "mt-1.5 border-l border-[var(--line)] pl-3")} aria-live={live ? "polite" : undefined}>
-          {steps.map((s) => (
-            <li key={s.id} className="flex items-center gap-2">
-              {s.status === "start" ? <Loader2 size={13} className="animate-spin text-[var(--accent)]" aria-hidden="true" /> : s.ok ? <CircleCheck size={13} className="text-[var(--confirmed)]" aria-hidden="true" /> : <CircleX size={13} className="text-[var(--sev-high)]" aria-hidden="true" />}
-              <span className="text-[var(--ink-2)]">{s.label || s.name.replaceAll("_", " ")}</span>
-              {s.status === "done" && s.summary ? <span className="truncate text-[var(--muted)]">· {s.summary}</span> : null}
-            </li>
-          ))}
-          {live && stage ? (
-            <li className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2" aria-hidden="true">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-60" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--accent)]" />
-              </span>
-              <span>{stage}</span>
-            </li>
-          ) : null}
-        </ol>
-      )}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------- answer */
 
 export type Turn = {
   id: string;
   prompt: string;
+  options: AgentOptions;
+  attachments?: { name: string }[];
   streaming: boolean;
   stage?: string;
-  steps: ToolStep[];
+  steps: LiveStep[];
   draft: string; // streamed text so far
   cards: ActionCardData[];
   answer?: CopilotAnswer;
   error?: string;
+  stopped?: boolean;
+  startedAt?: number;
+  finishedAt?: number;
+  /** reveal progressively (answers produced in this session) */
+  live?: boolean;
 };
+
+const reducedMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+/**
+ * Smoothly reveals `target` word by word (rAF, ~30 fps), catching up faster
+ * when a lot of text is waiting. Replaced text (a reset) restarts from the
+ * common prefix.
+ */
+function useSmoothText(target: string, animate: boolean): string {
+  const [shown, setShown] = useState(animate ? "" : target);
+  const shownRef = useRef(shown);
+  useEffect(() => {
+    if (!animate || reducedMotion()) {
+      shownRef.current = target;
+      setShown(target);
+      return;
+    }
+    const cur = shownRef.current;
+    if (!target.startsWith(cur)) {
+      let i = 0;
+      while (i < cur.length && i < target.length && cur[i] === target[i]) i++;
+      shownRef.current = target.slice(0, i);
+      setShown(shownRef.current);
+    }
+    let raf = 0;
+    let last = 0;
+    const tick = (t: number) => {
+      const now = shownRef.current;
+      if (now.length >= target.length) return;
+      if (t - last >= 30) {
+        last = t;
+        const backlog = target.length - now.length;
+        let next = now.length + Math.max(3, Math.ceil(backlog / 14));
+        while (next < target.length && !/\s/.test(target[next])) next++;
+        shownRef.current = target.slice(0, next);
+        setShown(shownRef.current);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, animate]);
+  return animate ? shown : target;
+}
+
+function ToolButton({ label, onClick, children, pressed, className, disabled }: { label: string; onClick: () => void; children: ReactNode; pressed?: boolean; className?: string; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      aria-pressed={pressed}
+      onClick={onClick}
+      disabled={disabled}
+      className={cn("grid h-8 w-8 place-items-center rounded-[8px] text-[var(--muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--ink)] disabled:opacity-40", className)}
+    >
+      {children}
+    </button>
+  );
+}
+
+const DOWN_REASONS = ["A figure looks wrong", "Not what I asked", "Missing something", "Too long"];
 
 export function AnswerView({
   turn,
-  onAsk,
-  onActionResult,
   latest,
+  busy,
+  onAsk,
+  onRegenerate,
+  onActionResult,
+  onOpenSources,
 }: {
   turn: Turn;
-  onAsk: (prompt: string) => void;
-  onActionResult: (card: ActionCardData, result: { status: "confirmed" | "cancelled" | "failed"; detail?: string; reference?: string }) => void;
   latest: boolean;
+  busy: boolean;
+  onAsk: (prompt: string) => void;
+  onRegenerate: (turn: Turn) => void;
+  onActionResult: (card: ActionCardData, result: { status: "confirmed" | "cancelled" | "failed"; detail?: string; reference?: string }) => void;
+  onOpenSources: (turn: Turn) => void;
 }) {
   const answer = turn.answer;
   const citations = answer?.citations ?? [];
-  const sources = answer?.sources ?? citations;
+  const sources = answer?.sources?.length ? answer.sources : citations;
   const cards = answer?.actions?.length ? answer.actions : turn.cards;
   const followUps = answer?.followUps ?? answer?.suggestedFollowUps ?? [];
-  const text = answer?.content ?? turn.draft;
+  const target = answer?.content ?? turn.draft;
+  const shown = useSmoothText(target, Boolean(turn.live));
+  const revealing = shown.length < target.length;
+  const writing = turn.streaming || revealing;
+  const working = turn.streaming && !turn.draft && !answer;
+  const [stepsOpen, setStepsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [rating, setRating] = useState<"up" | "down" | null>(null);
-  const [showSources, setShowSources] = useState(false);
+  const [askReason, setAskReason] = useState(false);
+  const [reasonSent, setReasonSent] = useState(false);
+  const mode = answer?.agentOptions?.mode ?? turn.options.mode;
+  const modeMeta = MODE_META[mode];
 
   const copy = async () => {
+    const { segments } = segmentAnswer(target, false);
+    const plain = segments.map((s) => (s.kind === "draft" ? `${s.title}\n${s.body}` : s.kind === "working" ? `How we calculated\n${s.text}` : s.text)).join("\n\n");
     try {
-      await navigator.clipboard.writeText(text.replace(/\s?\[S\d+\]/g, ""));
+      await navigator.clipboard.writeText(plain.replace(/\s?\[S\d+\]/g, "").replace(/\n{3,}/g, "\n\n").trim());
       setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+      setTimeout(() => setCopied(false), 1600);
     } catch {
       setCopied(false);
     }
   };
-  const exportCsv = () => {
-    for (const t of answer?.tables ?? []) downloadText(`${t.title.replace(/[^\w-]+/g, "-").toLowerCase()}.csv`, tableToCsv(t));
-  };
   const rate = (next: "up" | "down") => {
     const value = rating === next ? null : next;
     setRating(value);
+    setAskReason(value === "down");
+    setReasonSent(false);
     if (value && answer?.messageId) sendFeedback(answer.messageId, value).catch(() => undefined);
   };
-
-  if (turn.error && !answer) {
-    return (
-      <div role="alert" className="rounded-[var(--radius-md)] border border-[var(--sev-critical)]/40 bg-[var(--sev-critical-soft)] px-4 py-3 text-sm text-[var(--ink-2)]">
-        {turn.error}
-        <button type="button" onClick={() => onAsk(turn.prompt)} className="ml-2 font-medium text-[var(--accent-strong)] underline">Try again</button>
-      </div>
-    );
-  }
+  const sendReason = (reason: string) => {
+    if (answer?.messageId) sendFeedback(answer.messageId, "down", reason).catch(() => undefined);
+    setReasonSent(true);
+    setTimeout(() => setAskReason(false), 1400);
+  };
 
   const g = answer?.grounding;
   const agent = answer?.responseMode === "agent";
+  const evidenceRefs = segmentAnswer(target, false).evidence;
+  const numbered = citationNumbers(target, citations);
+  const sourceCount = sources.length;
+  const totalMs = answer?.latencyMs ?? (turn.finishedAt && turn.startedAt ? turn.finishedAt - turn.startedAt : undefined);
+
   return (
-    <article className="space-y-3" aria-busy={turn.streaming}>
-      <ProgressTrace steps={turn.steps} stage={turn.stage} live={turn.streaming && !turn.draft} />
-
-      {text ? <Markdown text={text} citations={citations} /> : null}
-      {turn.streaming && turn.draft && <span className="ml-0.5 inline-block h-4 w-[3px] animate-pulse rounded bg-[var(--accent)] align-middle" aria-hidden="true" />}
-
-      {answer?.options?.length ? (
-        <div className="flex flex-wrap gap-2">
-          {answer.options.map((o, i) => (
-            <button key={i} type="button" onClick={() => onAsk(o.action || o.label)} className="rounded-[var(--radius-sm)] border border-[var(--accent)]/45 bg-[var(--accent-soft)]/50 px-3 py-2 text-left text-[13px] font-medium text-[var(--accent-strong)] hover:bg-[var(--accent-soft)]">
-              {o.label}
-              {o.hint ? <span className="block text-[11px] font-normal opacity-75">{o.hint}</span> : null}
-            </button>
-          ))}
+    <article className="space-y-5" aria-busy={turn.streaming}>
+      {/* the question */}
+      <div className="flex flex-col items-end gap-1.5">
+        <div className="sx-fade max-w-[88%] rounded-[20px] rounded-br-[6px] bg-[var(--surface-2)] px-4 py-2.5 text-[15.5px] leading-relaxed text-[var(--ink)] sm:max-w-[80%]">
+          <span className="sr-only">You asked: </span>
+          <span className="whitespace-pre-wrap">{turn.prompt}</span>
         </div>
-      ) : null}
+        {(turn.attachments?.length || mode !== "ask") ? (
+          <div className="flex flex-wrap justify-end gap-1.5 text-[12px] text-[var(--muted)]">
+            {mode !== "ask" && modeMeta ? <span className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] px-2 py-0.5"><modeMeta.icon size={11} aria-hidden="true" /> {modeMeta.label}</span> : null}
+            {turn.attachments?.map((a) => <span key={a.name} className="inline-flex max-w-[200px] items-center gap-1 rounded-full border border-[var(--line)] px-2 py-0.5"><FileText size={11} aria-hidden="true" /><span className="truncate">{a.name}</span></span>)}
+          </div>
+        ) : null}
+      </div>
 
-      {(answer?.tables ?? []).slice(0, 2).map((t) => <MiniTable key={t.id} table={t} sources={sources} />)}
+      {/* the answer */}
+      <div className="space-y-4">
+        <WorkingSteps
+          steps={turn.steps}
+          stage={turn.stage}
+          working={working}
+          streaming={writing}
+          startedAt={turn.startedAt}
+          totalMs={totalMs}
+          open={stepsOpen}
+          onToggle={() => setStepsOpen((v) => !v)}
+        />
 
-      {cards.map((card) => <ActionCard key={card.id} card={card} sources={sources} onResult={onActionResult} />)}
+        {turn.error && !answer && !turn.draft ? (
+          <div role="alert" className="sx-fade flex flex-wrap items-center gap-3 rounded-[14px] border border-[var(--sev-critical)]/35 bg-[var(--sev-critical-soft)] px-4 py-3 text-[14.5px] text-[var(--ink-2)]">
+            <span className="flex-1">{turn.error}</span>
+            <button type="button" onClick={() => onRegenerate(turn)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-[8px] px-2.5 py-1.5 text-[13.5px] font-medium text-[var(--accent-strong)] hover:bg-[var(--surface)] disabled:opacity-50">
+              <RotateCcw size={14} aria-hidden="true" /> Try again
+            </button>
+          </div>
+        ) : null}
 
-      {answer && (
-        <>
-          {latest && followUps.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {followUps.slice(0, 3).map((f) => (
-                <button key={f} type="button" onClick={() => onAsk(f)} className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[13px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]/60 hover:text-[var(--accent-strong)]">
-                  <CornerDownRight size={12} className="opacity-60" aria-hidden="true" /> {f}
-                </button>
-              ))}
-            </div>
-          )}
+        {shown ? <Prose text={shown} citations={citations} streaming={writing} fade={Boolean(turn.live) && writing} /> : null}
 
-          <footer className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-[var(--line)] pt-2.5 text-xs text-[var(--muted)]">
-            {g && g.claims > 0 ? (
-              <span className={cn("inline-flex items-center gap-1", g.rate === 1 ? "text-[var(--confirmed)]" : "text-[var(--possible)]")} title="Every figure is checked against the records the tools returned">
-                {g.rate === 1 ? <ShieldCheck size={13} aria-hidden="true" /> : <ShieldAlert size={13} aria-hidden="true" />}
-                {g.grounded} of {g.claims} figures checked against your records
-              </span>
-            ) : null}
-            {sources.length > 0 && (
-              <button type="button" onClick={() => setShowSources((v) => !v)} aria-expanded={showSources} className="inline-flex items-center gap-1 hover:text-[var(--ink)]">
-                {sources.length} source{sources.length === 1 ? "" : "s"}
-                <ChevronDown size={12} className={cn("transition-transform", showSources && "rotate-180")} aria-hidden="true" />
+        {turn.stopped ? (
+          <p className="sx-fade flex items-center gap-2 text-[13.5px] text-[var(--muted)]">
+            Stopped{turn.draft ? " — the answer above is incomplete" : ""}.
+            <button type="button" onClick={() => onRegenerate(turn)} disabled={busy} className="font-medium text-[var(--accent-strong)] hover:underline disabled:opacity-50">Ask again</button>
+          </p>
+        ) : null}
+
+        {!writing && answer?.options?.length ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {answer.options.map((o, i) => (
+              <button
+                key={i}
+                type="button"
+                disabled={busy}
+                onClick={() => onAsk(o.action || o.label)}
+                style={{ animationDelay: `${i * 60}ms` }}
+                className="sx-rise group flex items-start gap-3 rounded-[14px] border border-[var(--line-strong)] bg-[var(--surface)] px-4 py-3 text-left transition-all hover:border-[var(--accent)]/60 hover:shadow-[var(--shadow-2)] disabled:opacity-50"
+              >
+                <CornerDownRight size={15} className="mt-0.5 shrink-0 text-[var(--muted)] group-hover:text-[var(--accent)]" aria-hidden="true" />
+                <span>
+                  <span className="block text-[14.5px] font-medium text-[var(--ink)]">{o.label}</span>
+                  {o.hint ? <span className="block text-[12.5px] text-[var(--muted)]">{o.hint}</span> : null}
+                </span>
               </button>
-            )}
-            <span className="inline-flex items-center gap-1" title={agent ? `Planned and written by ${answer.llm?.model ?? "the AI model"}; figures from your records` : "AI capacity unavailable — answered directly from your records"}>
-              {agent ? <Sparkles size={12} aria-hidden="true" /> : <Database size={12} aria-hidden="true" />}
-              {agent ? "AI answer" : "Evidence mode"}
-            </span>
-            <div className="ml-auto flex items-center gap-0.5">
-              <IconButton label={copied ? "Copied" : "Copy answer"} onClick={copy}>{copied ? <Check size={14} /> : <Copy size={14} />}</IconButton>
-              {(answer.tables ?? []).length > 0 && <IconButton label="Export tables as CSV" onClick={exportCsv}><Download size={14} /></IconButton>}
-              <IconButton label="Helpful" pressed={rating === "up"} onClick={() => rate("up")} className={rating === "up" ? "text-[var(--confirmed)]" : undefined}><ThumbsUp size={14} /></IconButton>
-              <IconButton label="Not helpful" pressed={rating === "down"} onClick={() => rate("down")} className={rating === "down" ? "text-[var(--sev-high)]" : undefined}><ThumbsDown size={14} /></IconButton>
-            </div>
-          </footer>
-          {showSources && (
-            <ul className="grid gap-1.5 sm:grid-cols-2">
-              {sources.map((s, i) => (
-                <li key={s.ref}>
-                  <Link href={s.href} className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-2 text-[13px] text-[var(--ink-2)] hover:border-[var(--accent)]/60 hover:text-[var(--ink)]">
-                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded bg-[var(--surface-2)] text-[11px] font-semibold">{s.n ?? i + 1}</span>
-                    <span className="truncate">{s.label}</span>
-                    <ArrowUpRight size={12} className="ml-auto shrink-0 opacity-60" aria-hidden="true" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
-      )}
-    </article>
-  );
-}
+            ))}
+          </div>
+        ) : null}
 
-function IconButton({ label, onClick, children, pressed, className }: { label: string; onClick: () => void; children: ReactNode; pressed?: boolean; className?: string }) {
-  return (
-    <button type="button" aria-label={label} title={label} aria-pressed={pressed} onClick={onClick} className={cn("grid h-7 w-7 place-items-center rounded-[var(--radius-sm)] text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]", className)}>
-      {children}
-    </button>
+        {!writing && (answer?.tables ?? []).slice(0, 2).map((t) => <MiniTable key={t.id} table={t} sources={sources} />)}
+
+        {cards.map((card) => <ActionCard key={card.id} card={card} sources={sources} onResult={onActionResult} />)}
+
+        {answer && !writing && (
+          <div className="sx-fade space-y-3">
+            {evidenceRefs.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-[var(--muted)]">
+                <span>Sources</span>
+                {evidenceRefs.filter((r, i, a) => a.indexOf(r) === i && numbered.get(r)).map((r) => {
+                  const c = citations.find((x) => x.ref === r) ?? sources.find((x) => x.ref === r);
+                  return (
+                    <button key={r} type="button" onClick={() => onOpenSources(turn)} title={c?.label} className="inline-flex h-[20px] min-w-[20px] items-center justify-center rounded-[6px] bg-[var(--surface-2)] px-1 text-[11px] font-semibold text-[var(--ink-2)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)]">
+                      {numbered.get(r)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="-ml-1.5 flex flex-wrap items-center gap-x-1 gap-y-1">
+              <ToolButton label={copied ? "Copied" : "Copy answer"} onClick={copy}>{copied ? <Check size={15} /> : <Copy size={15} />}</ToolButton>
+              <ToolButton label="Regenerate" onClick={() => onRegenerate(turn)} disabled={busy}><RefreshCw size={15} /></ToolButton>
+              <ToolButton label="Good answer" pressed={rating === "up"} onClick={() => rate("up")} className={rating === "up" ? "text-[var(--confirmed)]" : undefined}><ThumbsUp size={15} /></ToolButton>
+              <ToolButton label="Bad answer" pressed={rating === "down"} onClick={() => rate("down")} className={rating === "down" ? "text-[var(--sev-high)]" : undefined}><ThumbsDown size={15} /></ToolButton>
+              {turn.steps.length > 0 && (
+                <button type="button" onClick={() => setStepsOpen((v) => !v)} aria-expanded={stepsOpen} className="inline-flex h-8 items-center gap-1.5 rounded-[8px] px-2 text-[13px] text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]">
+                  <ListChecks size={14} aria-hidden="true" /> {stepsOpen ? "Hide steps" : "Show steps"}
+                </button>
+              )}
+              {sourceCount > 0 && (
+                <button type="button" onClick={() => onOpenSources(turn)} className="inline-flex h-8 items-center gap-1.5 rounded-[8px] px-2 text-[13px] text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]">
+                  <BookOpen size={14} aria-hidden="true" /> {sourceCount} source{sourceCount === 1 ? "" : "s"}
+                </button>
+              )}
+              <span className="ml-auto flex items-center gap-3 pl-2 text-[12.5px] text-[var(--muted)]">
+                {g && g.claims > 0 ? (
+                  <span className={cn("inline-flex items-center gap-1", g.rate === 1 ? "text-[var(--confirmed)]" : "text-[var(--possible)]")} title="Every figure is checked against the records the tools returned">
+                    {g.rate === 1 ? <ShieldCheck size={14} aria-hidden="true" /> : <ShieldAlert size={14} aria-hidden="true" />}
+                    {g.rate === 1 ? `All ${g.claims} figures verified` : `${g.grounded} of ${g.claims} figures verified`}
+                  </span>
+                ) : null}
+                <span className="hidden items-center gap-1 sm:inline-flex" title={agent ? `Planned and written by ${answer.llm?.model ?? "the AI model"}; figures from your records` : "Answered directly from your records (no AI writing)"}>
+                  {agent ? <Sparkles size={13} aria-hidden="true" /> : <Database size={13} aria-hidden="true" />}
+                  {agent ? "AI answer" : "From your records"}
+                </span>
+              </span>
+            </div>
+
+            {askReason && (
+              <div className="sx-fade flex flex-wrap items-center gap-1.5">
+                {reasonSent ? (
+                  <span className="text-[13px] text-[var(--muted)]">Thanks — that helps.</span>
+                ) : (
+                  <>
+                    <span className="text-[13px] text-[var(--muted)]">What went wrong?</span>
+                    {DOWN_REASONS.map((r) => (
+                      <button key={r} type="button" onClick={() => sendReason(r)} className="rounded-full border border-[var(--line)] px-2.5 py-1 text-[12.5px] text-[var(--ink-2)] hover:border-[var(--accent)]/60 hover:text-[var(--ink)]">{r}</button>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+
+            {latest && followUps.length > 0 && (
+              <div className="flex flex-col gap-1.5 pt-1 sm:flex-row sm:flex-wrap">
+                {followUps.slice(0, 3).map((f, i) => (
+                  <button
+                    key={f}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onAsk(f)}
+                    style={{ animationDelay: `${120 + i * 70}ms` }}
+                    className="sx-rise inline-flex items-center gap-1.5 rounded-full border border-[var(--line-strong)] bg-[var(--surface)] px-3.5 py-2 text-left text-[13.5px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]/60 hover:text-[var(--accent-strong)] disabled:opacity-50"
+                  >
+                    <CornerDownRight size={13} className="shrink-0 opacity-60" aria-hidden="true" /> {f}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </article>
   );
 }

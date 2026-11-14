@@ -1,12 +1,14 @@
 "use client";
 
-import Link from "next/link";
+// Empty state: greeting, today's briefing as 3–4 calm cards, suggested
+// prompts grouped by job as large rows, and recent conversations.
+
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlarmClock, ArrowRight, CalendarClock, FileWarning, Landmark, RefreshCw, Receipt, Truck, Users, Search, Wallet } from "lucide-react";
-import type { Briefing, BriefingSection } from "@/lib/api/copilot";
+import { AlarmClock, ArrowRight, CalendarClock, FileWarning, Landmark, MessagesSquare, Receipt, RefreshCw, Search, Truck, Users, Wallet } from "lucide-react";
+import type { Briefing, BriefingSection, CopilotConversation } from "@/lib/api/copilot";
 import { getBriefing } from "@/lib/api/copilot";
-import { Skeleton } from "@/components/ui/skeleton";
-import { formatCell, inr, shortDate } from "./format";
+import { formatCell, inr, relativeTime, shortDate } from "./format";
 import { cn } from "@/lib/utils";
 
 export const QUESTION_GROUPS = [
@@ -35,101 +37,139 @@ const TONE: Record<BriefingSection["tone"], string> = {
   ok: "text-[var(--confirmed)] bg-[var(--confirmed-soft)]",
 };
 
-export function StartScreen({ entityId, onAsk, disabled }: { entityId?: string; onAsk: (q: string) => void; disabled?: boolean }) {
+function BriefingCard({ section, onAsk, disabled, index }: { section: BriefingSection; onAsk: (q: string) => void; disabled?: boolean; index: number }) {
+  const Icon = SECTION_ICON[section.id] ?? FileWarning;
+  const top = section.items[0];
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => onAsk(section.ask)}
+      style={{ animationDelay: `${index * 70}ms` }}
+      className="sx-rise group flex flex-col rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--line-strong)] hover:shadow-[var(--shadow-2)] disabled:opacity-60"
+    >
+      <span className="flex items-center gap-2">
+        <span className={cn("grid h-7 w-7 place-items-center rounded-[8px]", TONE[section.tone])}><Icon size={15} aria-hidden="true" /></span>
+        <span className="text-[14px] font-medium text-[var(--ink-2)]">{section.title}</span>
+      </span>
+      <span className="tnum mt-3 text-[26px] font-semibold leading-none tracking-tight text-[var(--ink)]">{formatCell(section.metric.value, section.metric.format)}</span>
+      <span className="mt-1.5 line-clamp-2 text-[13.5px] leading-snug text-[var(--muted)]">
+        {section.metric.caption || (top ? `${top.label}${top.amount ? ` · ${inr(top.amount)}` : ""}` : "Nothing needs you here")}
+      </span>
+      <span className="mt-4 inline-flex items-center gap-1 text-[13.5px] font-medium text-[var(--accent-strong)]">
+        Ask about this <ArrowRight size={14} className="transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
+      </span>
+    </button>
+  );
+}
+
+export function StartScreen({ entityId, onAsk, disabled, name, recent = [], onOpenConversation, greetingText }: {
+  entityId?: string;
+  onAsk: (q: string) => void;
+  disabled?: boolean;
+  name?: string | null;
+  recent?: CopilotConversation[];
+  onOpenConversation?: (c: CopilotConversation) => void;
+  greetingText: string;
+}) {
   const { data, isLoading, isError, refetch, isFetching } = useQuery<Briefing>({
     queryKey: ["copilot-briefing", entityId ?? "all"],
     queryFn: () => getBriefing(entityId),
     staleTime: 120_000,
     retry: 1,
   });
+  const [group, setGroup] = useState<(typeof QUESTION_GROUPS)[number]["id"]>("payables");
+  const active = QUESTION_GROUPS.find((g) => g.id === group) ?? QUESTION_GROUPS[0];
+  // calm: at most 4 cards, the ones that need attention first
+  const cards = [...(data?.sections ?? [])].sort((a, b) => ({ critical: 0, warn: 1, ok: 2 }[a.tone] - { critical: 0, warn: 1, ok: 2 }[b.tone])).slice(0, 4);
+  void name;
 
   return (
-    <div className="space-y-6">
-      <section aria-labelledby="briefing-title" className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-1)]">
-        <div className="flex flex-wrap items-end gap-3 border-b border-[var(--line)] bg-gradient-to-br from-[var(--accent-soft)]/70 to-transparent px-5 py-4">
-          <div className="min-w-0 flex-1">
-            <p id="briefing-title" className="text-xs font-semibold uppercase tracking-wide text-[var(--accent-strong)]">
-              Today&apos;s briefing{data?.asOf ? ` · ${shortDate(data.asOf)}` : ""}
-            </p>
-            {isLoading ? (
-              <Skeleton className="mt-2 h-7 w-72" />
-            ) : data?.headline ? (
-              <p className="mt-1 text-[22px] font-semibold leading-tight tracking-tight text-[var(--ink)]">
-                {data.headline.value ? <span className="tnum">{inr(data.headline.value)}</span> : null}{" "}
-                <span className="text-[15px] font-normal text-[var(--ink-2)]">{data.headline.text.toLowerCase()}</span>
-              </p>
-            ) : (
-              <p className="mt-1 text-[15px] text-[var(--ink-2)]">{isError ? "The briefing couldn't load — you can still ask anything below." : "Ask about your payables, suppliers and compliance."}</p>
-            )}
-            {data?.cash && (
-              <p className="mt-1 text-[13px] text-[var(--muted)]">
-                {inr(data.cash.overdue)} overdue · {inr(data.cash.dueThisWeek)} due within 7 days · {inr(data.cash.disputed)} disputed (hold back)
-              </p>
-            )}
-          </div>
-          <button type="button" onClick={() => refetch()} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]" aria-label="Refresh briefing">
-            <RefreshCw size={12} className={cn(isFetching && "animate-spin")} aria-hidden="true" /> Refresh
+    <div className="space-y-10 pb-4 pt-2 sm:pt-6">
+      <header className="sx-fade">
+        <h2 className="text-[28px] font-semibold leading-tight tracking-tight text-[var(--ink)] sm:text-[32px]">{greetingText}</h2>
+        <p className="mt-2 max-w-[60ch] text-[16px] leading-relaxed text-[var(--ink-2)]">
+          {isLoading ? "Looking at today’s position…" : data?.headline?.value
+            ? <>You need <strong className="tnum font-semibold text-[var(--ink)]">{inr(data.headline.value)}</strong> to clear what’s overdue and due this week{data.cash && (Number(data.cash.disputed) > 0) ? <> — <span className="tnum">{inr(data.cash.disputed)}</span> of it is disputed and can be held back</> : null}.</>
+            : data?.headline?.text ? `${data.headline.text}.` : "Ask anything about your payables, suppliers, invoices or GST and MSME deadlines."}
+        </p>
+      </header>
+
+      <section aria-labelledby="sx-brief">
+        <div className="mb-3 flex items-center gap-2">
+          <h3 id="sx-brief" className="text-[15px] font-semibold text-[var(--ink)]">Today{data?.asOf ? <span className="font-normal text-[var(--muted)]"> · {shortDate(data.asOf)}</span> : null}</h3>
+          <button type="button" onClick={() => refetch()} className="ml-auto inline-flex items-center gap-1 rounded-[8px] px-2 py-1 text-[12.5px] text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]" aria-label="Refresh briefing">
+            <RefreshCw size={12} className={cn(isFetching && "sx-spin")} aria-hidden="true" /> Refresh
           </button>
         </div>
-
-        <div className="grid gap-px bg-[var(--line)] sm:grid-cols-2 xl:grid-cols-3">
-          {isLoading
-            ? Array.from({ length: 3 }, (_, i) => (
-              <div key={i} className="space-y-2 bg-[var(--surface)] p-4"><Skeleton className="h-4 w-24" /><Skeleton className="h-6 w-32" /><Skeleton className="h-4 w-full" /></div>
-            ))
-            : (data?.sections ?? []).map((s) => {
-              const Icon = SECTION_ICON[s.id] ?? FileWarning;
-              return (
-                <div key={s.id} className="flex flex-col bg-[var(--surface)] p-4">
-                  <div className="flex items-center gap-2">
-                    <span className={cn("grid h-6 w-6 place-items-center rounded-md", TONE[s.tone])}><Icon size={13} aria-hidden="true" /></span>
-                    <h3 className="text-[13px] font-semibold text-[var(--ink)]">{s.title}</h3>
-                  </div>
-                  <p className="tnum mt-2 text-xl font-semibold text-[var(--ink)]">{formatCell(s.metric.value, s.metric.format)}</p>
-                  {s.metric.caption ? <p className="text-xs text-[var(--muted)]">{s.metric.caption}</p> : null}
-                  <ul className="mt-2 flex-1 space-y-1">
-                    {s.items.slice(0, 2).map((it, i) => (
-                      <li key={i} className="text-[13px] leading-snug">
-                        {it.href ? <Link href={it.href} className="font-medium text-[var(--ink-2)] hover:text-[var(--accent-strong)] hover:underline">{it.label}</Link> : <span className="font-medium text-[var(--ink-2)]">{it.label}</span>}
-                        {it.amount ? <span className="tnum text-[var(--ink-2)]"> · {inr(it.amount)}</span> : null}
-                        {it.detail ? <span className="block truncate text-xs text-[var(--muted)]">{it.detail}</span> : null}
-                      </li>
-                    ))}
-                  </ul>
-                  <button type="button" disabled={disabled} onClick={() => onAsk(s.ask)} className="mt-3 inline-flex items-center gap-1 self-start text-[13px] font-medium text-[var(--accent-strong)] hover:underline disabled:opacity-50">
-                    {s.ask} <ArrowRight size={13} aria-hidden="true" />
-                  </button>
-                </div>
-              );
-            })}
-        </div>
+        {isLoading ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {Array.from({ length: 4 }, (_, i) => (
+              <div key={i} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-5">
+                <div className="flex items-center gap-2"><div className="h-7 w-7 animate-pulse rounded-[8px] bg-[var(--surface-2)]" /><div className="h-4 w-24 animate-pulse rounded bg-[var(--surface-2)]" /></div>
+                <div className="mt-4 h-7 w-36 animate-pulse rounded bg-[var(--surface-2)]" />
+                <div className="mt-2 h-4 w-48 animate-pulse rounded bg-[var(--surface-2)]" />
+                <div className="mt-5 h-4 w-28 animate-pulse rounded bg-[var(--surface-2)]" />
+              </div>
+            ))}
+          </div>
+        ) : isError || !cards.length ? (
+          <p className="rounded-[16px] border border-dashed border-[var(--line-strong)] px-5 py-4 text-[14.5px] text-[var(--muted)]">
+            {isError ? "Today’s briefing couldn’t load — you can still ask anything below." : "Nothing needs your attention right now."}
+          </p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {cards.map((s, i) => <BriefingCard key={s.id} section={s} onAsk={onAsk} disabled={disabled} index={i} />)}
+          </div>
+        )}
       </section>
 
-      <section aria-labelledby="suggested-title">
-        <h2 id="suggested-title" className="mb-3 text-sm font-semibold text-[var(--ink)]">Ask about…</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
+      <section aria-labelledby="sx-suggest">
+        <h3 id="sx-suggest" className="mb-3 text-[15px] font-semibold text-[var(--ink)]">Try asking</h3>
+        <div role="tablist" aria-label="Question topics" className="-mx-1 mb-2 flex gap-1 overflow-x-auto px-1 pb-1 sx-scroll">
           {QUESTION_GROUPS.map((g) => (
-            <div key={g.id} className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-3">
-              <p className="mb-2 flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-                <g.icon size={13} aria-hidden="true" /> {g.title}
-              </p>
-              <ul className="space-y-0.5">
-                {g.questions.map((q) => (
-                  <li key={q}>
-                    <button type="button" disabled={disabled} onClick={() => onAsk(q)} className="group flex w-full items-start gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-left text-[14px] leading-snug text-[var(--ink-2)] hover:bg-[var(--accent-soft)]/60 hover:text-[var(--ink)] disabled:opacity-50">
-                      <ArrowRight size={13} className="mt-1 shrink-0 text-[var(--muted)] group-hover:text-[var(--accent)]" aria-hidden="true" />
-                      {q}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <button
+              key={g.id}
+              type="button"
+              role="tab"
+              aria-selected={group === g.id}
+              onClick={() => setGroup(g.id)}
+              className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13.5px] font-medium transition-colors", group === g.id ? "bg-[var(--ink)] text-[var(--paper)]" : "text-[var(--ink-2)] hover:bg-[var(--surface-2)]")}
+            >
+              <g.icon size={14} aria-hidden="true" /> {g.title}
+            </button>
           ))}
         </div>
-        <p className="mt-3 text-xs leading-relaxed text-[var(--muted)]">
-          Every figure comes from your records and is checked before you see it. I can draft payment runs, supplier emails and decisions — nothing is sent, paid or changed until you press Confirm.
-        </p>
+        <ul role="tabpanel" aria-label={active.title} className="divide-y divide-[var(--line)] overflow-hidden rounded-[16px] border border-[var(--line)] bg-[var(--surface)]">
+          {active.questions.map((q, i) => (
+            <li key={q} className="sx-fade" style={{ animationDelay: `${i * 40}ms` }}>
+              <button type="button" disabled={disabled} onClick={() => onAsk(q)} className="group flex min-h-[56px] w-full items-center gap-3 px-5 py-3 text-left text-[15.5px] text-[var(--ink-2)] transition-colors hover:bg-[var(--surface-2)]/70 hover:text-[var(--ink)] disabled:opacity-50">
+                <span className="flex-1">{q}</span>
+                <ArrowRight size={16} className="shrink-0 text-[var(--muted)] transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-[var(--accent)]" aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
       </section>
+
+      {recent.length > 0 && onOpenConversation && (
+        <section aria-labelledby="sx-recent">
+          <h3 id="sx-recent" className="mb-3 text-[15px] font-semibold text-[var(--ink)]">Pick up where you left off</h3>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {recent.slice(0, 4).map((c) => (
+              <li key={c.id}>
+                <button type="button" onClick={() => onOpenConversation(c)} className="flex w-full items-center gap-3 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-left transition-colors hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)]/50">
+                  <MessagesSquare size={16} className="shrink-0 text-[var(--muted)]" aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[14.5px] font-medium text-[var(--ink)]">{c.title || "Conversation"}</span>
+                    <span className="block text-[12.5px] text-[var(--muted)]">{relativeTime(c.updatedAt)}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }
