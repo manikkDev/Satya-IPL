@@ -128,6 +128,8 @@ export const computePayables = async ({ groupId, entityIds, supplierId, today = 
     open.push({ d, grand, paid, outstanding, sup: supplierOf(d) });
   }
 
+  const openById = new Map(open.map(({ d }) => [d.id, d]));
+  const DISPUTE_CODES = /^(DUP|DUPLICATE_|INVOICE_QTY_EXCEEDS|QTY_INVOICED_EXCEEDS|QTY_OVER_DELIVERY|BILLED_ABOVE|PRICE_VARIANCE|PRICE_UNAUTHORISED|PAY_OVERPAYMENT|PAY_BEFORE_RECEIPT|RECEIPT_EVIDENCE_MISSING|CURRENCY_CONFLICT|TAX_TYPE_MISMATCH|TAX_ARITHMETIC|TAX_RATE_MISMATCH|TAX_GSTIN_INVALID|TAX_IMS_REJECTED)/;
   // disputed exposure: open findings whose evidence names the invoice, or the
   // PO it bills (PO-level findings go to that PO's newest open invoice first)
   const poIdsOf = (d) => [...new Set((d.lines || []).map((l) => l.refs?.poId).filter(Boolean))];
@@ -138,8 +140,22 @@ export const computePayables = async ({ groupId, entityIds, supplierId, today = 
     : [];
   const findingsByDoc = new Map();
   for (const f of findings) {
+    // Only findings that dispute the AMOUNT owed put money on hold. Deadline
+    // reminders, compliance flags (e-way bill, 2B status), delivery progress
+    // and screening signals don't make a bill unpayable.
+    if (!DISPUTE_CODES.test(f.code || "")) continue;
+    // A duplicate-posting finding names every copy; the earliest posting is the
+    // genuine bill, so only the later copies are held.
+    let skipId = null;
+    if (/^(DUP|DUPLICATE_)/.test(f.code || "")) {
+      const copies = (f.data?.evidence || []).map((e) => openById.get(e?.documentId)).filter(Boolean);
+      if (copies.length > 1) {
+        copies.sort((x, y) => String(x.date).localeCompare(String(y.date)) || String(x.createdAt || "").localeCompare(String(y.createdAt || "")) || String(x.id).localeCompare(String(y.id)));
+        skipId = copies[0].id;
+      }
+    }
     for (const e of f.data?.evidence || []) {
-      if (!e?.documentId) continue;
+      if (!e?.documentId || e.documentId === skipId) continue;
       if (!findingsByDoc.has(e.documentId)) findingsByDoc.set(e.documentId, []);
       if (!findingsByDoc.get(e.documentId).some((x) => x.id === f.id)) findingsByDoc.get(e.documentId).push(f);
     }
@@ -176,8 +192,11 @@ export const computePayables = async ({ groupId, entityIds, supplierId, today = 
     const sorted = [...invs].sort((a, b) => String(b.date).localeCompare(String(a.date)));
     const list = findingsByDoc.get(po) || [];
     const largest = list.reduce((best, f) => (toPaise(f.data?.amount) > toPaise(best?.data?.amount) ? f : best), null);
+    // Invoice-level disputes on this PO's invoices (e.g. a duplicate copy)
+    // usually describe the same excess, so only the remainder spills over.
+    const already = invs.reduce((sum, inv) => sum + (disputedOf.get(inv.id) || 0n), 0n);
     for (const f of list) {
-      let left = f === largest ? toPaise(f.data?.amount) : 0n;
+      let left = f === largest ? toPaise(f.data?.amount) - already : 0n;
       for (const inv of sorted) {
         if (left <= 0n) { take(inv.id, f, 0n); continue; }
         left -= take(inv.id, f, left);

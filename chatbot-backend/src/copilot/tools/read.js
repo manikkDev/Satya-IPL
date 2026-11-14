@@ -268,10 +268,26 @@ export function readTools() {
           };
         });
       if (within != null) rows = rows.filter((x) => x.daysLeft <= within);
+      // Amounts under dispute (e.g. a suspected duplicate posting) are held, not
+      // paid: report the undisputed part separately so answers never tell the
+      // user to pay a disputed bill.
+      rows = rows.map((x) => {
+        const out = parseExact(x.outstanding || "0");
+        const disp = x.disputed ? parseExact(x.disputed) : 0n;
+        const payable = out - (disp > out ? out : disp);
+        return { ...x, payableNow: formatExact(payable > 0n ? payable : 0n, 2), onHold: disp > 0n };
+      });
       const overdue = rows.filter((x) => x.daysLeft < 0);
       const dueWeek = rows.filter((x) => x.daysLeft >= 0 && x.daysLeft <= 7);
+      const held = rows.filter((x) => x.onHold);
+      const suppliers = [...new Map(rows.map((x) => [x.supplierId || x.supplier, x])).values()];
       const totals = {
         count: ctx.count(rows),
+        invoiceCount: ctx.count(rows),
+        supplierCount: ctx.count(suppliers, (x) => x.supplierId || x.supplier),
+        payableNow: ctx.sum(rows.map((x) => x.payableNow)),
+        onHoldCount: ctx.count(held),
+        onHoldAmount: ctx.sum(held.map((x) => x.disputed || "0")),
         outstanding: ctx.sum(rows.map((x) => x.outstanding)),
         overdueCount: ctx.count(overdue),
         overdueAmount: ctx.sum(overdue.map((x) => x.outstanding)),
@@ -280,7 +296,7 @@ export function readTools() {
         interestEstimate: ctx.sum(rows.map((x) => x.interestEstimate || "0")),
         s43bhExpenseAtRisk: ctx.sum(rows.filter((x) => x.s43bhAtRisk).map((x) => x.s43bhExpenseAtRisk || "0")),
       };
-      const view = { totals, rows: rows.slice(0, 25), rule: "MSMED s.15: pay micro/small suppliers within agreed terms, never more than 45 days from acceptance (15 days if no written terms). s.16: compound interest at 3x RBI bank rate after that. Income-tax s.43B(h): if not paid within that limit, the expense is deductible only in the year it is paid.", interestBasis: pay.ok ? pay.data?.basis?.msmeInterest : null };
+      const view = { totals, rows: rows.slice(0, 25), note: "count/invoiceCount are INVOICES, supplierCount is distinct SUPPLIERS. Recommend paying only payableNow; rows with onHold=true have disputed amounts (e.g. a suspected duplicate) that must be resolved before paying.", rule: "MSMED s.15: pay micro/small suppliers within agreed terms, never more than 45 days from acceptance (15 days if no written terms). s.16: compound interest at 3x RBI bank rate after that. Income-tax s.43B(h): if not paid within that limit, the expense is deductible only in the year it is paid.", interestBasis: pay.ok ? pay.data?.basis?.msmeInterest : null };
       return {
         data: view,
         view,
