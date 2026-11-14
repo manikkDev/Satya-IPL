@@ -6,9 +6,9 @@ import { Check, FileText, PackageCheck, ReceiptText, Landmark } from "lucide-rea
 import { Logo } from "@/components/brand/logo";
 
 const TRAIL = [
-  { icon: FileText, label: "Purchase order", detail: "100 pumps · ₹70,800", tone: "ok" },
-  { icon: PackageCheck, label: "Goods received", detail: "60 of 100 accepted", tone: "warn" },
-  { icon: ReceiptText, label: "Supplier invoice", detail: "Billed for 100 · posted twice", tone: "bad" },
+  { icon: FileText, label: "Purchase order", detail: "100 impeller kits · ₹1,18,000", tone: "ok" },
+  { icon: PackageCheck, label: "Goods received", detail: "60 of 100 delivered and accepted", tone: "warn" },
+  { icon: ReceiptText, label: "Supplier invoice", detail: "60 kits · ₹70,800 · posted twice", tone: "bad" },
   { icon: Landmark, label: "Payments", detail: "₹50,800 settled · ₹15,000 unlinked", tone: "warn" },
 ] as const;
 
