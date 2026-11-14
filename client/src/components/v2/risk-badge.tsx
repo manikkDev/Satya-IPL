@@ -10,11 +10,11 @@ const STYLE = {
 
 /** Risk band + score — icon, word and number, never colour alone. */
 export function RiskBadge({ risk, className }: { risk?: Pick<SupplierRisk, "band" | "score"> | null; className?: string }) {
-  if (!risk) return <span className="text-xs text-[var(--muted)]">—</span>;
+  if (!risk) return <span className="text-[14px] text-[var(--muted)]">—</span>;
   const s = STYLE[risk.band];
   return (
-    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-[3px] text-xs font-medium", s.cls, className)}>
-      <s.icon size={12} aria-hidden="true" />
+    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[13px] font-medium leading-none", s.cls, className)}>
+      <s.icon size={14} aria-hidden="true" />
       {s.label} <span className="tnum opacity-80">· {risk.score}</span>
     </span>
   );

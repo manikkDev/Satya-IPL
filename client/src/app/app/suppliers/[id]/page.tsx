@@ -1,33 +1,35 @@
 "use client";
 
-// Supplier 360 (/app/suppliers/[id]) — docs/plan/06 §5.8.
-// Master data (registration, bank, contacts, addresses) next to live activity
-// (orders, payments, MSME deadlines, investigations) so the page answers
-// "who is this supplier, and what do we owe them right now".
+// Supplier (/app/suppliers/[id]) — "What do we owe this supplier, is it safe
+// to pay, and what needs doing?" Three numbers, then the risk score next to
+// concrete next steps (review an order's issues, match a payment), then tabs
+// for open bills, orders, payments and master data.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowLeft, ArrowUpRight, Building2, Hourglass, Landmark, Mail, MapPin,
-  Phone, Plus, ReceiptText, SearchCheck, ShieldCheck, ShoppingCart, Users, Wallet,
+  ArrowLeft, Landmark, Mail, MapPin, MessageSquare, Phone, Plus, ReceiptText, ShoppingCart, Users, Wallet,
 } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
 import type { OrderListRow } from "@/lib/mocks/data";
 import { mocksEnabled } from "@/lib/flags";
-import { Money, DateText, ErrorState, FadeIn, Card, CardTitle, Term, StatusBadge, SeverityBadge, Progress } from "@/components/ui/v2";
+import { Money, DateText, ErrorState, FadeIn, Card, CardTitle, StatusBadge, PageHeader, BtnLink, Btn, StatCard, ToneBadge, EmptyState } from "@/components/ui/v2";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ResponsiveTable, TableSkeleton, type Column } from "@/components/pages/shared/data-table";
+import { RowActions } from "@/components/pages/shared/row-actions";
+import { ProgressStack } from "@/components/pages/shared/progress-meter";
+import { pageTabsList, pageTabsTrigger, tabCount } from "@/components/pages/shared/page-tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { STATUS_LABEL } from "@/content/copy/vocabulary";
 import { gstStateName, decodeIfsc, panFromGstin } from "@/lib/india";
-import { daysLeftText, formatMoney } from "@/lib/format";
-import { v2PagesSupplier as v2Pages } from "@/lib/api/v2-pages";
+import { daysLeftText, daysFromTodayIst, formatDate, formatMoney, toPaise } from "@/lib/format";
+import { v2PagesSupplier as v2Pages, type SupplierSummary } from "@/lib/api/v2-pages";
 import { workflow } from "@/lib/api/workflow";
 import { RiskBadge } from "@/components/v2/risk-badge";
 import { cn } from "@/lib/utils";
 
 type MoneyLike = { amount: string; currency: string };
-const inr = (n: number): MoneyLike => ({ amount: n.toFixed(2), currency: "INR" });
 
 /** Live payment rows differ between mock + real API — normalise loosely. */
 type PaymentRow = {
@@ -39,10 +41,10 @@ const paymentAmount = (p: PaymentRow): string | MoneyLike | undefined =>
   typeof p.amount === "string" || p.amount === null ? (p.amount ?? undefined) : p.amount;
 
 const PAY_STATUS: Record<string, { label: string; tone: PillTone }> = {
-  allocated: { label: "Fully allocated", tone: "good" },
-  linked: { label: "Allocated", tone: "good" },
-  partial: { label: "Part allocated", tone: "warn" },
-  unallocated: { label: "Not allocated", tone: "warn" },
+  allocated: { label: "Matched", tone: "good" },
+  linked: { label: "Matched", tone: "good" },
+  partial: { label: "Part matched", tone: "warn" },
+  unallocated: { label: "Not matched", tone: "warn" },
   needs_evidence: { label: "Needs evidence", tone: "bad" },
   unclear: { label: "Needs your call", tone: "warn" },
   not_linked: { label: "Not linked", tone: "muted" },
@@ -55,62 +57,33 @@ const BANK_STATUS: Record<string, { label: string; tone: PillTone }> = {
 };
 
 type PillTone = "good" | "warn" | "bad" | "muted";
-const PILL_CLASSES: Record<PillTone, string> = {
-  good: "bg-[var(--confirmed-soft)] text-[var(--confirmed)]",
-  warn: "bg-[var(--likely-soft)] text-[var(--likely)]",
-  bad: "bg-[var(--sev-high-soft)] text-[var(--sev-high)]",
-  muted: "bg-[var(--surface-2)] text-[var(--ink-2)]",
-};
-
-function Pill({ tone = "muted", children }: { tone?: PillTone; children: React.ReactNode }) {
-  return (
-    <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[13px] font-medium", PILL_CLASSES[tone])}>
-      {children}
-    </span>
-  );
-}
-
-function Field({ label, value, mono, sub }: { label: string; value?: React.ReactNode; mono?: boolean; sub?: React.ReactNode }) {
+function Field({ label, value, sub }: { label: string; value?: React.ReactNode; sub?: React.ReactNode }) {
   return (
     <div>
       <p className="text-[13px] text-[var(--muted)]">{label}</p>
-      <p className={cn("mt-1 text-sm text-[var(--ink)]", mono && "font-code")}>{value ?? "—"}</p>
+      <p className="mt-1 text-[15px] text-[var(--ink)] tnum">{value ?? "—"}</p>
       {sub ? <p className="mt-0.5 text-[13px] leading-snug text-[var(--muted)]">{sub}</p> : null}
     </div>
   );
 }
 
-function Kpi({ label, value, sub, warn }: { label: string; value: React.ReactNode; sub?: string; warn?: boolean }) {
-  return (
-    <div className="rounded-[var(--radius-sm)] bg-[var(--surface-2)]/60 p-3.5">
-      <p className="text-[13px] text-[var(--muted)]">{label}</p>
-      <p className={cn("tnum mt-1.5 text-lg font-semibold tracking-tight", warn ? "text-[var(--sev-high)]" : "text-[var(--ink)]")}>{value}</p>
-      {sub ? <p className="mt-0.5 text-[13px] leading-snug text-[var(--muted)]">{sub}</p> : null}
-    </div>
-  );
-}
+type SupplierSummaryX = SupplierSummary & {
+  openInvoices?: {
+    id: string; number?: string; date?: string; dueDate?: string | null; overdueDays?: number;
+    total?: MoneyLike; settled?: MoneyLike; outstanding?: MoneyLike; caseId?: string | null;
+    msme?: { dueDate?: string; daysLeft?: number } | null;
+  }[];
+  openFindings: SupplierSummary["openFindings"] & { items?: { id: string; code: string; severity: string; caseId?: string; amount?: string }[] };
+};
+type OpenBill = NonNullable<SupplierSummaryX["openInvoices"]>[number];
 
-/** Labelled mini fulfilment bar used per order row. */
-function Meter({ label, pct }: { label: string; pct?: string }) {
-  const value = Math.min(100, Math.max(0, Number(pct ?? 0) || 0));
-  return (
-    <div className="flex items-center gap-2">
-      <span className="w-14 shrink-0 text-[13px] text-[var(--muted)]">{label}</span>
-      <Progress value={value} className="h-[4px] flex-1" />
-      <span className="tnum w-9 shrink-0 text-right text-[13px] text-[var(--ink-2)]">{value}%</span>
-    </div>
-  );
-}
-
-/** Rows inside a pad={false} card — shared list shell. */
-function ListShell({ children }: { children: React.ReactNode }) {
-  return <ul className="divide-y divide-[var(--line)]">{children}</ul>;
-}
+const positive = (m?: MoneyLike | string | null) => !!m && toPaise(typeof m === "string" ? m : m.amount) > BigInt(0);
 
 export default function SupplierDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const mocks = mocksEnabled();
+  const [tab, setTab] = useState("bills");
 
   const supplierQ = useQuery({ queryKey: ["supplier", id], queryFn: () => v2.supplier(id) });
   const supplier = supplierQ.data ?? undefined;
@@ -118,471 +91,432 @@ export default function SupplierDetailPage() {
 
   const ordersQ = useQuery({
     queryKey: ["supplier-orders", id],
-    queryFn: () => v2.orders({ supplierId: id, limit: "50", sort: "newest" }),
+    queryFn: () => v2.orders({ supplierId: id, limit: "50", sort: "attention" }),
     enabled,
   });
   const paymentsQ = useQuery({
-    queryKey: ["supplier-payments", id],
-    queryFn: () => v2.payments({ pageSize: "50" }),
+    queryKey: ["supplier-payments", id, supplier?.name],
+    queryFn: () => v2.payments({ pageSize: "50", ...(supplier?.name ? { q: supplier.name } : {}) }),
     enabled,
   });
-  const casesQ = useQuery({
-    queryKey: ["supplier-cases", id],
-    queryFn: () => v2.cases(),
-    enabled,
-  });
-  // Exact, server-computed position for this supplier (paise arithmetic,
-  // all invoices/payments — not a client-side sample).
+  // Server-computed position for this supplier (paise arithmetic, all
+  // invoices/payments — not a client-side sample).
   const summaryQ = useQuery({
     queryKey: ["supplier-summary", id],
-    queryFn: () => v2Pages.supplierSummary(id),
+    queryFn: () => v2Pages.supplierSummary(id) as Promise<SupplierSummaryX>,
     enabled: enabled && !mocks,
     retry: 0,
   });
   const riskQ = useQuery({ queryKey: ["supplier-risk", id], queryFn: () => workflow.supplierRisk(id), enabled: enabled && !mocks, retry: 0 });
-  const complianceQ = useQuery({
-    queryKey: ["supplier-compliance", id],
-    queryFn: () => v2.complianceSection("msme"),
-    enabled,
-  });
 
-  // Names this supplier can appear under on documents (legal + trade names).
   const names = useMemo(
     () => new Set([supplier?.name, supplier?.legalName, ...(supplier?.tradeNames ?? [])].filter(Boolean) as string[]),
     [supplier],
   );
-
   const orders = useMemo(() => {
-    const items = ordersQ.data?.items ?? [];
-    // Real mode filters server-side via supplierId; mock mode ignores params.
+    const items = (ordersQ.data?.items ?? []) as (OrderListRow & { caseId?: string | null })[];
     return mocks ? items.filter((o) => names.has(o.supplier)) : items;
   }, [ordersQ.data, mocks, names]);
-
   const payments = useMemo(() => {
     const items = (paymentsQ.data?.items ?? []) as PaymentRow[];
-    return items.filter(
-      (p) => p.supplierId === id || (p.counterparty ? names.has(p.counterparty) : false) || (p.supplier ? names.has(p.supplier) : false),
-    );
+    return items.filter((p) => p.supplierId === id || (p.counterparty ? names.has(p.counterparty) : false) || (p.supplier ? names.has(p.supplier) : false));
   }, [paymentsQ.data, id, names]);
 
-  const supplierCases = useMemo(() => {
-    const orderIds = new Set(orders.map((o) => o.id));
-    const orderCaseIds = new Set(orders.map((o) => (o as OrderListRow & { caseId?: string }).caseId).filter(Boolean));
-    return (casesQ.data?.items ?? []).filter(
-      (c) => orderCaseIds.has(c.id) || (c.subjectIds ?? []).some((s) => s === id || orderIds.has(s)),
-    );
-  }, [casesQ.data, orders, id]);
-
-  type MsmeRow = {
-    documentId?: string; invoice?: string; supplier?: string; category?: string;
-    amount?: MoneyLike; dueDate?: string; daysLeft?: number; note?: string;
-  };
-  const msmeItems = useMemo(
-    () => ((complianceQ.data?.items ?? []) as MsmeRow[]).filter((i) => i.supplier && names.has(i.supplier)),
-    [complianceQ.data, names],
-  );
-
-  const totals = useMemo(() => {
-    const ordered = orders.reduce((s, o) => s + Number(o.value?.amount ?? 0), 0);
-    const invoiced = orders.reduce((s, o) => s + (Number(o.value?.amount ?? 0) * Number(o.invoicedPct ?? 0)) / 100, 0);
-    const paid = orders.reduce((s, o) => s + (Number(o.value?.amount ?? 0) * Number(o.paidPct ?? 0)) / 100, 0);
-    const issues = orders.reduce((s, o) => s + (o.issueCount ?? 0), 0);
-    return { ordered, invoiced, paid, issues };
-  }, [orders]);
-
   if (supplierQ.error) return <ErrorState message={supplierQ.error instanceof Error ? supplierQ.error.message : "Something went wrong."} onRetry={() => supplierQ.refetch()} />;
-  if (supplierQ.isLoading) return <Skeleton className="h-64 w-full" />;
+  if (supplierQ.isLoading) {
+    return (
+      <div className="space-y-6" aria-busy="true">
+        <Skeleton className="h-5 w-24" />
+        <div className="space-y-2"><Skeleton className="h-4 w-40" /><Skeleton className="h-8 w-80 max-w-full" /><Skeleton className="h-4 w-96 max-w-full" /></div>
+        <div className="grid gap-4 sm:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-28" />)}</div>
+        <Skeleton className="h-48 w-full" />
+      </div>
+    );
+  }
   if (!supplier) return <ErrorState message="Supplier not found." />;
 
-  const isMsme = Boolean(supplier.msme || supplier.msmeFlag);
-  const gstStates = [...new Set((supplier.gstins ?? []).map((g) => gstStateName(g.stateCode ?? g.gstin?.slice(0, 2))).filter(Boolean))] as string[];
   const sum = summaryQ.data;
-  const openIssues = sum?.openFindings?.count ?? Math.max(totals.issues, supplier.issueCount);
-  const openValue = sum ? sum.outstanding : supplier.openValue ?? (ordersQ.data ? inr(Math.max(0, totals.invoiced - totals.paid)) : undefined);
-  const paidTotal = sum ? sum.paid : payments.length
-    ? inr(payments.reduce((s, p) => s + Number(typeof p.amount === "string" ? p.amount : p.amount?.amount ?? 0), 0))
-    : totals.paid > 0 ? inr(totals.paid) : undefined;
-  const orderedTotal = sum ? sum.ordered : orders.length ? inr(totals.ordered) : undefined;
-  const terms = supplier.paymentTermsDays != null ? `${supplier.paymentTermsDays} days` : "—";
+  const msmeCategory = sum?.msme?.category ?? supplier.udyam?.category ?? supplier.msme;
+  const isMsme = Boolean(msmeCategory || supplier.msmeFlag);
+  const gstStates = [...new Set((supplier.gstins ?? []).map((g) => gstStateName(g.stateCode ?? g.gstin?.slice(0, 2))).filter(Boolean))] as string[];
+  const terms = supplier.paymentTermsDays != null ? `${supplier.paymentTermsDays} days` : null;
+  const orderNumberByCase = new Map(orders.filter((o) => o.caseId).map((o) => [o.caseId as string, o.number]));
+  const openBills = sum?.openInvoices ?? [];
+
+  // What to do about the risk — one row per concrete next step.
+  const issuesByCase = new Map<string, number>();
+  for (const f of sum?.openFindings?.items ?? []) if (f.caseId) issuesByCase.set(f.caseId, (issuesByCase.get(f.caseId) ?? 0) + 1);
+  const todo: { key: string; text: React.ReactNode; action: React.ReactNode }[] = [];
+  for (const [caseId, n] of [...issuesByCase.entries()].sort((a, b) => b[1] - a[1])) {
+    todo.push({
+      key: caseId,
+      text: <>{n} open issue{n === 1 ? "" : "s"} on order <span className="tnum whitespace-nowrap">{orderNumberByCase.get(caseId) ?? ""}</span></>,
+      action: <BtnLink size="sm" variant="secondary" href={`/app/investigations/${caseId}`}>Review</BtnLink>,
+    });
+  }
+  if (positive(sum?.unallocatedPayments)) {
+    todo.push({
+      key: "unmatched",
+      text: <><Money value={sum!.unallocatedPayments} className="font-medium text-[var(--ink)]" /> paid to them but not matched to a bill</>,
+      action: <BtnLink size="sm" variant="secondary" href="/app/payments">Match</BtnLink>,
+    });
+  }
+  if (positive(sum?.msme?.overdue)) {
+    todo.push({
+      key: "msme",
+      text: <><Money value={sum!.msme!.overdue} className="font-medium text-[var(--sev-critical)]" /> overdue under the MSME 45-day rule</>,
+      action: <Btn size="sm" variant="secondary" onClick={() => setTab("bills")}>See bills</Btn>,
+    });
+  }
+
+  const billColumns: Column<OpenBill>[] = [
+    {
+      key: "bill", header: "Bill", mobile: "title",
+      cell: (b) => (
+        <div className="min-w-0">
+          <Link href={`/app/documents/${b.id}`} onClick={(e) => e.stopPropagation()} className="font-semibold text-[var(--ink)] hover:underline">{b.number ?? "Unnumbered bill"}</Link>
+          <p className="mt-0.5 text-[13px] text-[var(--muted)]">Dated <DateText value={b.date} /></p>
+        </div>
+      ),
+    },
+    {
+      key: "due", header: "Due",
+      cell: (b) => {
+        const days = b.msme?.daysLeft ?? (b.dueDate ? daysFromTodayIst(b.dueDate) : null);
+        return (
+          <div>
+            <DateText value={b.msme?.dueDate ?? b.dueDate ?? null} className="whitespace-nowrap" />
+            {days !== null && days !== undefined ? (
+              <p className={cn("text-[13px]", days < 0 ? "font-medium text-[var(--sev-critical)]" : days <= 7 ? "text-[var(--sev-medium)]" : "text-[var(--muted)]")}>
+                {daysLeftText(days)}{b.msme ? " · MSME" : ""}
+              </p>
+            ) : null}
+          </div>
+        );
+      },
+    },
+    { key: "total", header: "Bill total", align: "right", cell: (b) => <Money value={b.total} /> },
+    { key: "out", header: "Still owed", align: "right", cell: (b) => <Money value={b.outstanding} className="font-semibold text-[var(--ink)]" /> },
+    {
+      key: "state", header: "Status",
+      cell: (b) => (b.caseId && issuesByCase.get(b.caseId) ? <ToneBadge tone="warn">Has open issues</ToneBadge> : <ToneBadge tone="good">OK to pay</ToneBadge>),
+    },
+  ];
+
+  const orderColumns: Column<OrderListRow & { caseId?: string | null }>[] = [
+    {
+      key: "po", header: "Order", mobile: "title",
+      cell: (o) => (
+        <div className="min-w-0">
+          <Link href={`/app/orders/${o.id}`} onClick={(e) => e.stopPropagation()} className="font-semibold text-[var(--ink)] hover:underline tnum">{o.number}</Link>
+          <p className="mt-0.5 text-[13px] text-[var(--muted)]"><DateText value={o.date} /></p>
+        </div>
+      ),
+    },
+    { key: "value", header: "Value", align: "right", cell: (o) => <Money value={o.value} className="font-medium text-[var(--ink)]" /> },
+    {
+      key: "progress", header: "Progress",
+      cell: (o) => <ProgressStack rows={[{ label: "Delivered", pct: o.deliveredPct }, { label: "Billed", pct: o.invoicedPct, warn: Number(o.invoicedPct) > Number(o.deliveredPct) + 0.5 }, { label: "Paid", pct: o.paidPct }]} />,
+    },
+    {
+      key: "status", header: "Status",
+      cell: (o) => (
+        <div className="flex flex-col items-start gap-1">
+          <StatusBadge status={o.status} />
+          {o.issueCount ? <span className="text-[13px] font-medium text-[var(--sev-high)]">{o.issueCount} issue{o.issueCount === 1 ? "" : "s"}</span> : null}
+        </div>
+      ),
+    },
+  ];
+
+  const payColumns: Column<PaymentRow>[] = [
+    {
+      key: "date", header: "Date", mobile: "title",
+      cell: (p) => (
+        <div>
+          <p className="font-medium text-[var(--ink)]">{p.date ? <DateText value={p.date} /> : "No date"}</p>
+          <p className="mt-0.5 text-[13px] text-[var(--muted)] tnum">{p.utr ? `UTR ${p.utr}` : "No bank reference"}{p.mode ? ` · ${p.mode}` : ""}</p>
+        </div>
+      ),
+    },
+    { key: "amount", header: "Amount", align: "right", cell: (p) => <Money value={paymentAmount(p)} className="font-semibold text-[var(--ink)]" /> },
+    {
+      key: "status", header: "Status",
+      cell: (p) => {
+        const st = PAY_STATUS[p.status ?? ""] ?? PAY_STATUS.not_linked;
+        return <ToneBadge tone={st.tone === "good" ? "good" : st.tone === "bad" ? "bad" : st.tone === "warn" ? "warn" : "neutral"}>{st.label}</ToneBadge>;
+      },
+    },
+  ];
+
+  const unmatchedPayments = payments.filter((p) => ["unallocated", "partial", "needs_evidence", "unclear"].includes(p.status ?? "")).length;
 
   return (
-    <FadeIn className="space-y-5">
-      <div className="flex items-center justify-between gap-3">
-        <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
-          <ArrowLeft size={15} /> Back
-        </button>
-        <Link
-          href="/app/orders/new"
-          className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--accent)]/45 px-3 py-1.5 text-xs font-medium text-[var(--accent-strong)] transition-colors hover:bg-[var(--accent-soft)]"
-        >
-          <Plus size={13} /> New purchase order
+    <FadeIn className="space-y-8">
+      <div className="space-y-4">
+        <Link href="/app/suppliers" className="inline-flex items-center gap-1 text-[14px] font-medium text-[var(--muted)] hover:text-[var(--ink)]">
+          <ArrowLeft size={15} aria-hidden="true" /> Suppliers
         </Link>
+        <PageHeader
+          eyebrow={isMsme ? `Supplier · ${String(msmeCategory).charAt(0).toUpperCase()}${String(msmeCategory).slice(1)} enterprise (MSME)` : "Supplier"}
+          title={<span className="inline-flex flex-wrap items-center gap-3">{supplier.name} {riskQ.data ? <RiskBadge risk={riskQ.data} /> : null}</span>}
+          description={[
+            terms ? `Credit terms ${terms}` : null,
+            gstStates.length ? `GST registered in ${gstStates.join(", ")}` : supplier.gstin ? null : "No GSTIN on file",
+            (supplier.tradeNames ?? []).length ? `Also trades as ${supplier.tradeNames!.join(", ")}` : null,
+          ].filter(Boolean).join(" · ") || undefined}
+          actions={
+            <>
+              <BtnLink href="/app/orders/new" icon={Plus}>New purchase order</BtnLink>
+              <RowActions
+                label="More actions"
+                items={[
+                  { label: "Ask Satya about them", icon: MessageSquare, onSelect: () => router.push(`/app/ask?about=${encodeURIComponent(supplier.name)}`) },
+                  { label: "See all their payments", icon: Wallet, onSelect: () => setTab("payments") },
+                ]}
+              />
+            </>
+          }
+        />
       </div>
 
-      {/* header */}
-      <Card>
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="grid h-11 w-11 place-items-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
-            <Building2 size={20} />
-          </span>
-          <div>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="type-page-title">{supplier.name}</h1>
-              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[13px] font-medium text-[var(--accent-strong)]">
-                <ShieldCheck size={11} /> Active supplier
-              </span>
-              {supplier.msme && (
-                <span className="rounded-full border border-[var(--likely)]/30 bg-[var(--likely-soft)] px-2.5 py-1 text-[13px] font-medium text-[var(--likely)]">
-                  <Term of="MSME">{supplier.msme} enterprise</Term>
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-xs text-[var(--muted)]">
-              {(supplier.tradeNames ?? []).length ? <>Also trades as {supplier.tradeNames!.join(", ")} · </> : null}
-              {(supplier.tags ?? []).length ? <>Category: {supplier.tags!.join(", ")} · </> : null}
-              Payment terms: {terms}
-              {gstStates.length ? <> · GST in {gstStates.join(", ")}</> : null}
-            </p>
-          </div>
-        </div>
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-          <Kpi
-            label="Outstanding payable"
-            value={openValue ? <Money value={openValue} /> : "—"}
-            sub={sum?.disputed ? `${formatMoney(sum.disputed)} on invoices with open issues` : "invoiced less paid and credited"}
-          />
-          <Kpi
-            label="Order value"
-            value={orderedTotal ? <Money value={orderedTotal} /> : ordersQ.isLoading ? "…" : "—"}
-            sub={`${orders.length} purchase order${orders.length === 1 ? "" : "s"}`}
-          />
-          <Kpi
-            label="Paid to date"
-            value={paidTotal ? <Money value={paidTotal} /> : "—"}
-            sub={payments.length ? `across ${payments.length} transfer${payments.length === 1 ? "" : "s"}` : "against invoiced value"}
-          />
-          <Kpi
-            label="Open issues"
-            value={openIssues || "None"}
-            warn={openIssues > 0}
-            sub="flagged on orders & checks"
-          />
-          <Kpi
-            label={isMsme ? "Overdue MSME" : "MSME"}
-            value={isMsme ? (supplier.overdue ? <Money value={supplier.overdue} /> : "On track") : "Not registered"}
-            warn={isMsme && Boolean(supplier.overdue)}
-            sub={isMsme ? "45-day rule applies" : "45-day rule doesn't apply"}
-          />
-          <Kpi label="Payment terms" value={terms} sub="agreed credit period" />
-        </div>
-      </Card>
+      {/* the position, in three numbers */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard
+          label="You owe them"
+          tip="Bills less payments and credit notes applied to them."
+          value={sum ? <Money value={sum.outstanding} /> : summaryQ.isLoading ? "…" : "—"}
+          delta={sum ? (positive(sum.disputed) ? `${formatMoney(sum.disputed)} of it has open issues` : "No open issues on these bills") : undefined}
+          tone={sum && positive(sum.disputed) ? "warn" : "default"}
+        />
+        <StatCard
+          label="Safe to pay"
+          tip="What you owe on bills with no open issues."
+          value={sum ? <Money value={sum.undisputedOutstanding} /> : summaryQ.isLoading ? "…" : "—"}
+          delta={openBills.length ? `${openBills.length} open bill${openBills.length === 1 ? "" : "s"}` : "No open bills"}
+          tone="good"
+        />
+        <StatCard
+          label="Paid to date"
+          value={sum ? <Money value={sum.paid} /> : summaryQ.isLoading ? "…" : "—"}
+          delta={sum && positive(sum.unallocatedPayments) ? `${formatMoney(sum.unallocatedPayments)} not matched to a bill` : `${payments.length} payment${payments.length === 1 ? "" : "s"}`}
+        />
+      </div>
 
+      {/* risk — and what to do about it */}
       {riskQ.data ? (
         <Card>
-          <CardTitle hint="Rule-based — every point is explained">Supplier risk</CardTitle>
-          <div className="flex flex-wrap items-start gap-4">
-            <RiskBadge risk={riskQ.data} className="text-sm" />
-            {riskQ.data.factors.length === 0 ? (
-              <p className="text-sm text-[var(--muted)]">No open issues or master-data gaps — nothing raises this supplier’s risk.</p>
-            ) : (
-              <ul className="min-w-0 flex-1 space-y-2">
-                {riskQ.data.factors.map((f) => (
-                  <li key={f.label} className="flex items-start justify-between gap-4 text-sm">
-                    <span>
-                      <span className="text-[var(--ink)]">{f.label}</span>
-                      {f.detail ? <span className="block text-xs text-[var(--muted)]">{f.detail}</span> : null}
-                    </span>
-                    <span className="tnum shrink-0 text-xs font-medium text-[var(--ink-2)]">+{f.points}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <div className="grid gap-6 lg:grid-cols-2 lg:gap-10">
+            <div>
+              <h2 className="flex items-center gap-2 text-[17px] font-semibold text-[var(--ink)]">Why the risk is {riskQ.data.band} <span className="tnum text-[15px] font-normal text-[var(--muted)]">({riskQ.data.score} points)</span></h2>
+              {riskQ.data.factors.length === 0 ? (
+                <p className="mt-2 text-[15px] text-[var(--muted)]">No open issues or master-data gaps — nothing raises this supplier’s risk.</p>
+              ) : (
+                <ul className="mt-3 divide-y divide-[var(--line)]">
+                  {riskQ.data.factors.map((f) => (
+                    <li key={f.label} className="flex items-start justify-between gap-4 py-2.5 text-[15px]">
+                      <span>
+                        <span className="text-[var(--ink)]">{f.label}</span>
+                        {f.detail ? <span className="block text-[13px] text-[var(--muted)]">{f.detail}</span> : null}
+                      </span>
+                      <span className="tnum shrink-0 text-[14px] font-medium text-[var(--ink-2)]">+{f.points}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-3 text-[13px] text-[var(--muted)]">A prioritisation aid built from open issues and record checks — a signal, not a verdict.</p>
+            </div>
+            <div className="border-t border-[var(--line)] pt-5 lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0">
+              <h2 className="text-[17px] font-semibold text-[var(--ink)]">What to do</h2>
+              {todo.length === 0 ? (
+                <p className="mt-2 text-[15px] text-[var(--muted)]">{summaryQ.isLoading ? "Working it out…" : "Nothing needs you for this supplier right now."}</p>
+              ) : (
+                <ul className="mt-3 divide-y divide-[var(--line)]">
+                  {todo.slice(0, 5).map((t) => (
+                    <li key={t.key} className="flex items-center justify-between gap-4 py-2.5 text-[15px] text-[var(--ink-2)]">
+                      <span className="min-w-0">{t.text}</span>
+                      <span className="shrink-0">{t.action}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </Card>
       ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        {/* ---------- activity column ---------- */}
-        <div className="space-y-4 xl:col-span-2">
-          {/* purchase orders */}
-          <Card pad={false}>
-            <div className="p-5 pb-0">
-              <CardTitle icon={ShoppingCart} hint={ordersQ.isLoading ? "Loading…" : `${orders.length} on record`}>Purchase orders</CardTitle>
-            </div>
-            {ordersQ.isLoading ? (
-              <div className="space-y-2 p-5 pt-0">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
-            ) : orders.length === 0 ? (
-              <p className="px-5 pb-5 text-xs text-[var(--muted)]">No purchase orders for this supplier yet.</p>
-            ) : (
-              <ListShell>
-                {orders.map((o) => (
-                  <li key={o.id}>
-                    <Link
-                      href={`/app/orders/${o.id}`}
-                      className="group flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-[var(--surface-2)]/50"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-code text-xs font-medium text-[var(--accent-strong)]">{o.number}</p>
-                        <p className="mt-0.5 text-[13px] text-[var(--muted)]">
-                          <DateText value={o.date} /> · {STATUS_LABEL[o.status] ?? o.status.replaceAll("_", " ")}
-                        </p>
-                      </div>
-                      <div className="hidden w-48 shrink-0 space-y-1 md:block">
-                        <Meter label="Delivered" pct={o.deliveredPct} />
-                        <Meter label="Invoiced" pct={o.invoicedPct} />
-                        <Meter label="Paid" pct={o.paidPct} />
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <Money value={o.value} className="text-sm font-medium text-[var(--ink)]" />
-                        <p className={cn("mt-0.5 text-[13px]", o.issueCount ? "font-medium text-[var(--sev-high)]" : "text-[var(--muted)]")}>
-                          {o.issueCount ? `${o.issueCount} open issue${o.issueCount === 1 ? "" : "s"}` : "no issues"}
-                        </p>
-                      </div>
-                      <ArrowUpRight size={14} className="shrink-0 text-[var(--muted)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--accent)]" />
-                    </Link>
-                  </li>
-                ))}
-              </ListShell>
-            )}
-          </Card>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className={pageTabsList}>
+          <TabsTrigger value="bills" className={pageTabsTrigger}>Open bills{openBills.length ? <span className={tabCount}>{openBills.length}</span> : null}</TabsTrigger>
+          <TabsTrigger value="orders" className={pageTabsTrigger}>Orders{orders.length ? <span className={tabCount}>{orders.length}</span> : null}</TabsTrigger>
+          <TabsTrigger value="payments" className={pageTabsTrigger}>Payments{unmatchedPayments ? <span className={tabCount}>{unmatchedPayments} to match</span> : null}</TabsTrigger>
+          <TabsTrigger value="details" className={pageTabsTrigger}>Details</TabsTrigger>
+        </TabsList>
 
-          {/* payments */}
-          <Card pad={false}>
-            <div className="p-5 pb-0">
-              <CardTitle icon={Wallet} hint={paymentsQ.isLoading ? "Loading…" : `${payments.length} transfer${payments.length === 1 ? "" : "s"}`}>Payments to this supplier</CardTitle>
-            </div>
-            {paymentsQ.isLoading ? (
-              <div className="space-y-2 p-5 pt-0">{[0, 1].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
-            ) : payments.length === 0 ? (
-              <p className="px-5 pb-5 text-xs text-[var(--muted)]">No bank transfers matched to this supplier yet.</p>
-            ) : (
-              <ListShell>
-                {payments.map((p) => {
-                  const st = PAY_STATUS[p.status ?? ""] ?? PAY_STATUS.not_linked;
-                  return (
-                    <li key={p.id} className="flex items-center gap-4 px-5 py-3.5">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-code text-xs font-medium text-[var(--ink)]">{p.utr ?? "No bank reference"}</p>
-                        <p className="mt-0.5 text-[13px] text-[var(--muted)]">
-                          {p.date ? <DateText value={p.date} /> : "—"}
-                          {p.mode ? <> · {p.mode}</> : null}
-                          {p.status === "partial" && p.allocatedTotal ? <> · <Money value={p.allocatedTotal} /> allocated</> : null}
-                        </p>
-                      </div>
-                      <Money value={paymentAmount(p)} className="shrink-0 text-sm font-medium text-[var(--ink)]" />
-                      <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[13px] font-medium", PILL_CLASSES[st.tone])}>{st.label}</span>
-                    </li>
-                  );
-                })}
-              </ListShell>
-            )}
-          </Card>
-
-          {/* investigations */}
-          {supplierCases.length > 0 && (
-            <Card pad={false}>
-              <div className="p-5 pb-0">
-                <CardTitle icon={SearchCheck} hint={`${supplierCases.length} open`}>Open checks involving this supplier</CardTitle>
-              </div>
-              <ListShell>
-                {supplierCases.map((c) => (
-                  <li key={c.id}>
-                    <Link
-                      href={`/app/investigations/${c.id}`}
-                      className="group flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-[var(--surface-2)]/50"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium text-[var(--ink)]">{c.title}</p>
-                        <p className="mt-0.5 text-[13px] text-[var(--muted)]">
-                          {(c as { findingCount?: number }).findingCount
-                            ? `${(c as { findingCount?: number }).findingCount} issue${(c as { findingCount?: number }).findingCount === 1 ? "" : "s"} under review`
-                            : "Under review"}
-                        </p>
-                      </div>
-                      {(c as { severity?: string }).severity ? <SeverityBadge severity={(c as { severity?: string }).severity!} /> : null}
-                      <StatusBadge status={c.status} />
-                      <ArrowUpRight size={14} className="shrink-0 text-[var(--muted)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--accent)]" />
-                    </Link>
-                  </li>
-                ))}
-              </ListShell>
-            </Card>
-          )}
-
-          {/* MSME deadlines */}
-          {isMsme && (
-            <Card pad={false}>
-              <div className="p-5 pb-0">
-                <CardTitle icon={Hourglass} hint="45-day rule">MSME payment deadlines</CardTitle>
-              </div>
-              <p className="px-5 pb-3 text-[13px] leading-relaxed text-[var(--muted)]">
-                Dues to {supplier.msme ?? "micro & small"} suppliers must be paid within {supplier.paymentTermsDays ?? 45} days of acceptance —
-                after that, interest runs at 3× the RBI rate.
-              </p>
-              {complianceQ.isLoading ? (
-                <div className="space-y-2 p-5 pt-0"><Skeleton className="h-12 w-full" /></div>
-              ) : msmeItems.length === 0 ? (
-                <p className="px-5 pb-5 text-xs text-[var(--muted)]">No unpaid MSME invoices on record — nothing is counting down.</p>
-              ) : (
-                <ListShell>
-                  {msmeItems.map((m, i) => {
-                    const days = m.daysLeft ?? 0;
-                    const tone: PillTone = days < 0 ? "bad" : days <= 7 ? "warn" : "good";
-                    return (
-                      <li key={m.documentId ?? i} className="flex items-center gap-4 px-5 py-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-code text-xs font-medium text-[var(--ink)]">{m.invoice ?? m.documentId ?? "Invoice"}</p>
-                          <p className="mt-0.5 text-[13px] text-[var(--muted)]">
-                            due {m.dueDate ? <DateText value={m.dueDate} /> : "—"}
-                          </p>
-                        </div>
-                        {m.amount ? <Money value={m.amount} className="shrink-0 text-sm font-medium text-[var(--ink)]" /> : null}
-                        <Pill tone={tone}>{daysLeftText(days)}</Pill>
-                      </li>
-                    );
-                  })}
-                </ListShell>
+        <TabsContent value="bills" className="mt-6">
+          {summaryQ.isLoading ? (
+            <TableSkeleton rows={3} cols={5} />
+          ) : openBills.length === 0 ? (
+            <EmptyState icon={ReceiptText} title="No open bills" body="Everything billed by this supplier has been paid or credited." />
+          ) : (
+            <ResponsiveTable
+              caption="Open bills"
+              columns={billColumns}
+              rows={openBills}
+              rowKey={(b) => b.id}
+              stickyHeader={false}
+              actions={(b) => (
+                <RowActions
+                  primary={b.caseId && issuesByCase.get(b.caseId) ? { label: "Review issues", href: `/app/investigations/${b.caseId}` } : { label: "Open", href: `/app/documents/${b.id}` }}
+                />
               )}
-            </Card>
+            />
           )}
-        </div>
+        </TabsContent>
 
-        {/* ---------- master data column ---------- */}
-        <div className="space-y-4">
-          {/* registration & tax */}
-          <Card>
-            <CardTitle icon={ReceiptText} hint="PAN · GST · Udyam">Registration & tax</CardTitle>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field
-                label="PAN"
-                value={supplier.pan}
-                mono
-                sub={supplier.pan && (supplier.gstins ?? []).some((g) => panFromGstin(g.gstin) === supplier.pan) ? "Matches PAN inside GSTIN" : undefined}
-              />
-              <Field
-                label="Udyam registration"
-                value={supplier.udyam?.number}
-                mono
-                sub={supplier.udyam ? `${supplier.udyam.category} enterprise${supplier.udyam.verifiedAt ? ` · verified ${supplier.udyam.verifiedAt}` : ""}` : "Not MSME-registered"}
-              />
-              <Field
-                label="Payment terms"
-                value={terms}
-                sub={isMsme ? "MSME payment clock applies" : "agreed credit period"}
-              />
-              <Field label="Supplier ID" value={supplier.id} mono />
-            </div>
-            <div className="mt-5 space-y-2">
-              <p className="text-[13px] text-[var(--muted)]">GST registrations</p>
-              {(supplier.gstins ?? []).map((g) => {
-                const state = gstStateName(g.stateCode ?? g.gstin?.slice(0, 2));
-                const panOk = Boolean(supplier.pan && panFromGstin(g.gstin) === supplier.pan);
-                return (
-                  <div key={g.gstin} className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-code text-xs font-medium text-[var(--ink)]">{g.gstin}</span>
-                      <Pill tone="good">{g.status || "active"}</Pill>
-                    </div>
-                    <p className="mt-1 text-[13px] text-[var(--muted)]">
-                      {state ?? `State code ${g.stateCode ?? "—"}`}
-                      {panOk ? " · PAN inside GSTIN matches" : ""}
-                    </p>
-                  </div>
-                );
-              })}
-              {!(supplier.gstins ?? []).length && <p className="text-xs text-[var(--muted)]">No GSTIN on file.</p>}
-            </div>
-          </Card>
-
-          {/* bank accounts */}
-          <Card>
-            <CardTitle icon={Landmark} hint={`${(supplier.bankAccounts ?? []).length} on file`}>Bank accounts</CardTitle>
-            <p className="-mt-2 mb-4 text-[13px] leading-relaxed text-[var(--muted)]">
-              Account changes need a second person to approve before use.
-            </p>
-            <div className="space-y-2">
-              {(supplier.bankAccounts ?? []).map((acct, i) => {
-                const { bank, branch } = decodeIfsc(acct.ifsc);
-                const st = BANK_STATUS[acct.status ?? "active"] ?? BANK_STATUS.active;
-                return (
-                  <div key={acct.id ?? i} className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-medium text-[var(--ink)]">{bank ?? "Bank account"}</p>
-                      <Pill tone={st.tone}>{st.label}</Pill>
-                    </div>
-                    <p className="mt-1 font-code text-xs text-[var(--ink)]">{acct.masked ?? acct.accountMasked ?? "••••"}</p>
-                    <p className="mt-0.5 font-code text-[13px] text-[var(--muted)]">
-                      IFSC {acct.ifsc || "—"}{branch ? ` · branch ${branch}` : ""}
-                    </p>
-                    {acct.holderName ? <p className="mt-1 text-[13px] text-[var(--muted)]">Account holder: {acct.holderName}</p> : null}
-                  </div>
-                );
-              })}
-              {!(supplier.bankAccounts ?? []).length && (
-                <p className="text-xs text-[var(--muted)]">No bank account on file — add one before paying this supplier.</p>
-              )}
-            </div>
-          </Card>
-
-          {/* contacts */}
-          {(supplier.contacts ?? []).length > 0 && (
-            <Card>
-              <CardTitle icon={Users} hint={`${supplier.contacts!.length} on file`}>Contacts</CardTitle>
-              <div className="space-y-2">
-                {supplier.contacts!.map((c, i) => (
-                  <div key={i} className="flex items-start gap-3 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-[13px] font-semibold text-[var(--accent-strong)]">
-                      {(c.name || "?").trim().slice(0, 1).toUpperCase()}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-[var(--ink)]">{c.name || "Contact"}</p>
-                      {c.email ? (
-                        <a href={`mailto:${c.email}`} className="mt-0.5 flex items-center gap-1.5 truncate text-[13px] text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
-                          <Mail size={11} /> {c.email}
-                        </a>
-                      ) : null}
-                      {c.phone ? (
-                        <a href={`tel:${c.phone.replace(/\s/g, "")}`} className="mt-0.5 flex items-center gap-1.5 font-code text-[13px] text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
-                          <Phone size={11} /> {c.phone}
-                        </a>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
+        <TabsContent value="orders" className="mt-6">
+          {ordersQ.isLoading ? (
+            <TableSkeleton rows={3} cols={5} />
+          ) : orders.length === 0 ? (
+            <EmptyState icon={ShoppingCart} title="No purchase orders yet" body="Orders you raise with this supplier appear here." actionLabel="New purchase order" actionHref="/app/orders/new" />
+          ) : (
+            <ResponsiveTable
+              caption="Purchase orders"
+              columns={orderColumns}
+              rows={orders}
+              rowKey={(o) => o.id}
+              stickyHeader={false}
+              onRowClick={(o) => router.push(`/app/orders/${o.id}`)}
+              actions={(o) => <RowActions primary={o.issueCount && o.caseId ? { label: "Review", href: `/app/investigations/${o.caseId}` } : { label: "Open", href: `/app/orders/${o.id}` }} />}
+            />
           )}
+        </TabsContent>
 
-          {/* addresses */}
-          <Card>
-            <CardTitle icon={MapPin} hint={`${(supplier.addresses ?? []).length} on file`}>Addresses</CardTitle>
-            <div className="space-y-2">
-              {(supplier.addresses ?? []).map((addr, i) => {
-                const state = gstStateName(addr.stateCode);
-                return (
-                  <div key={i} className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5">
-                    <p className="text-[13px] font-medium text-[var(--muted)]">{addr.label || `Address ${i + 1}`}</p>
-                    <p className="mt-1 text-sm leading-relaxed text-[var(--ink)]">
-                      {[addr.line1, [addr.city, state, addr.pin].filter(Boolean).join(" – ")].filter(Boolean).join(", ")}
-                    </p>
-                    {addr.stateCode ? <p className="mt-0.5 text-[13px] text-[var(--muted)]">GST state code {addr.stateCode}</p> : null}
-                  </div>
-                );
-              })}
-              {!(supplier.addresses ?? []).length && <p className="text-xs text-[var(--muted)]">No address on file.</p>}
-            </div>
-          </Card>
+        <TabsContent value="payments" className="mt-6">
+          {paymentsQ.isLoading ? (
+            <TableSkeleton rows={3} cols={4} />
+          ) : payments.length === 0 ? (
+            <EmptyState icon={Wallet} title="No payments yet" body="Bank transfers to this supplier appear here once a bank statement is imported." actionLabel="Go to Payments" actionHref="/app/payments" />
+          ) : (
+            <ResponsiveTable
+              caption="Payments to this supplier"
+              columns={payColumns}
+              rows={payments}
+              rowKey={(p) => p.id}
+              stickyHeader={false}
+              actions={(p) =>
+                ["unallocated", "partial", "needs_evidence", "unclear"].includes(p.status ?? "") ? (
+                  <RowActions primaryVariant="primary" primary={{ label: "Match", href: "/app/payments" }} />
+                ) : null
+              }
+            />
+          )}
+        </TabsContent>
 
-          {/* note */}
-          <Card>
-            <h2 className="text-sm font-semibold text-[var(--ink)]">Signals, not verdicts</h2>
-            <p className="mt-1.5 text-xs leading-relaxed text-[var(--muted)]">
-              Statistical indicators (like unusual-amount or duplicate-vendor signals) point you at records worth checking —
-              they are never treated as proof. Open this supplier&apos;s orders to review deliveries, invoices and payments.
-            </p>
-          </Card>
-        </div>
-      </div>
+        <TabsContent value="details" className="mt-6">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <MasterData supplier={supplier} isMsme={isMsme} terms={terms} />
+          </div>
+        </TabsContent>
+      </Tabs>
     </FadeIn>
+  );
+}
+
+/* ---------- master data (Details tab) ---------- */
+
+function MasterData({ supplier, isMsme, terms }: { supplier: NonNullable<Awaited<ReturnType<typeof v2.supplier>>>; isMsme: boolean; terms: string | null }) {
+  return (
+    <>
+      <Card>
+        <CardTitle icon={ReceiptText}>Registration & tax</CardTitle>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field
+            label="PAN"
+            value={supplier.pan}
+            sub={supplier.pan && (supplier.gstins ?? []).some((g) => panFromGstin(g.gstin) === supplier.pan) ? "Matches the PAN inside the GSTIN" : undefined}
+          />
+          <Field
+            label="Udyam (MSME) registration"
+            value={supplier.udyam?.number}
+            sub={supplier.udyam ? `${supplier.udyam.category.charAt(0).toUpperCase()}${supplier.udyam.category.slice(1)} enterprise${supplier.udyam.verifiedAt ? ` · verified ${formatDate(supplier.udyam.verifiedAt)}` : ""}` : "Not MSME-registered"}
+          />
+          <Field label="Credit terms" value={terms ?? "—"} sub={isMsme ? "The MSME 45-day limit still applies" : undefined} />
+        </div>
+        <div className="mt-5 space-y-2">
+          <p className="text-[13px] text-[var(--muted)]">GST registrations</p>
+          {(supplier.gstins ?? []).map((g) => {
+            const state = gstStateName(g.stateCode ?? g.gstin?.slice(0, 2));
+            return (
+              <div key={g.gstin} className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-sm)] border border-[var(--line)] px-3.5 py-2.5">
+                <span>
+                  <span className="tnum text-[15px] font-medium text-[var(--ink)]">{g.gstin}</span>
+                  <span className="block text-[13px] text-[var(--muted)]">{state ?? `State code ${g.stateCode ?? "—"}`}</span>
+                </span>
+                <ToneBadge tone="good">{g.status ? g.status.charAt(0).toUpperCase() + g.status.slice(1) : "Active"}</ToneBadge>
+              </div>
+            );
+          })}
+          {!(supplier.gstins ?? []).length && <p className="text-[15px] text-[var(--sev-high)]">No GSTIN on file — GST credit can’t be claimed on their bills.</p>}
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle icon={Landmark} description="A new or changed account needs a second person to approve it before it can be paid.">Bank accounts</CardTitle>
+        <div className="space-y-2">
+          {(supplier.bankAccounts ?? []).map((acct, i) => {
+            const { bank, branch } = decodeIfsc(acct.ifsc);
+            const st = BANK_STATUS[acct.status ?? "active"] ?? BANK_STATUS.active;
+            return (
+              <div key={acct.id ?? i} className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3.5 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[15px] font-medium text-[var(--ink)]">{bank ?? "Bank account"} <span className="tnum text-[var(--ink-2)]">{acct.masked ?? acct.accountMasked ?? ""}</span></p>
+                  <ToneBadge tone={st.tone === "good" ? "good" : st.tone === "warn" ? "warn" : "neutral"}>{st.label}</ToneBadge>
+                </div>
+                <p className="mt-0.5 text-[13px] text-[var(--muted)] tnum">IFSC {acct.ifsc || "—"}{branch ? ` · ${branch}` : ""}{acct.holderName ? ` · ${acct.holderName}` : ""}</p>
+              </div>
+            );
+          })}
+          {!(supplier.bankAccounts ?? []).length && <p className="text-[15px] text-[var(--muted)]">No bank account on file — add one before paying this supplier.</p>}
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle icon={Users}>Contacts</CardTitle>
+        {(supplier.contacts ?? []).length ? (
+          <div className="space-y-2">
+            {supplier.contacts!.map((c, i) => (
+              <div key={i} className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3.5 py-3">
+                <p className="text-[15px] font-medium text-[var(--ink)]">{c.name || "Contact"}</p>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[14px] text-[var(--muted)]">
+                  {c.email ? <a href={`mailto:${c.email}`} className="inline-flex items-center gap-1.5 hover:text-[var(--ink)]"><Mail size={14} aria-hidden="true" /> {c.email}</a> : null}
+                  {c.phone ? <a href={`tel:${c.phone.replace(/\s/g, "")}`} className="inline-flex items-center gap-1.5 tnum hover:text-[var(--ink)]"><Phone size={14} aria-hidden="true" /> {c.phone}</a> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[15px] text-[var(--muted)]">No contacts on file.</p>
+        )}
+      </Card>
+
+      <Card>
+        <CardTitle icon={MapPin}>Addresses</CardTitle>
+        <div className="space-y-2">
+          {(supplier.addresses ?? []).map((addr, i) => {
+            const state = gstStateName(addr.stateCode);
+            return (
+              <div key={i} className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3.5 py-3">
+                <p className="text-[13px] font-medium text-[var(--muted)]">{addr.label || `Address ${i + 1}`}</p>
+                <p className="mt-1 text-[15px] leading-relaxed text-[var(--ink)]">
+                  {[addr.line1, [addr.city, state, addr.pin].filter(Boolean).join(" – ")].filter(Boolean).join(", ")}
+                </p>
+              </div>
+            );
+          })}
+          {!(supplier.addresses ?? []).length && <p className="text-[15px] text-[var(--muted)]">No address on file.</p>}
+        </div>
+      </Card>
+    </>
   );
 }

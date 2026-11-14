@@ -1,118 +1,144 @@
 "use client";
 
-// Suppliers (/app/suppliers) — docs/plan/06 §5.8.
+// Suppliers (/app/suppliers) — "Who do I buy from, and who needs a closer
+// look?" Sorted by risk so the suppliers with open issues come first; the
+// score is explained once in an info panel, not on every row.
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, CircleCheck, CircleAlert } from "lucide-react";
+import { CircleCheck, Plus, MessageSquare, Upload } from "lucide-react";
 import { workflow } from "@/lib/api/workflow";
 import { RiskBadge } from "@/components/v2/risk-badge";
 import { mocksEnabled } from "@/lib/flags";
-import type { ColumnDef } from "@tanstack/react-table";
 import { v2 } from "@/lib/api/v2";
 import type { SupplierRow } from "@/lib/api/v2";
-import { ErrorState, EmptyState, Term, PageHeader, FadeIn } from "@/components/ui/v2";
-import { DataTable } from "@/components/ui/data-table";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState, EmptyState, PageHeader, FadeIn, BtnLink } from "@/components/ui/v2";
+import { FilterChips } from "@/components/pages/shared/filter-chips";
+import { ResponsiveTable, TableSkeleton, type Column } from "@/components/pages/shared/data-table";
+import { RowActions } from "@/components/pages/shared/row-actions";
+import { SearchField, ListToolbar } from "@/components/pages/shared/search-field";
+import { InfoPanel } from "@/components/pages/shared/info-panel";
+
+type FilterKey = "all" | "attention" | "msme" | "nogstin";
+const cap = (s?: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
 
 export default function SuppliersPage() {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<FilterKey>("all");
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ["suppliers"], queryFn: () => v2.suppliers() });
   const risks = useQuery({ queryKey: ["supplier-risks"], queryFn: workflow.supplierRisks, enabled: !mocksEnabled(), retry: 0 });
   const riskById = useMemo(() => new Map((risks.data?.items ?? []).map((r) => [r.supplierId, r])), [risks.data]);
-  const items = useMemo(() => {
-    const q = query.toLowerCase();
-    return (data?.items ?? []).filter((s) => !q || `${s.name} ${s.gstin}`.toLowerCase().includes(q));
-  }, [data, query]);
 
-  const columns = useMemo<ColumnDef<SupplierRow, unknown>[]>(
-    () => [
-      {
-        accessorKey: "name",
-        header: "Supplier",
-        cell: ({ row }) => (
-          <span className="flex items-center gap-2.5">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-[var(--surface-2)] text-[var(--ink-2)]">
-              <Building2 size={14} aria-hidden="true" />
-            </span>
-            <span className="font-medium text-[var(--ink)]">{row.original.name}</span>
-          </span>
-        ),
+  const all = useMemo(() => {
+    const rows = [...(data?.items ?? [])];
+    return rows.sort((a, b) => (riskById.get(b.id)?.score ?? -1) - (riskById.get(a.id)?.score ?? -1) || a.name.localeCompare(b.name));
+  }, [data, riskById]);
+  const matches = (s: SupplierRow, f: FilterKey) =>
+    f === "all" ? true
+      : f === "attention" ? ["high", "medium"].includes(riskById.get(s.id)?.band ?? "")
+        : f === "msme" ? !!(s.msme || s.udyam?.category)
+          : !s.gstin;
+  const searched = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return all.filter((s) => !q || `${s.name} ${s.gstin}`.toLowerCase().includes(q));
+  }, [all, query]);
+  const items = searched.filter((s) => matches(s, filter));
+  const count = (f: FilterKey) => searched.filter((s) => matches(s, f)).length;
+
+  const columns: Column<SupplierRow>[] = [
+    {
+      key: "name", header: "Supplier", mobile: "title", className: "min-w-[240px]",
+      cell: (s) => (
+        <div className="min-w-0">
+          <Link href={`/app/suppliers/${s.id}`} onClick={(e) => e.stopPropagation()} className="block truncate font-semibold text-[var(--ink)] hover:underline">{s.name}</Link>
+          <p className="mt-0.5 truncate text-[13px] tnum">
+            {s.gstin ? <span className="text-[var(--muted)]">GSTIN {s.gstin}</span> : <span className="font-medium text-[var(--sev-high)]">GSTIN missing</span>}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: "msme", header: "MSME",
+      cell: (s) => {
+        const c = s.udyam?.category ?? s.msme;
+        return c ? <span className="whitespace-nowrap text-[14px] text-[var(--ink-2)]">{cap(c)}</span> : <span className="text-[var(--muted)]">—</span>;
       },
-      {
-        accessorKey: "gstin",
-        header: "GSTIN",
-        cell: ({ row }) => {
-          const g = row.original.gstin;
-          if (!g) return <span className="text-xs text-[var(--sev-high)]">Missing</span>;
-          return <span className="whitespace-nowrap font-code text-xs text-[var(--ink-2)]">{g}</span>;
-        },
+    },
+    { key: "terms", header: "Credit terms", cell: (s) => <span className="tnum whitespace-nowrap text-[14px]">{s.paymentTermsDays ? `${s.paymentTermsDays} days` : "—"}</span> },
+    {
+      key: "issues", header: "Open issues", align: "right",
+      cell: (s) => {
+        const r = riskById.get(s.id);
+        if (!r) return <span className="text-[var(--muted)]">—</span>;
+        return r.openIssues ? <span className="font-semibold text-[var(--sev-high)]">{r.openIssues}</span> : <span className="inline-flex items-center gap-1 text-[14px] text-[var(--confirmed)]"><CircleCheck size={14} aria-hidden="true" />None</span>;
       },
-      {
-        accessorKey: "msme",
-        header: "MSME",
-        cell: ({ row }) =>
-          row.original.msme ? (
-            <span className="whitespace-nowrap rounded-full bg-[var(--likely-soft)] px-2 py-0.5 text-[13px] font-medium capitalize text-[var(--likely)]">
-              <Term of="MSME">{row.original.msme}</Term>
-            </span>
-          ) : (
-            <span className="text-xs text-[var(--muted)]">—</span>
-          ),
-      },
-      {
-        accessorKey: "paymentTermsDays",
-        header: "Terms",
-        cell: ({ row }) => <span className="tnum whitespace-nowrap text-xs">{row.original.paymentTermsDays ? `${row.original.paymentTermsDays} days` : "—"}</span>,
-      },
-      {
-        id: "issues",
-        header: "Open issues",
-        cell: ({ row }) => {
-          const r = riskById.get(row.original.id);
-          if (!r) return <span className="text-xs text-[var(--muted)]">—</span>;
-          return r.openIssues ? (
-            <span className="inline-flex items-center gap-1 text-sm font-medium text-[var(--sev-high)]"><CircleAlert size={13} aria-hidden="true" />{r.openIssues}</span>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-xs text-[var(--confirmed)]"><CircleCheck size={13} aria-hidden="true" />None</span>
-          );
-        },
-      },
-      {
-        id: "risk",
-        header: "Risk",
-        cell: ({ row }) => <RiskBadge risk={riskById.get(row.original.id)} />,
-      },
-    ],
-    [riskById],
-  );
+    },
+    { key: "risk", header: "Risk", cell: (s) => <RiskBadge risk={riskById.get(s.id)} /> },
+  ];
 
   return (
-    <FadeIn className="space-y-5">
+    <FadeIn className="space-y-6">
       <PageHeader
         title="Suppliers"
-        description="Everyone you buy from: GST and MSME registration, bank accounts, what you owe them, and a risk score that shows how it was worked out."
+        description="Everyone you buy from — sorted so the ones with open issues come first."
+        actions={<BtnLink href="/app/imports" variant="secondary" icon={Upload}>Import suppliers</BtnLink>}
       />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <input
-          type="search" value={query} onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name or GSTIN…" aria-label="Search suppliers"
-          className="h-10 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] sm:w-72 bg-[var(--surface)] px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] placeholder:text-[var(--muted)]"
+      <InfoPanel title="How the risk score works" storageKey="supplier-risk-how">
+        <p>
+          {risks.data?.note ?? "A prioritisation aid built from open issues and master-data checks — not a prediction."} Each supplier
+          gets points for open issues on their orders (more for serious ones), possible duplicate bills or payments, and GST identity
+          or tax-type problems. <strong>0–19</strong> is Low, <strong>20–49</strong> Medium, <strong>50+</strong> High. Open a supplier
+          to see exactly which points add up to their score.
+        </p>
+      </InfoPanel>
+
+      <ListToolbar search={<SearchField value={query} onChange={setQuery} placeholder="Search name or GSTIN" />}>
+        <FilterChips
+          ariaLabel="Filter suppliers"
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: "all" as const, label: "All", count: count("all") },
+            { value: "attention" as const, label: "Needs a closer look", count: risks.data ? count("attention") : null, tone: "warn" as const },
+            { value: "msme" as const, label: "MSME", count: count("msme") },
+            ...(count("nogstin") || filter === "nogstin" ? [{ value: "nogstin" as const, label: "GSTIN missing", count: count("nogstin"), tone: "bad" as const }] : []),
+          ]}
         />
-        <span className="text-[14px] text-[var(--muted)]">{items.length} supplier{items.length === 1 ? "" : "s"}</span>
-      </div>
+      </ListToolbar>
 
       {error ? (
         <ErrorState message={error instanceof Error ? error.message : "Something went wrong."} onRetry={() => refetch()} />
       ) : isLoading ? (
-        <Skeleton className="h-72 w-full" />
+        <TableSkeleton rows={8} cols={6} />
       ) : items.length === 0 ? (
-        <EmptyState title={query ? "No suppliers match" : "No suppliers yet"} body={query ? "Try a different name or GSTIN." : "Suppliers are added automatically when you import Tally ledgers or confirm an invoice. You can also add one in Settings."} actionLabel={query ? undefined : "Import data"} actionHref={query ? undefined : "/app/imports"} secondaryLabel={query ? undefined : "Add in Settings"} secondaryHref={query ? undefined : "/app/settings"} />
+        <EmptyState
+          title={query || filter !== "all" ? "No suppliers match" : "No suppliers yet"}
+          body={query || filter !== "all" ? "Try a different name or GSTIN, or another filter." : "Suppliers are added automatically when you import Tally ledgers or confirm an invoice."}
+          actionLabel={query || filter !== "all" ? undefined : "Import data"}
+          actionHref={query || filter !== "all" ? undefined : "/app/imports"}
+        />
       ) : (
-        <DataTable data={items} columns={columns} onRowClick={(row) => router.push(`/app/suppliers/${row.id}`)} ariaLabel="Suppliers" />
+        <ResponsiveTable
+          caption="Suppliers"
+          columns={columns}
+          rows={items}
+          rowKey={(s) => s.id}
+          onRowClick={(s) => router.push(`/app/suppliers/${s.id}`)}
+          rowAccent={(s) => (riskById.get(s.id)?.band === "high" ? "critical" : null)}
+          actions={(s) => (
+            <RowActions
+              primary={{ label: "Open", href: `/app/suppliers/${s.id}` }}
+              items={[
+                { label: "New purchase order", icon: Plus, href: "/app/orders/new" },
+                { label: "Ask Satya about them", icon: MessageSquare, href: `/app/ask?about=${encodeURIComponent(s.name)}` },
+              ]}
+            />
+          )}
+        />
       )}
     </FadeIn>
   );
