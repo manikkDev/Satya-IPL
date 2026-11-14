@@ -1,0 +1,253 @@
+{
+ "id": "link_payment_invoice",
+ "task": "link_payment_invoice",
+ "kind": "SETTLES",
+ "title": "Payment \u2192 invoice linker",
+ "version": "link_payment_invoice-20261114",
+ "trainedAt": "2026-11-14T18:04:38+00:00",
+ "algorithm": "xgboost",
+ "modelFile": "model.json",
+ "featureKeys": [
+  "gstin_agree",
+  "pan_agree",
+  "name_sim",
+  "ref_sim",
+  "ref_exact",
+  "date_gap",
+  "date_gap_abs_log",
+  "date_order_violation",
+  "amt_exact",
+  "amt_tds",
+  "amt_bank_charge",
+  "amt_ratio_log",
+  "amt_partial",
+  "amt_over",
+  "due_gap_abs_log",
+  "combo_member",
+  "same_amount_cands",
+  "amount_rank",
+  "n_cands_log",
+  "prescore_rank",
+  "date_rank",
+  "best_competitor_gap"
+ ],
+ "calibrator": {
+  "method": "isotonic",
+  "x": [
+   -13.939667701721191,
+   -7.188004016876221,
+   -7.187716484069824,
+   -5.086709022521973,
+   -5.086309909820557,
+   -4.539562702178955,
+   -4.538078308105469,
+   -3.854750156402588,
+   -3.8533434867858887,
+   -3.4524993896484375,
+   -3.4516713619232178,
+   -2.833557605743408,
+   -2.8318209648132324,
+   -2.546416997909546,
+   -2.5356225967407227,
+   -2.5125041007995605,
+   -2.511996030807495,
+   -1.9812761545181274,
+   -1.9810566902160645,
+   -1.5415550470352173,
+   -1.5403494834899902,
+   -1.4783679246902466,
+   -1.4771212339401245,
+   -1.1707723140716553,
+   -1.170059084892273,
+   -1.1284465789794922,
+   -1.1233634948730469,
+   -0.9647112488746643,
+   -0.9637477993965149,
+   -0.8924921751022339,
+   -0.8868623971939087,
+   -0.8371173143386841,
+   -0.8325828313827515,
+   -0.5515472292900085,
+   -0.5459811687469482,
+   -0.3672839105129242,
+   -0.3651382029056549,
+   -0.3020116984844208,
+   -0.28622967004776,
+   -0.010516985319554806,
+   -0.009500355459749699,
+   0.44037097692489624,
+   0.45876985788345337,
+   2.0396430492401123,
+   2.046344518661499,
+   3.265007257461548,
+   3.281010627746582,
+   10.461885452270508
+  ],
+  "y": [
+   0.0,
+   0.0,
+   0.0005858230870217085,
+   0.0005858230870217085,
+   0.002109704539179802,
+   0.002109704539179802,
+   0.01375515852123499,
+   0.01375515852123499,
+   0.018292682245373726,
+   0.018292682245373726,
+   0.02619047649204731,
+   0.02619047649204731,
+   0.048245612531900406,
+   0.048245612531900406,
+   0.0555555559694767,
+   0.0555555559694767,
+   0.07046070694923401,
+   0.07046070694923401,
+   0.12264151126146317,
+   0.12264151126146317,
+   0.1304347813129425,
+   0.1304347813129425,
+   0.1485714316368103,
+   0.1485714316368103,
+   0.1818181872367859,
+   0.1818181872367859,
+   0.23636363446712494,
+   0.23636363446712494,
+   0.2857142984867096,
+   0.2857142984867096,
+   0.30000001192092896,
+   0.30000001192092896,
+   0.32608696818351746,
+   0.32608696818351746,
+   0.48148155212402344,
+   0.48148155212402344,
+   0.5555555820465088,
+   0.5555555820465088,
+   0.625,
+   0.625,
+   0.699999988079071,
+   0.699999988079071,
+   0.8818181753158569,
+   0.8818181753158569,
+   0.9624060392379761,
+   0.9624060392379761,
+   1.0,
+   1.0
+  ]
+ },
+ "thresholds": {
+  "review": 0.07046070694923401,
+  "margin": 0.1,
+  "auto": 0.9624060392379761
+ },
+ "operatingPoint": {
+  "threshold": 0.9624060392379761,
+  "reviewThreshold": 0.07046070694923401,
+  "ambiguityMargin": 0.1,
+  "targetPrecision": 0.99,
+  "delta": 0.05,
+  "method": "Learn-then-Test conformal risk control (fixed-sequence exact binomial tests) on the calibration split; review threshold = split-conformal 2% quantile of true-link scores, floored at 0.05 to bound reviewer load"
+ },
+ "baseline": {
+  "algorithm": "logistic_regression",
+  "metrics": {
+   "precision": 0.9948586118251928,
+   "recall": 0.49127261186924787,
+   "f1": 0.6577437858508604,
+   "prAuc": 0.9234207706076591,
+   "rocAuc": 0.9769704192969125,
+   "brier": 0.026251611802979045,
+   "ece": 0.005927211140527235,
+   "autoRate": 0.752
+  }
+ },
+ "data": {
+  "sources": [
+   {
+    "name": "synthetic",
+    "provenance": "synthetic \u2014 seeded generator (satya_engine.linking.datasets.synthetic); upper bound / regression test only",
+    "pairs": 46350,
+    "positives": 5247,
+    "groups": 40
+   },
+   {
+    "name": "bpi2019",
+    "provenance": "BPI-2019 derived \u2014 real P2P transaction structure from the BPI Challenge 2019 log (van Dongen, 4TU, CC BY 4.0); synthetic Indian identities, numbers, GST/TDS",
+    "pairs": 42810,
+    "positives": 6561,
+    "groups": 65
+   },
+   {
+    "name": "demo",
+    "provenance": "demo \u2014 Satya curated demo dataset (CONSTRUCTED_DEMO), held out from all fitting; sanity check only",
+    "pairs": 62,
+    "positives": 25,
+    "groups": 1
+   }
+  ],
+  "splits": {
+   "train": {
+    "pairs": 40763,
+    "groups": 52,
+    "positives": 5498
+   },
+   "valid": {
+    "pairs": 12611,
+    "groups": 16,
+    "positives": 1561
+   },
+   "calib": {
+    "pairs": 14111,
+    "groups": 16,
+    "positives": 2061
+   },
+   "test": {
+    "pairs": 21675,
+    "groups": 21,
+    "positives": 2688
+   },
+   "holdout": {
+    "pairs": 62,
+    "groups": 1,
+    "positives": 25
+   }
+  },
+  "splitPolicy": "group-disjoint by buyer world: train 50% / valid 15% / calib 15% / test 20%; demo held out"
+ },
+ "metrics": {
+  "precision": 0.9964936886395512,
+  "recall": 0.4509679466835925,
+  "f1": 0.6209307406598209,
+  "prAuc": 0.9352987334201814,
+  "rocAuc": 0.9869888067211401,
+  "brier": 0.02362902674992023,
+  "ece": 0.007705719872646358,
+  "eceEqualMass": 0.004415743611454804,
+  "ci": {
+   "precision": [
+    0.9925,
+    0.9993
+   ],
+   "recall": [
+    0.3979,
+    0.6512
+   ]
+  },
+  "autoRate": 0.7108,
+  "suggestRecall": 0.6652,
+  "precisionWilson": [
+   0.9918,
+   0.9985
+  ]
+ },
+ "explanations": "TreeSHAP",
+ "limitations": [
+  "No real customer data: every number here is synthetic, BPI-2019-derived (real structure, synthetic identities) or curated-demo. None of it is a real-company accuracy claim.",
+  "The \u226599% auto-link precision guarantee (Learn-then-Test) holds only if deployment data are exchangeable with the calibration data; on a real tenant it must be re-certified on that tenant's reviewed links (shadow mode + audit slice).",
+  "Printed references (PO numbers on invoices, invoice numbers in narrations) are simulated at fixed rates; real rates vary by supplier and change performance a lot.",
+  "BPI-2019 quantities, rates, GST and TDS are synthesised from real net worth; descriptions are spend-area texts (low diversity).",
+  "The demo hold-out is one small curated world (tens of links); its numbers have very wide uncertainty.",
+  "Decisions are per from-document (invoice/GRN) and per pair (payment); one invoice billing several POs is not modelled."
+ ],
+ "intendedUse": "Propose evidence links between AP documents that lack explicit references. Auto-zone links are written as PROBABLE (never CONFIRMED) and stay reversible; review-zone links go to a person. Not for payment release decisions on its own; not validated on real company data.",
+ "selection": "highest validation PR-AUC among deployable models (logistic, XGBoost), calibrated-Brier tie-break; HistGradientBoosting is a non-deployable challenger (no exact per-decision attributions)"
+}

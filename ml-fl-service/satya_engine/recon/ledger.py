@@ -1,8 +1,8 @@
 """Event-sourced line ledger.
 
 Documents are normalized to ordered events, then folded into per-PO-line
-counters. Link resolution: explicit refs > reviewer links > rule; model
-suggestions never move a counter.
+counters. Link resolution: explicit refs > confirmed links > certified model
+auto-links (PROBABLE, basis=model); review-zone suggestions never move a counter.
 """
 from decimal import Decimal, getcontext
 
@@ -22,6 +22,13 @@ EVENT_KIND = {
 
 LINE_EVENT_TYPES = {"PO", "PO_AMENDMENT", "GRN", "QC", "RETURN", "CHALLAN_IN",
                     "INVOICE_IN", "PI_IN", "CREDIT_NOTE_IN", "REJECTION"}
+
+
+def _usable(link):
+    """Links that may move counters: CONFIRMED ones, and model auto-links
+    (basis=model, PROBABLE) whose auto threshold was certified for >= 99%
+    precision. POSSIBLE/AMBIGUOUS suggestions never move a counter."""
+    return link.certainty == "CONFIRMED" or (link.basis == "model" and link.certainty == "PROBABLE")
 
 
 def events(documents, links, knowledge_time=None):
@@ -47,11 +54,13 @@ def events(documents, links, knowledge_time=None):
             continue
         for line in doc.lines:
             refs = line.refs
-            po_id = (refs.poId if refs else None) or next(
-                (l.toId for l in link_index.get(doc.id, [])
-                 if l.kind in {"FULFILS", "RECEIVES", "BILLS", "SETTLES"}
-                 and l.certainty == "CONFIRMED"), None)
+            link = None if (refs and refs.poId) else next(
+                (l for l in link_index.get(doc.id, [])
+                 if l.kind in {"FULFILS", "RECEIVES", "BILLS", "SETTLES"} and _usable(l)), None)
+            po_id = (refs.poId if refs else None) or (link.toId if link else None)
             po_line_no = refs.poLineNo if refs else None
+            if po_line_no is None and link is not None and link.lineRefs:
+                po_line_no = next((r.toLineNo for r in link.lineRefs if r.fromLineNo == line.lineNo), None)
             # A PO's own lines ARE its ordered quantity: they need no
             # self-reference (created-in-app POs never carry one).
             if doc.type == "PO" and not po_id:

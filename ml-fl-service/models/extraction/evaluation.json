@@ -1,0 +1,422 @@
+{
+ "generatedAt": "2026-11-14T17:33:16+00:00",
+ "dataset": {
+  "name": "satya-synthetic-gst-invoices-v1",
+  "n": 40,
+  "seed": 20261114,
+  "provenance": "synthetic (reportlab-generated GST invoices with known ground truth)",
+  "templates": [
+   "classic",
+   "boxed",
+   "einvoice_compact",
+   "letterhead"
+  ],
+  "withQr": 20,
+  "twoPage": 4,
+  "intraState": 22,
+  "lines": 144,
+  "location": "ml-fl-service/data/eval/extraction/"
+ },
+ "criticalFields": [
+  "number",
+  "date",
+  "seller.gstin",
+  "buyer.gstin",
+  "taxable",
+  "cgst",
+  "sgst",
+  "igst",
+  "grand"
+ ],
+ "fields": [
+  {
+   "field": "number",
+   "exactMatch": 1.0,
+   "n": 40
+  },
+  {
+   "field": "date",
+   "exactMatch": 1.0,
+   "n": 40
+  },
+  {
+   "field": "seller.gstin",
+   "exactMatch": 1.0,
+   "n": 40
+  },
+  {
+   "field": "buyer.gstin",
+   "exactMatch": 1.0,
+   "n": 40
+  },
+  {
+   "field": "irn",
+   "exactMatch": 1.0,
+   "n": 20
+  },
+  {
+   "field": "lineCount",
+   "exactMatch": 1.0,
+   "n": 40
+  },
+  {
+   "field": "taxable",
+   "exactMatch": 1.0,
+   "n": 40
+  },
+  {
+   "field": "cgst",
+   "exactMatch": 1.0,
+   "n": 40
+  },
+  {
+   "field": "sgst",
+   "exactMatch": 1.0,
+   "n": 40
+  },
+  {
+   "field": "igst",
+   "exactMatch": 1.0,
+   "n": 40
+  },
+  {
+   "field": "grand",
+   "exactMatch": 1.0,
+   "n": 40
+  },
+  {
+   "field": "line.qty",
+   "exactMatch": 1.0,
+   "n": 144
+  },
+  {
+   "field": "line.rate",
+   "exactMatch": 1.0,
+   "n": 144
+  },
+  {
+   "field": "line.amount",
+   "exactMatch": 1.0,
+   "n": 144
+  }
+ ],
+ "overall": 1.0,
+ "byMethod": {
+  "text_layer": {
+   "fields": [
+    {
+     "field": "number",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "date",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "seller.gstin",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "buyer.gstin",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "irn",
+     "exactMatch": 1.0,
+     "n": 20
+    },
+    {
+     "field": "lineCount",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "taxable",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "cgst",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "sgst",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "igst",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "grand",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "line.qty",
+     "exactMatch": 1.0,
+     "n": 144
+    },
+    {
+     "field": "line.rate",
+     "exactMatch": 1.0,
+     "n": 144
+    },
+    {
+     "field": "line.amount",
+     "exactMatch": 1.0,
+     "n": 144
+    }
+   ],
+   "overall": 1.0,
+   "n": 40
+  },
+  "einvoice_qr": {
+   "fields": [
+    {
+     "field": "number",
+     "exactMatch": 1.0,
+     "n": 20
+    },
+    {
+     "field": "date",
+     "exactMatch": 1.0,
+     "n": 20
+    },
+    {
+     "field": "seller.gstin",
+     "exactMatch": 1.0,
+     "n": 20
+    },
+    {
+     "field": "buyer.gstin",
+     "exactMatch": 1.0,
+     "n": 20
+    },
+    {
+     "field": "grand",
+     "exactMatch": 1.0,
+     "n": 20
+    },
+    {
+     "field": "irn",
+     "exactMatch": 1.0,
+     "n": 20
+    },
+    {
+     "field": "lineCount",
+     "exactMatch": 1.0,
+     "n": 20
+    }
+   ],
+   "overall": 1.0,
+   "n": 20,
+   "note": "QR carries only number/date/GSTINs/grand/IRN/item count; micro-average over those"
+  },
+  "fused": {
+   "fields": [
+    {
+     "field": "number",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "date",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "seller.gstin",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "buyer.gstin",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "irn",
+     "exactMatch": 1.0,
+     "n": 20
+    },
+    {
+     "field": "lineCount",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "taxable",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "cgst",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "sgst",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "igst",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "grand",
+     "exactMatch": 1.0,
+     "n": 40
+    },
+    {
+     "field": "line.qty",
+     "exactMatch": 1.0,
+     "n": 144
+    },
+    {
+     "field": "line.rate",
+     "exactMatch": 1.0,
+     "n": 144
+    },
+    {
+     "field": "line.amount",
+     "exactMatch": 1.0,
+     "n": 144
+    }
+   ],
+   "overall": 1.0,
+   "n": 40,
+   "draftMethods": {
+    "einvoice_qr": 20,
+    "text_layer": 20
+   }
+  },
+  "vision_llm": {
+   "measured": false,
+   "note": "No LLM API key in the eval environment; the Gemini vision path is not measured."
+  }
+ },
+ "byTemplate": {
+  "boxed": {
+   "overall": 1.0,
+   "n": 10
+  },
+  "classic": {
+   "overall": 1.0,
+   "n": 10
+  },
+  "einvoice_compact": {
+   "overall": 1.0,
+   "n": 10
+  },
+  "letterhead": {
+   "overall": 1.0,
+   "n": 10
+  }
+ },
+ "robustness": {
+  "plain_text_no_layout": {
+   "n": 40,
+   "overall": 1.0,
+   "fields": {
+    "number": 1.0,
+    "date": 1.0,
+    "seller.gstin": 1.0,
+    "buyer.gstin": 1.0,
+    "irn": 1.0,
+    "lineCount": 1.0,
+    "taxable": 1.0,
+    "cgst": 1.0,
+    "sgst": 1.0,
+    "igst": 1.0,
+    "grand": 1.0
+   },
+   "autoAcceptRate": 1.0,
+   "autoAcceptErrorRate": 0.0
+  },
+  "ocr_noise_text_only": {
+   "n": 40,
+   "overall": 0.75,
+   "fields": {
+    "number": 0.8,
+    "date": 0.95,
+    "seller.gstin": 0.875,
+    "buyer.gstin": 0.875,
+    "irn": 0.7,
+    "lineCount": 0.425,
+    "taxable": 0.725,
+    "cgst": 0.575,
+    "sgst": 0.6,
+    "igst": 0.65,
+    "grand": 0.7
+   },
+   "autoAcceptRate": 0.6295,
+   "autoAcceptErrorRate": 0.0208
+  },
+  "ocr_noise_with_qr": {
+   "n": 20,
+   "overall": 0.85,
+   "fields": {
+    "number": 1.0,
+    "date": 1.0,
+    "seller.gstin": 1.0,
+    "buyer.gstin": 1.0,
+    "irn": 1.0,
+    "lineCount": 0.35,
+    "taxable": 0.75,
+    "cgst": 0.6,
+    "sgst": 0.65,
+    "igst": 0.65,
+    "grand": 1.0
+   },
+   "autoAcceptRate": 0.761,
+   "autoAcceptErrorRate": 0.0
+  },
+  "note": "ocr_noise_*: seeded character-level corruption (digit/letter confusions, comma/period swaps, dropped characters, ~1.5% of alphanumerics) applied to the layout text to mimic a poor OCR read \u2014 it is NOT a real scan benchmark. It shows how often the validators keep a corrupted value out of the 'green' (auto-accept) set."
+ },
+ "documentAllCriticalCorrect": 1.0,
+ "confidence": {
+  "autoAcceptThreshold": 0.9,
+  "autoAcceptRate": 0.9833,
+  "autoAcceptErrorRate": 0.0,
+  "fieldsScored": 360,
+  "definition": "share of critical (doc, field) predictions with confidence >= threshold and no issues (needsReview=false); error rate = wrong among those. Drafts are never auto-confirmed \u2014 this measures how trustworthy a 'green' field is.",
+  "reliability": {
+   "0.6": {
+    "accuracy": 1.0,
+    "n": 6
+   },
+   "0.9": {
+    "accuracy": 1.0,
+    "n": 354
+   }
+  }
+ },
+ "qrSignature": {
+  "not_verified_default": 20,
+  "verified_with_supplied_test_key": 20,
+  "qrDecoded": 20,
+  "qrDocs": 20,
+  "note": "Eval QRs are signed with a deterministic local TEST key (not NIC). Default decoding correctly reports not_verified; verification succeeds only when the test public key is supplied explicitly (test-only code path)."
+ },
+ "failures": [],
+ "limitations": [
+  "Synthetic, born-digital PDFs from 3 reportlab templates; real supplier invoices vary far more in layout.",
+  "No scanned/photographed documents: OCR noise, skew and low-resolution QRs are not exercised.",
+  "Vision-LLM (Gemini) path not measured \u2014 no API key in the eval environment.",
+  "QR signatures use a local test key; real NIC-signed QRs were not available, so 'verified' against the installed NIC keys is untested end to end here.",
+  "Helvetica Type1 fonts cannot render the rupee sign; amounts use 'Rs.'/'INR' prefixes or none.",
+  "No discounts, cess, freight/other charges, or multi-currency documents in the set.",
+  "Templates were written by the same author as the parser; expect optimistic accuracy versus unseen layouts.",
+  "Partial held-out check: the 'letterhead' template was added after the parser was built. On its first run all critical values were exact, but 7/10 invoice dates fell back to the positional heuristic (confidence 0.6 -> review) because 'Date of Invoice' was not a known label, and buyers were only assigned by order ('To,' block). Both labels were then added, so the letterhead numbers below are no longer held-out."
+ ]
+}

@@ -167,7 +167,7 @@ def advance_not_adjusted(docs):
     advance_by_po = {}
     paid_by_po = {}
     for d in docs:
-        po = next((l.get("refs", {}).get("poId") for l in d["lines"] if l.get("refs")), None)
+        po = next(((l.get("refs") or {}).get("poId") for l in d["lines"] if l.get("refs")), None)
         if not po or d["status"] in {"reversed", "cancelled"}:
             continue
         if d["type"] == "ADVANCE_OUT" and d.get("payment"):
@@ -200,14 +200,14 @@ def po_amended_after_supply(docs):
     pos = {d["id"]: d for d in docs if d["type"] == "PO"}
     events_after = {}
     for d in docs:
-        po_ref = next((l.get("refs", {}).get("poId") for l in d["lines"] if l.get("refs")), None)
+        po_ref = next(((l.get("refs") or {}).get("poId") for l in d["lines"] if l.get("refs")), None)
         if po_ref and d["type"] in {"GRN", "INVOICE_IN"}:
             events_after.setdefault(po_ref, []).append(d["observedAt"])
     findings = []
     for d in docs:
         if d["type"] == "PO_AMENDMENT":
             target = d.get("supersedes") or next(
-                (l.get("refs", {}).get("poId") for l in d["lines"] if l.get("refs")), None)
+                ((l.get("refs") or {}).get("poId") for l in d["lines"] if l.get("refs")), None)
             earlier = events_after.get(target, [])
             if earlier and d["observedAt"] > min(earlier):
                 findings.append(_finding(

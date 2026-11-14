@@ -69,11 +69,39 @@ function repairJson(text) {
   }
 }
 
-function contentParts({ text, pageImages }) {
+const IMAGE_MIMES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+/**
+ * One page image -> Gemini inlineData part, or null when unusable.
+ * Accepts the engine's bare base64 strings, data: URLs, and
+ * {pngBase64|data, mime|mimeType} objects (the server sends objects).
+ */
+export function toImagePart(img) {
+  let data;
+  let mime = "image/png";
+  if (typeof img === "string") {
+    data = img;
+  } else if (img && typeof img === "object") {
+    data = img.pngBase64 || img.data || img.base64;
+    mime = img.mime || img.mimeType || mime;
+  }
+  if (typeof data !== "string" || !data.trim()) return null;
+  const dataUrl = data.match(/^data:([^;,]+);base64,(.*)$/s);
+  if (dataUrl) {
+    mime = dataUrl[1];
+    data = dataUrl[2];
+  }
+  data = data.replace(/\s+/g, "");
+  if (!/^[A-Za-z0-9+/_-]+={0,2}$/.test(data) || !IMAGE_MIMES.has(mime)) return null;
+  return { inlineData: { mimeType: mime, data } };
+}
+
+export function contentParts({ text, pageImages }) {
   const parts = [];
   if (text) parts.push({ text: `<record>${String(text).slice(0, MAX_TEXT_CHARS)}</record>` });
-  for (const img of (pageImages || []).slice(0, MAX_IMAGES)) {
-    parts.push({ inlineData: { mimeType: img.mime || "image/png", data: img.pngBase64 || img.data } });
+  for (const img of (Array.isArray(pageImages) ? pageImages : []).slice(0, MAX_IMAGES)) {
+    const part = toImagePart(img);
+    if (part) parts.push(part);
   }
   return parts;
 }
@@ -83,7 +111,7 @@ function contentParts({ text, pageImages }) {
  * @param {object} o.llm gateway {generate(task, body)}
  * @param {string} o.task invoice|po|pi|grn|challan|bank_statement|generic
  * @param {string} [o.text] document text layer (preferred)
- * @param {Array}  [o.pageImages] ≤3 {pngBase64,mime?,page?}
+ * @param {Array}  [o.pageImages] ≤3 base64 strings, data: URLs or {pngBase64|data, mime?, page?}
  * @param {string} o.dataPolicy request-level: demo|consented|paid
  * @param {string} o.envPolicy AI_DATA_POLICY
  * @param {string} [o.schemaVersion]
@@ -141,15 +169,22 @@ export async function extractDocument({ llm, task = "generic", text, pageImages 
     throw err;
   }
 
-  const merged = { ...emptyFor(task), ...parsed };
-  const cap = (pageImages || []).length > MAX_IMAGES ? MAX_IMAGES : (pageImages || []).length;
+  // quotes / fieldConfidence travel beside the fields, not inside them, so the
+  // engine's /v2/docs/fuse can normalise `extracted` without stripping keys.
+  // fieldConfidence is the model's self-report: kept for audit only — the
+  // engine computes the confidence reviewers see.
+  const { quotes = {}, fieldConfidence = {}, ...fields } = parsed;
+  const merged = { ...emptyFor(task), ...fields };
+  delete merged.quotes;
+  delete merged.fieldConfidence;
+  const imagesUsed = parts.filter((p) => p.inlineData).length;
   return {
     extracted: merged,
-    fieldConfidence: parsed.fieldConfidence || {},
-    quotes: parsed.quotes || {},
+    fieldConfidence: fieldConfidence && typeof fieldConfidence === "object" ? fieldConfidence : {},
+    quotes: quotes && typeof quotes === "object" ? quotes : {},
     model,
     usage: usage || { inputTokens: 0, outputTokens: 0 },
-    meta: { task, schemaVersion, imagesUsed: cap, usedTextLayer: Boolean(text) },
+    meta: { task, schemaVersion, imagesUsed, usedTextLayer: Boolean(text) },
   };
 }
 

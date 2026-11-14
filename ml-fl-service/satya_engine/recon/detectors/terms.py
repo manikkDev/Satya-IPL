@@ -85,7 +85,7 @@ def unauthorised_charges(docs):
     for d in docs:
         if d["type"] != "INVOICE_IN" or not d.get("charges") or d["status"] in {"reversed", "cancelled"}:
             continue
-        po_ref = next((l.get("refs", {}).get("poId") for l in d["lines"] if l.get("refs")), None)
+        po_ref = next(((l.get("refs") or {}).get("poId") for l in d["lines"] if l.get("refs")), None)
         po = by_id.get(po_ref)
         delivery_terms = ((po or {}).get("terms") or {}).get("deliveryTerms") or ""
         if "inclusive" in delivery_terms.lower() or "included" in delivery_terms.lower():

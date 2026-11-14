@@ -1,0 +1,766 @@
+{
+ "generatedAt": "2026-11-14T18:03:46+00:00",
+ "task": "link_invoice_po",
+ "version": "link_invoice_po-20261114",
+ "algorithm": "xgboost",
+ "comparison": {
+  "logistic_regression": {
+   "validPrAuc": 0.9948418378480618,
+   "validRocAuc": 0.9994583556290306,
+   "calibrator": "isotonic",
+   "calibrationCv": {
+    "platt": {
+     "brier": 0.0040260654334523145,
+     "logLoss": 0.014864624559925094
+    },
+    "isotonic": {
+     "brier": 0.003995711251871452,
+     "logLoss": 0.01577229381057476
+    }
+   },
+   "validBrierCalibrated": 0.003995711251871452
+  },
+  "xgboost": {
+   "validPrAuc": 0.9987961450524906,
+   "validRocAuc": 0.9998933712131165,
+   "calibrator": "isotonic",
+   "calibrationCv": {
+    "platt": {
+     "brier": 0.0018477028753910872,
+     "logLoss": 0.006814850707675801
+    },
+    "isotonic": {
+     "brier": 0.0018387671645691435,
+     "logLoss": 0.007544153450458288
+    }
+   },
+   "validBrierCalibrated": 0.0018387671645691435
+  },
+  "hist_gradient_boosting": {
+   "validPrAuc": 0.9992593222543764,
+   "validRocAuc": 0.9999258796393897,
+   "calibrator": "platt",
+   "calibrationCv": {
+    "platt": {
+     "brier": 0.0013080900192652385,
+     "logLoss": 0.0051666821828390405
+    },
+    "isotonic": {
+     "brier": 0.0013642461049164331,
+     "logLoss": 0.006243752316421412
+    }
+   },
+   "validBrierCalibrated": 0.0013080900192652385
+  }
+ },
+ "bestAnyAlgorithm": "hist_gradient_boosting",
+ "thresholds": {
+  "review": 0.5,
+  "margin": 0.1,
+  "auto": 0.5
+ },
+ "ltt": {
+  "threshold": 0.5,
+  "certified": {
+   "threshold": 0.5,
+   "accepted": 2365,
+   "wrong": 11,
+   "pValue": 0.002969704222692205
+  },
+  "alpha": 0.010000000000000009,
+  "delta": 0.05,
+  "nMin": 299,
+  "trace": [
+   {
+    "threshold": 0.989418,
+    "accepted": 2006,
+    "wrong": 1,
+    "pValue": 3.730931438174589e-08
+   },
+   {
+    "threshold": 0.985507,
+    "accepted": 2089,
+    "wrong": 1,
+    "pValue": 1.683967235699012e-08
+   },
+   {
+    "threshold": 0.985507,
+    "accepted": 2089,
+    "wrong": 1,
+    "pValue": 1.683967235699012e-08
+   },
+   {
+    "threshold": 0.985507,
+    "accepted": 2089,
+    "wrong": 1,
+    "pValue": 1.683967235699012e-08
+   },
+   {
+    "threshold": 0.980392,
+    "accepted": 2146,
+    "wrong": 3,
+    "pValue": 8.390126179217593e-07
+   },
+   {
+    "threshold": 0.866667,
+    "accepted": 2214,
+    "wrong": 3,
+    "pValue": 4.631296884023705e-07
+   },
+   {
+    "threshold": 0.866667,
+    "accepted": 2214,
+    "wrong": 3,
+    "pValue": 4.631296884023705e-07
+   },
+   {
+    "threshold": 0.820513,
+    "accepted": 2285,
+    "wrong": 5,
+    "pValue": 7.2772233993605136e-06
+   },
+   {
+    "threshold": 0.820513,
+    "accepted": 2285,
+    "wrong": 5,
+    "pValue": 7.2772233993605136e-06
+   },
+   {
+    "threshold": 0.8,
+    "accepted": 2297,
+    "wrong": 5,
+    "pValue": 6.6132525272049355e-06
+   },
+   {
+    "threshold": 0.575758,
+    "accepted": 2364,
+    "wrong": 11,
+    "pValue": 0.002986626555322779
+   },
+   {
+    "threshold": 0.5,
+    "accepted": 2365,
+    "wrong": 11,
+    "pValue": 0.002969704222692205
+   }
+  ],
+  "method": "Learn-then-Test (conformal risk control), fixed-sequence binomial test"
+ },
+ "test": {
+  "precision": 0.9932649134060295,
+  "recall": 0.9317087845968712,
+  "f1": 0.9615026389320087,
+  "prAuc": 0.9954630336739716,
+  "rocAuc": 0.9997488246729012,
+  "brier": 0.002971555867422207,
+  "ece": 0.001710921754870576,
+  "eceEqualMass": 0.0012965669648202715,
+  "confusion": {
+   "tp": 3097,
+   "fp": 21,
+   "fn": 227,
+   "tn": 43928
+  },
+  "precisionWilson": [
+   0.9897,
+   0.9956
+  ],
+  "autoRate": 0.938,
+  "suggestRecall": 0.9383,
+  "reviewPairs": 48,
+  "pairs": 47162,
+  "positives": 3213,
+  "truthLinks": 3324,
+  "ci": {
+   "precision": [
+    0.9893,
+    0.9966
+   ],
+   "recall": [
+    0.9358,
+    0.9826
+   ],
+   "method": "percentile bootstrap, 1000 reps, resampling whole groups (buyer worlds)"
+  },
+  "coverageCurve": [
+   {
+    "threshold": 0.5,
+    "coverage": 0.938,
+    "precision": 0.9933,
+    "decisions": 3118
+   },
+   {
+    "threshold": 0.6,
+    "coverage": 0.9137,
+    "precision": 0.9957,
+    "decisions": 3037
+   },
+   {
+    "threshold": 0.7,
+    "coverage": 0.9137,
+    "precision": 0.9957,
+    "decisions": 3037
+   },
+   {
+    "threshold": 0.8,
+    "coverage": 0.9125,
+    "precision": 0.9957,
+    "decisions": 3033
+   },
+   {
+    "threshold": 0.85,
+    "coverage": 0.8779,
+    "precision": 0.9979,
+    "decisions": 2918
+   },
+   {
+    "threshold": 0.9,
+    "coverage": 0.8487,
+    "precision": 0.9982,
+    "decisions": 2821
+   },
+   {
+    "threshold": 0.93,
+    "coverage": 0.8487,
+    "precision": 0.9982,
+    "decisions": 2821
+   },
+   {
+    "threshold": 0.95,
+    "coverage": 0.8487,
+    "precision": 0.9982,
+    "decisions": 2821
+   },
+   {
+    "threshold": 0.97,
+    "coverage": 0.8487,
+    "precision": 0.9982,
+    "decisions": 2821
+   },
+   {
+    "threshold": 0.98,
+    "coverage": 0.8484,
+    "precision": 0.9982,
+    "decisions": 2820
+   },
+   {
+    "threshold": 0.99,
+    "coverage": 0.6877,
+    "precision": 0.9996,
+    "decisions": 2286
+   },
+   {
+    "threshold": 0.995,
+    "coverage": 0.6877,
+    "precision": 0.9996,
+    "decisions": 2286
+   },
+   {
+    "threshold": 0.998,
+    "coverage": 0.6877,
+    "precision": 0.9996,
+    "decisions": 2286
+   },
+   {
+    "threshold": 0.999,
+    "coverage": 0.6877,
+    "precision": 0.9996,
+    "decisions": 2286
+   }
+  ]
+ },
+ "reliability": [
+  {
+   "binLow": 0.0,
+   "binHigh": 0.0667,
+   "predicted": 0.0002,
+   "observed": 0.001,
+   "count": 43842
+  },
+  {
+   "binLow": 0.0667,
+   "binHigh": 0.1333,
+   "predicted": 0.1089,
+   "observed": 0.5,
+   "count": 4
+  },
+  {
+   "binLow": 0.1333,
+   "binHigh": 0.2,
+   "predicted": 0.1623,
+   "observed": 0.0,
+   "count": 3
+  },
+  {
+   "binLow": 0.2,
+   "binHigh": 0.2667,
+   "predicted": 0.2424,
+   "observed": 0.4098,
+   "count": 61
+  },
+  {
+   "binLow": 0.4,
+   "binHigh": 0.4667,
+   "predicted": 0.4014,
+   "observed": 0.6,
+   "count": 25
+  },
+  {
+   "binLow": 0.4667,
+   "binHigh": 0.5333,
+   "predicted": 0.5013,
+   "observed": 0.2727,
+   "count": 22
+  },
+  {
+   "binLow": 0.5333,
+   "binHigh": 0.6,
+   "predicted": 0.575,
+   "observed": 0.6423,
+   "count": 123
+  },
+  {
+   "binLow": 0.6,
+   "binHigh": 0.6667,
+   "predicted": 0.6421,
+   "observed": 0.5,
+   "count": 2
+  },
+  {
+   "binLow": 0.6667,
+   "binHigh": 0.7333,
+   "predicted": 0.7009,
+   "observed": 0.75,
+   "count": 4
+  },
+  {
+   "binLow": 0.7333,
+   "binHigh": 0.8,
+   "predicted": 0.7743,
+   "observed": 1.0,
+   "count": 1
+  },
+  {
+   "binLow": 0.8,
+   "binHigh": 0.8667,
+   "predicted": 0.8173,
+   "observed": 0.8175,
+   "count": 137
+  },
+  {
+   "binLow": 0.8667,
+   "binHigh": 0.9333,
+   "predicted": 0.8667,
+   "observed": 0.9619,
+   "count": 105
+  },
+  {
+   "binLow": 0.9333,
+   "binHigh": 1.0,
+   "predicted": 0.9975,
+   "observed": 0.9961,
+   "count": 2833
+  }
+ ],
+ "bySource": [
+  {
+   "source": "synthetic",
+   "precision": 0.9887543252595156,
+   "recall": 0.9621212121212122,
+   "f1": 0.9752559726962456,
+   "prAuc": 0.994331490147336,
+   "rocAuc": 0.9994639785936948,
+   "brier": 0.004806014946191819,
+   "ece": 0.003068070643068349,
+   "eceEqualMass": 0.0015098936215825701,
+   "confusion": {
+    "tp": 1143,
+    "fp": 13,
+    "fn": 45,
+    "tn": 9733
+   },
+   "precisionWilson": [
+    0.9809,
+    0.9934
+   ],
+   "autoRate": 0.9731,
+   "suggestRecall": 0.9714,
+   "reviewPairs": 22,
+   "pairs": 10922,
+   "positives": 1176,
+   "truthLinks": 1188,
+   "ci": {
+    "precision": [
+     0.979,
+     0.9966
+    ],
+    "recall": [
+     0.9642,
+     0.9795
+    ],
+    "method": "percentile bootstrap, 1000 reps, resampling whole groups (buyer worlds)"
+   }
+  },
+  {
+   "source": "bpi2019",
+   "precision": 0.9959225280326198,
+   "recall": 0.9147940074906367,
+   "f1": 0.9536359199609566,
+   "prAuc": 0.9967625897948358,
+   "rocAuc": 0.9998587083894306,
+   "brier": 0.0024186871572036174,
+   "ece": 0.002234792760873848,
+   "eceEqualMass": 0.002142482233165392,
+   "confusion": {
+    "tp": 1954,
+    "fp": 8,
+    "fn": 182,
+    "tn": 34195
+   },
+   "precisionWilson": [
+    0.992,
+    0.9979
+   ],
+   "autoRate": 0.9185,
+   "suggestRecall": 0.9199,
+   "reviewPairs": 26,
+   "pairs": 36240,
+   "positives": 2037,
+   "truthLinks": 2136,
+   "ci": {
+    "precision": [
+     0.994,
+     0.9986
+    ],
+    "recall": [
+     0.9147,
+     0.9887
+    ],
+    "method": "percentile bootstrap, 1000 reps, resampling whole groups (buyer worlds)"
+   }
+  },
+  {
+   "source": "demo",
+   "precision": 1.0,
+   "recall": 0.9696969696969697,
+   "f1": 0.9846153846153847,
+   "prAuc": 0.9974747474747475,
+   "rocAuc": 0.9981060606060606,
+   "brier": 0.033267818278270925,
+   "ece": 0.04488778640056186,
+   "eceEqualMass": 0.03441266450214625,
+   "confusion": {
+    "tp": 32,
+    "fp": 0,
+    "fn": 1,
+    "tn": 48
+   },
+   "precisionWilson": [
+    0.8928,
+    1.0
+   ],
+   "autoRate": 0.9697,
+   "suggestRecall": 1.0,
+   "reviewPairs": 2,
+   "pairs": 81,
+   "positives": 33,
+   "truthLinks": 33,
+   "note": "single curated world; no group bootstrap possible"
+  }
+ ],
+ "baseline": {
+  "algorithm": "logistic_regression",
+  "thresholds": {
+   "review": 0.2875,
+   "margin": 0.1,
+   "auto": 0.7708333333333334
+  },
+  "ltt": {
+   "threshold": 0.7708333333333334,
+   "certified": {
+    "threshold": 0.7708333333333334,
+    "accepted": 2244,
+    "wrong": 7,
+    "pValue": 0.00013706491178013046
+   },
+   "alpha": 0.010000000000000009,
+   "delta": 0.05,
+   "nMin": 299,
+   "method": "Learn-then-Test (conformal risk control), fixed-sequence binomial test"
+  },
+  "metrics": {
+   "precision": 0.9929624664879356,
+   "recall": 0.891395908543923,
+   "f1": 0.9394419784400762,
+   "prAuc": 0.9806617229524305,
+   "rocAuc": 0.9985965964553443,
+   "brier": 0.00533351034647121,
+   "ece": 0.001950559616149743,
+   "eceEqualMass": 0.001155515065107198,
+   "confusion": {
+    "tp": 2963,
+    "fp": 21,
+    "fn": 361,
+    "tn": 43928
+   },
+   "precisionWilson": [
+    0.9893,
+    0.9954
+   ],
+   "autoRate": 0.8977,
+   "suggestRecall": 0.9407,
+   "reviewPairs": 222,
+   "pairs": 47162,
+   "positives": 3213,
+   "truthLinks": 3324,
+   "ci": {
+    "precision": [
+     0.99,
+     0.9961
+    ],
+    "recall": [
+     0.8941,
+     0.9458
+    ],
+    "method": "percentile bootstrap, 1000 reps, resampling whole groups (buyer worlds)"
+   }
+  },
+  "bySource": [
+   {
+    "source": "synthetic",
+    "precision": 0.9916512059369202,
+    "recall": 0.8998316498316499,
+    "f1": 0.9435127978817299,
+    "prAuc": 0.9809246005074851,
+    "rocAuc": 0.9979715208472062,
+    "brier": 0.009939347384967902,
+    "ece": 0.0029618408940437716,
+    "eceEqualMass": 0.0021391933488415045,
+    "confusion": {
+     "tp": 1069,
+     "fp": 9,
+     "fn": 119,
+     "tn": 9737
+    },
+    "precisionWilson": [
+     0.9842,
+     0.9956
+    ],
+    "autoRate": 0.9074,
+    "suggestRecall": 0.9689,
+    "reviewPairs": 115,
+    "pairs": 10922,
+    "positives": 1176,
+    "truthLinks": 1188,
+    "ci": {
+     "precision": [
+      0.9885,
+      0.9946
+     ],
+     "recall": [
+      0.8919,
+      0.925
+     ],
+     "method": "percentile bootstrap, 1000 reps, resampling whole groups (buyer worlds)"
+    }
+   },
+   {
+    "source": "bpi2019",
+    "precision": 0.993704092339979,
+    "recall": 0.8867041198501873,
+    "f1": 0.9371598218703611,
+    "prAuc": 0.9806059516756817,
+    "rocAuc": 0.998792505016864,
+    "brier": 0.003945404603246572,
+    "ece": 0.002000683920130375,
+    "eceEqualMass": 0.0011498741227308899,
+    "confusion": {
+     "tp": 1894,
+     "fp": 12,
+     "fn": 242,
+     "tn": 34191
+    },
+    "precisionWilson": [
+     0.989,
+     0.9964
+    ],
+    "autoRate": 0.8923,
+    "suggestRecall": 0.9251,
+    "reviewPairs": 107,
+    "pairs": 36240,
+    "positives": 2037,
+    "truthLinks": 2136,
+    "ci": {
+     "precision": [
+      0.9897,
+      0.9984
+     ],
+     "recall": [
+      0.8873,
+      0.9635
+     ],
+     "method": "percentile bootstrap, 1000 reps, resampling whole groups (buyer worlds)"
+    }
+   },
+   {
+    "source": "demo",
+    "precision": 1.0,
+    "recall": 0.8787878787878788,
+    "f1": 0.9354838709677419,
+    "prAuc": 0.9887080262080262,
+    "rocAuc": 0.9917929292929293,
+    "brier": 0.06439984714786803,
+    "ece": 0.0793403286003665,
+    "eceEqualMass": 0.06337768030365389,
+    "confusion": {
+     "tp": 29,
+     "fp": 0,
+     "fn": 4,
+     "tn": 48
+    },
+    "precisionWilson": [
+     0.883,
+     1.0
+    ],
+    "autoRate": 0.8788,
+    "suggestRecall": 1.0,
+    "reviewPairs": 7,
+    "pairs": 81,
+    "positives": 33,
+    "truthLinks": 33,
+    "note": "single curated world; no group bootstrap possible"
+   }
+  ]
+ },
+ "blocking": {
+  "synthetic": {
+   "pairCompleteness": 0.9896,
+   "reductionRatio": 0.9233,
+   "truePairs": 5428,
+   "candidatePairs": 48543
+  },
+  "bpi2019": {
+   "pairCompleteness": 0.9757,
+   "reductionRatio": 0.8225,
+   "truePairs": 8442,
+   "candidatePairs": 138678
+  },
+  "demo": {
+   "pairCompleteness": 1.0,
+   "reductionRatio": 0.9299,
+   "truePairs": 33,
+   "candidatePairs": 81
+  }
+ },
+ "featureImportance": [
+  {
+   "feature": "line_match_rank",
+   "gainShare": 0.6369
+  },
+  {
+   "feature": "rate_agree",
+   "gainShare": 0.1073
+  },
+  {
+   "feature": "best_competitor_gap",
+   "gainShare": 0.0722
+  },
+  {
+   "feature": "rate_rel_diff",
+   "gainShare": 0.0594
+  },
+  {
+   "feature": "date_order_violation",
+   "gainShare": 0.0171
+  },
+  {
+   "feature": "ref_exact",
+   "gainShare": 0.0154
+  },
+  {
+   "feature": "qty_over",
+   "gainShare": 0.0125
+  },
+  {
+   "feature": "prescore_rank",
+   "gainShare": 0.0113
+  },
+  {
+   "feature": "ref_sim",
+   "gainShare": 0.0096
+  },
+  {
+   "feature": "amount_ratio_log",
+   "gainShare": 0.0072
+  },
+  {
+   "feature": "date_gap",
+   "gainShare": 0.007
+  },
+  {
+   "feature": "qty_ratio",
+   "gainShare": 0.0058
+  }
+ ],
+ "data": {
+  "sources": [
+   {
+    "name": "synthetic",
+    "provenance": "synthetic \u2014 seeded generator (satya_engine.linking.datasets.synthetic); upper bound / regression test only",
+    "pairs": 48543,
+    "positives": 5373,
+    "groups": 40
+   },
+   {
+    "name": "bpi2019",
+    "provenance": "BPI-2019 derived \u2014 real P2P transaction structure from the BPI Challenge 2019 log (van Dongen, 4TU, CC BY 4.0); synthetic Indian identities, numbers, GST/TDS",
+    "pairs": 138678,
+    "positives": 8130,
+    "groups": 65
+   },
+   {
+    "name": "demo",
+    "provenance": "demo \u2014 Satya curated demo dataset (CONSTRUCTED_DEMO), held out from all fitting; sanity check only",
+    "pairs": 81,
+    "positives": 33,
+    "groups": 1
+   }
+  ],
+  "splits": {
+   "train": {
+    "pairs": 80716,
+    "groups": 52,
+    "positives": 6152
+   },
+   "valid": {
+    "pairs": 21742,
+    "groups": 16,
+    "positives": 1741
+   },
+   "calib": {
+    "pairs": 37601,
+    "groups": 16,
+    "positives": 2397
+   },
+   "test": {
+    "pairs": 47162,
+    "groups": 21,
+    "positives": 3213
+   },
+   "holdout": {
+    "pairs": 81,
+    "groups": 1,
+    "positives": 33
+   }
+  },
+  "splitPolicy": "group-disjoint by buyer world: train 50% / valid 15% / calib 15% / test 20%; demo held out"
+ },
+ "limitations": [
+  "No real customer data: every number here is synthetic, BPI-2019-derived (real structure, synthetic identities) or curated-demo. None of it is a real-company accuracy claim.",
+  "The \u226599% auto-link precision guarantee (Learn-then-Test) holds only if deployment data are exchangeable with the calibration data; on a real tenant it must be re-certified on that tenant's reviewed links (shadow mode + audit slice).",
+  "Printed references (PO numbers on invoices, invoice numbers in narrations) are simulated at fixed rates; real rates vary by supplier and change performance a lot.",
+  "BPI-2019 quantities, rates, GST and TDS are synthesised from real net worth; descriptions are spend-area texts (low diversity).",
+  "The demo hold-out is one small curated world (tens of links); its numbers have very wide uncertainty.",
+  "Decisions are per from-document (invoice/GRN) and per pair (payment); one invoice billing several POs is not modelled."
+ ]
+}

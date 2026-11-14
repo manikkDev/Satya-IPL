@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractDocument, classifyDocumentType, loadSchema } from "../../src/extract/extract.js";
+import { extractDocument, classifyDocumentType, loadSchema, contentParts, toImagePart } from "../../src/extract/extract.js";
 
 const llmOk = (text) => ({
   async generate() {
@@ -72,4 +72,57 @@ test("schemas load and are valid JSON schema objects", () => {
   const s = loadSchema("invoice");
   assert.equal(s.type, "object");
   assert.ok(s.required.includes("quotes"));
+});
+
+// Engine /v2/docs/parse returns pageImages as bare base64 strings; the server
+// now forwards {pngBase64, mime, page} objects. Both must reach Gemini.
+const PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+test("toImagePart accepts strings, data URLs and objects; rejects junk", () => {
+  assert.deepEqual(toImagePart(PNG_B64), { inlineData: { mimeType: "image/png", data: PNG_B64 } });
+  assert.deepEqual(toImagePart(`data:image/jpeg;base64,${PNG_B64}`), { inlineData: { mimeType: "image/jpeg", data: PNG_B64 } });
+  assert.deepEqual(toImagePart({ pngBase64: PNG_B64, page: 1 }), { inlineData: { mimeType: "image/png", data: PNG_B64 } });
+  assert.deepEqual(toImagePart({ data: PNG_B64, mime: "image/webp" }), { inlineData: { mimeType: "image/webp", data: PNG_B64 } });
+  assert.equal(toImagePart(""), null);
+  assert.equal(toImagePart({}), null);
+  assert.equal(toImagePart(null), null);
+  assert.equal(toImagePart("not base64 !!"), null);
+  assert.equal(toImagePart({ data: PNG_B64, mime: "application/pdf" }), null);
+});
+
+test("contentParts sends text first and at most 3 images of either shape", () => {
+  const parts = contentParts({ text: "TAX INVOICE", pageImages: [PNG_B64, { pngBase64: PNG_B64 }, { data: PNG_B64 }, PNG_B64] });
+  assert.equal(parts.length, 4);
+  assert.match(parts[0].text, /^<record>TAX INVOICE<\/record>$/);
+  assert.ok(parts.slice(1).every((p) => p.inlineData.data === PNG_B64));
+});
+
+test("extractDocument forwards string page images to the model and strips quotes from fields", async () => {
+  let body;
+  const llm = {
+    async generate(_task, b) {
+      body = b;
+      return { ok: true, text: JSON.stringify({ type: "invoice", number: "INV-9", date: "07/05/2026", lines: [], totals: {},
+        quotes: { number: { page: 1, quote: "Inv No INV-9" } }, fieldConfidence: { number: 0.9 } }), model: "m", usage: {} };
+    },
+  };
+  const out = await extractDocument({ llm, task: "invoice_in", pageImages: [PNG_B64], envPolicy: "demo_only" });
+  const images = body.contents[0].parts.filter((p) => p.inlineData);
+  assert.equal(images.length, 1);
+  assert.equal(images[0].inlineData.data, PNG_B64);
+  assert.equal(out.meta.imagesUsed, 1);
+  assert.equal(out.extracted.quotes, undefined);
+  assert.equal(out.extracted.fieldConfidence, undefined);
+  assert.equal(out.quotes.number.quote, "Inv No INV-9");
+  assert.equal(out.fieldConfidence.number, 0.9);
+});
+
+test("only unusable images and no text is a validation error, not an empty model call", async () => {
+  let called = false;
+  const llm = { async generate() { called = true; return { ok: true, text: "{}" }; } };
+  await assert.rejects(
+    () => extractDocument({ llm, task: "invoice", pageImages: [{}, ""], envPolicy: "demo_only" }),
+    (e) => e.code === "VALIDATION_FAILED",
+  );
+  assert.equal(called, false);
 });

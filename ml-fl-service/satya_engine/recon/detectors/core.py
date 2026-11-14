@@ -116,7 +116,7 @@ def currency_conflict(docs, ledger):
             continue
         for d in docs:
             if d["type"] == "INVOICE_IN" and d["currency"] != po["currency"] and any(
-                    l.get("refs", {}).get("poId") == po_id for l in d["lines"]):
+                    (l.get("refs") or {}).get("poId") == po_id for l in d["lines"]):
                 findings.append(_finding(
                     "CURRENCY_CONFLICT", "high", "CONFIRMED",
                     f"Invoice {d['id']} is in {d['currency']} but PO {po_id} is {po['currency']}; not converted",
@@ -126,14 +126,15 @@ def currency_conflict(docs, ledger):
 
 def unmatched_invoice(docs, links):
     """INVOICE_NO_PO_LINK — invoice with no confirmed PO reference."""
-    linked_from = {l["fromId"] for l in links if l["certainty"] == "CONFIRMED"}
+    linked_from = {l["fromId"] for l in links if l["certainty"] == "CONFIRMED"
+                   or (l.get("basis") == "model" and l["certainty"] == "PROBABLE" and l["kind"] == "BILLS")}
     return [
         _finding("INVOICE_NO_PO_LINK", "medium", "CONFIRMED",
                  f"Invoice {d['id']} has no explicit or confirmed PO reference",
                  [{"documentId": d["id"]}], d.get("totals", {}).get("grand") if d.get("totals") else None)
         for d in docs
         if d["type"] == "INVOICE_IN" and d["status"] not in {"reversed", "cancelled"}
-        and not any(l.get("refs", {}).get("poId") for l in d["lines"])
+        and not any((l.get("refs") or {}).get("poId") for l in d["lines"])
         and d["id"] not in linked_from
     ]
 

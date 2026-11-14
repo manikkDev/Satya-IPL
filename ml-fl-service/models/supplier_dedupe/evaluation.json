@@ -1,0 +1,44 @@
+{
+ "generatedAt": "2026-11-14T18:04:45+00:00",
+ "task": "supplier_dedupe",
+ "provenance": "synthetic supplier master with injected duplicates/branches",
+ "records": 473,
+ "duplicateZone": {
+  "precision": 1.0,
+  "recall": 0.9804,
+  "predicted": 50,
+  "truth": 51
+ },
+ "duplicateOrPossible": {
+  "precision": 0.6986,
+  "recall": 1.0,
+  "predicted": 73,
+  "truth": 51
+ },
+ "branchesAsDuplicates": 0,
+ "branchDetection": {
+  "precision": 1.0,
+  "recall": 1.0,
+  "predicted": 22,
+  "truth": 22
+ },
+ "parameters": "priors",
+ "thresholds": {
+  "duplicate": 8.0,
+  "possible": 3.0
+ },
+ "method": "Fellegi-Sunter + union-find (satya_engine.match.supplier_fs), documented m/u priors",
+ "emVariant": {
+  "note": "label-free EM re-estimation of m/u (fastLink/Splink style) over the blocked pairs converged to a 'similar name' latent class on this master and is therefore OFF by default",
+  "duplicateZone": {
+   "precision": 0.0912,
+   "recall": 1.0,
+   "predicted": 559,
+   "truth": 51
+  }
+ },
+ "limitations": [
+  "Synthetic names from a small vocabulary; real masters have more variety and Indic scripts",
+  "Transliteration is rule-based (Devanagari only), not IndicXlit"
+ ]
+}
