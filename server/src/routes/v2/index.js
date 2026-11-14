@@ -21,6 +21,7 @@ import importsRoutes from "./imports.js";
 import paymentsRoutes from "./payments.js";
 import compatRoutes from "./compat.js";
 import workflowRoutes from "./workflow.js";
+import onboardingRoutes, { publicRouter as onboardingPublicRoutes } from "./onboarding.js";
 import { writeAudit } from "../../services/audit.js";
 import Job from "../../models/Job.js";
 import { authenticateV2, loadScope } from "../../auth/middleware.js";
@@ -30,6 +31,7 @@ const router = express.Router();
 // Public: feature flags, health, login/signup/switch-group, document verify.
 router.use("/meta", metaRoutes);
 router.use("/auth", authRoutes);
+router.use("/auth", onboardingPublicRoutes);
 router.use("/verify", verifyRoutes);
 
 // Everything below requires a v2 session + resolved group scope.
@@ -59,6 +61,7 @@ router.use("/files", filesRoutes);
 router.use("/ingest", ingestRoutes);
 router.use("/cases", casesRoutes);
 router.use("/workflow", workflowRoutes);
+router.use("/onboarding", onboardingRoutes);
 router.use("/graph", graphRoutes);
 router.use("/admin", adminRouter);
 router.use("/dashboard", dashboardRoutes);
