@@ -15,11 +15,20 @@ export const engine = async (path, body) => {
 };
 
 let graphDriver;
+// Neo4j is optional: with NEO4J_URI unset the v1 projection is skipped
+// cleanly (graph routes fall back to the snapshot's own graph) instead of
+// retrying a localhost bolt connection forever.
+export const graphConfigured = () => Boolean((process.env.NEO4J_URI || "").trim());
 const driver = () => {
-  if (!graphDriver) graphDriver = neo4j.driver(process.env.NEO4J_URI || "bolt://localhost:7687", neo4j.auth.basic(process.env.NEO4J_USER || "neo4j", process.env.NEO4J_PASSWORD || ""), { connectionTimeout: 5000, maxTransactionRetryTime: 5000 });
+  if (!graphConfigured()) throw Object.assign(new Error("Neo4j is not configured (NEO4J_URI unset)"), { code: "GRAPH_DISABLED" });
+  if (!graphDriver) graphDriver = neo4j.driver(process.env.NEO4J_URI, neo4j.auth.basic(process.env.NEO4J_USER || "neo4j", process.env.NEO4J_PASSWORD || ""), { connectionTimeout: 5000, maxTransactionRetryTime: 5000 });
   return graphDriver;
 };
 export const projectSnapshot = async (snapshot) => {
+  if (!graphConfigured()) {
+    await BusinessSnapshot.updateOne({ companyId: snapshot.companyId, id: snapshot.id }, { $set: { projection: "skipped" } });
+    return "skipped";
+  }
   const session = driver().session();
   try {
     await session.run("CREATE CONSTRAINT satya_entity_key IF NOT EXISTS FOR (n:SatyaEntity) REQUIRE n.key IS UNIQUE");
@@ -69,12 +78,38 @@ export const queueJob = async (businessCase) => {
   const job = await BusinessJob.create({ companyId: businessCase.companyId, id: crypto.randomUUID(), caseId: businessCase.id, baseRevision: businessCase.revision, input });
   return { id: job.id, status: job.status };
 };
+// v1 worker: adaptive polling instead of a fixed 1s Mongo poll — 2s while
+// there is work, backing off to 30s when idle or a dependency is down.
+// Pending Neo4j projections retry at most every 5 minutes, never when Neo4j
+// is not configured.
 let working = false;
+let stopped = false;
+const MIN_POLL_MS = 2000;
+const MAX_POLL_MS = 30000;
+const PROJECTION_RETRY_MS = 5 * 60 * 1000;
+let lastProjectionAttempt = 0;
+
 export const startWorker = () => {
-  const timer = setInterval(async () => {
-    if (working) return;
-    working = true;
-    try {
+  let delay = MIN_POLL_MS;
+  const loop = async () => {
+    if (stopped) return;
+    if (!working) {
+      working = true;
+      try {
+        const busy = await runWorkerOnce();
+        delay = busy ? MIN_POLL_MS : Math.min(MAX_POLL_MS, Math.round(delay * 1.5));
+      } catch {
+        delay = MAX_POLL_MS;
+        console.error("Business worker dependency unavailable; retrying later");
+      } finally { working = false; }
+    }
+    setTimeout(loop, delay).unref();
+  };
+  setTimeout(loop, MIN_POLL_MS).unref();
+};
+export const stopWorker = () => { stopped = true; };
+
+const runWorkerOnce = async () => {
       const workerToken = crypto.randomUUID();
       const job = await BusinessJob.findOneAndUpdate({ $or: [{ status: 'queued' }, { status: 'running', leaseUntil: { $lte: new Date() } }] }, { $set: { status: 'running', workerToken, leaseUntil: new Date(Date.now() + 120000) }, $inc: { attempts: 1 } }, { returnDocument: 'after', sort: { createdAt: 1 } });
       if (job) {
@@ -87,10 +122,10 @@ export const startWorker = () => {
           await BusinessJob.updateOne({ _id: job._id, workerToken }, { $set: { status: "completed", snapshotId: result.snapshotId } });
         } catch (error) { await BusinessJob.updateOne({ _id: job._id, workerToken }, { $set: { status: "failed", error: error.status === 422 || error.status === 409 ? error.message : "Reconciliation failed; retry after checking service readiness" } }); }
       }
-      const pending = await BusinessSnapshot.findOne({ projection: "pending" });
-      if (pending) { try { await projectSnapshot(pending); } catch { } }
-    } catch { console.error("Business worker dependency unavailable; retrying on the next poll"); }
-    finally { working = false; }
-  }, 1000);
-  timer.unref();
+      if (graphConfigured() && Date.now() - lastProjectionAttempt > PROJECTION_RETRY_MS) {
+        lastProjectionAttempt = Date.now();
+        const pending = await BusinessSnapshot.findOne({ projection: "pending" });
+        if (pending) { try { await projectSnapshot(pending); } catch { /* retried next window */ } }
+      }
+      return Boolean(job);
 };

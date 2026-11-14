@@ -5,9 +5,13 @@ import neo4j from "neo4j-driver";
 // tenants. Neo4j is optional — callers must degrade to the snapshot's own
 // graph payload when the driver is unavailable.
 let driver;
+export const graphConfigured = () => Boolean((process.env.NEO4J_URI || "").trim());
 const graph = () => {
+  // NEO4J_URI unset = graph store disabled: fail fast so callers use the
+  // snapshot-derived graph instead of waiting on a localhost connection.
+  if (!graphConfigured()) throw Object.assign(new Error("Neo4j is not configured"), { code: "GRAPH_DISABLED" });
   if (!driver) driver = neo4j.driver(
-    process.env.NEO4J_URI || "bolt://localhost:7687",
+    process.env.NEO4J_URI,
     neo4j.auth.basic(process.env.NEO4J_USER || "neo4j", process.env.NEO4J_PASSWORD || ""),
     { connectionTimeout: 5000, maxTransactionRetryTime: 5000 }
   );
