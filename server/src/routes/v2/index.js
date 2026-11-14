@@ -21,6 +21,7 @@ import importsRoutes from "./imports.js";
 import paymentsRoutes from "./payments.js";
 import compatRoutes from "./compat.js";
 import workflowRoutes from "./workflow.js";
+import connectRoutes from "./connect.js";
 import onboardingRoutes, { publicRouter as onboardingPublicRoutes } from "./onboarding.js";
 import { writeAudit } from "../../services/audit.js";
 import Job from "../../models/Job.js";
@@ -32,6 +33,8 @@ const router = express.Router();
 router.use("/meta", metaRoutes);
 router.use("/auth", authRoutes);
 router.use("/auth", onboardingPublicRoutes);
+// Tally connector + other machine clients authenticate with import API keys.
+router.use("/connect", connectRoutes);
 router.use("/verify", verifyRoutes);
 
 // Everything below requires a v2 session + resolved group scope.
