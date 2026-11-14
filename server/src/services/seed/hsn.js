@@ -7,15 +7,20 @@ import HsnMaster from "../../models/HsnMaster.js";
 // Seeds the global hsn_master collection from the engine's artifact
 // (ml-fl-service/satya_engine/india/hsn_master.py HsnArtifact:
 // {version, builtAt, sources, codes[], rateRules[]}). Looks for
-// assets/hsn_master.*.json or .json.gz (env HSN_MASTER_PATH overrides the dir).
-// Safe to re-run: upserts by code; skips entirely when no artifact exists yet.
+// hsn_master.json(.gz) or hsn_master.<ver>.json(.gz). Search order: env
+// HSN_MASTER_PATH (dir), server/assets (shipped inside the API image — the
+// engine's dir is outside the Docker build context), then the engine's
+// assets dir for local dev. The old pattern required a ".<ver>." segment, so
+// the committed hsn_master.json.gz was never found and nothing was seeded.
+// Safe to re-run: upserts by code; reseeds when the artifact version changes.
+const serverRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../..");
 const searchDirs = () =>
-  [process.env.HSN_MASTER_PATH, path.resolve(process.cwd(), "../ml-fl-service/assets"), path.resolve(process.cwd(), "assets")].filter(Boolean);
+  [process.env.HSN_MASTER_PATH, path.join(serverRoot, "assets"), path.resolve(process.cwd(), "assets"), path.resolve(serverRoot, "../ml-fl-service/assets")].filter(Boolean);
 
-const findArtifact = () => {
+export const findArtifact = () => {
   for (const dir of searchDirs()) {
     if (!existsSync(dir)) continue;
-    const file = readdirSync(dir).find((name) => /^hsn_master\..*\.json(\.gz)?$/.test(name));
+    const file = readdirSync(dir).sort().find((name) => /^hsn_master(\.[\w-]+)?\.json(\.gz)?$/.test(name));
     if (file) return path.join(dir, file);
   }
   return null;
@@ -61,15 +66,27 @@ export const seedHsnMaster = async ({ force = false } = {}) => {
           description: code.description,
           chapter: code.chapter,
           artifactVersion: artifact.version,
-          ...(rulesByPrefix.has(code.code) ? { rates: rulesByPrefix.get(code.code) } : {}),
+          // always overwrite: a repaired artifact can move a rule to a
+          // longer prefix, and stale rates must not survive the reseed
+          rates: rulesByPrefix.get(code.code) || [],
         },
       },
       upsert: true,
     },
   }));
-  let seeded = 0;
-  for (let i = 0; i < ops.length; i += 500) {
-    seeded += (await HsnMaster.bulkWrite(ops.slice(i, i + 500))).upsertedCount;
+  // rules whose prefix is not itself a directory code still govern longer
+  // codes (engine semantics) — keep them on a rule-only holder doc
+  const codeSet = new Set((artifact.codes || []).map((c) => c.code));
+  for (const [prefix, rates] of rulesByPrefix) {
+    if (codeSet.has(prefix)) continue;
+    ops.push({ updateOne: { filter: { code: prefix }, update: { $set: { description: `Rate rule ${prefix}`, chapter: prefix.slice(0, 2), artifactVersion: artifact.version, rates, ruleOnly: true } }, upsert: true } });
   }
-  return { seeded, total: ops.length, version: artifact.version, file };
+  let seeded = 0;
+  let updated = 0;
+  for (let i = 0; i < ops.length; i += 500) {
+    const r = await HsnMaster.bulkWrite(ops.slice(i, i + 500));
+    seeded += r.upsertedCount;
+    updated += r.modifiedCount;
+  }
+  return { seeded: seeded + updated, inserted: seeded, updated, total: ops.length, version: artifact.version, file };
 };
