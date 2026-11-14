@@ -65,6 +65,10 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: SMTP_URL
+        sync: false
+      - key: SMTP_FROM
+        sync: false
       - key: NODE_INTERNAL_TOKEN
         sync: false
       - key: DEMO_PASSWORD

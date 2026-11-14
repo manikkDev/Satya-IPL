@@ -9,6 +9,7 @@ import routes from "./routes/index.js";
 import { seedHsnMaster } from "./services/seed/hsn.js";
 import { startWorker } from "./utils/businessService.js";
 import { startJobRunner, registerHandler } from "./jobs/runner.js";
+import { startOutboxWorker } from "./services/outbox.js";
 import { runReconcile } from "./services/reconcile.js";
 import { statusPage } from "./statusPage.js";
 import { makeOriginChecker } from "./lib/origins.js";
@@ -74,6 +75,7 @@ const background = async () => {
     workersStarted = true;
     registerHandler("reconcile", runReconcile);
     startJobRunner();
+    startOutboxWorker();
     startWorker();
   }
   seedHsnMaster()
