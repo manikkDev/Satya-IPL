@@ -20,24 +20,24 @@ import { DocumentView } from "@/components/pages/documents/document-view";
 import { DOC_TYPE_LABEL } from "@/components/pages/documents/labels";
 import type { DraftDetail } from "@/lib/mocks/data";
 import { mocksEnabled } from "@/lib/flags";
-import { DateText, ErrorState, FadeIn, Card, StatusBadge, Money } from "@/components/ui/v2";
+import { DateText, ErrorState, FadeIn, Card, Money, Btn, PageHeader, inputClass } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMoney } from "@/lib/format";
 import { LinkBtn } from "@/components/pages/shared/link-btn";
 import { cn } from "@/lib/utils";
 
 const CONFIDENCE = {
-  high: { label: "High", classes: "bg-[var(--confirmed-soft)] text-[var(--confirmed)]" },
-  check: { label: "Check", classes: "bg-[var(--possible-soft)] text-[var(--possible)]" },
-  low: { label: "Low", classes: "bg-[var(--sev-critical-soft)] text-[var(--sev-critical)]" },
+  high: { label: "Read clearly", classes: "bg-[var(--confirmed-soft)] text-[var(--confirmed)]" },
+  check: { label: "Check this", classes: "bg-[var(--possible-soft)] text-[var(--possible)]" },
+  low: { label: "Unsure", classes: "bg-[var(--sev-critical-soft)] text-[var(--sev-critical)]" },
 } as const;
 
 const METHOD_LABEL: Record<string, string> = {
-  einvoice_qr: "verified e-invoice QR",
-  vision_llm: "AI vision",
-  text_layer: "PDF text layer",
-  csv: "CSV import",
-  json: "JSON import",
+  einvoice_qr: "the verified e-invoice QR code",
+  vision_llm: "AI reading the page",
+  text_layer: "the PDF’s text",
+  csv: "the spreadsheet",
+  json: "the e-invoice file",
   failed: "—",
 };
 
@@ -87,7 +87,7 @@ const issueGuide = (issue: { code?: string; message: string; severity: string })
 const MANUAL_FIELDS = [
   { name: "sellerName", label: "Supplier / seller name", placeholder: "e.g. Bhavna Engineering Stores", required: true },
   { name: "number", label: "Invoice / document number", placeholder: "e.g. INV-041", required: true },
-  { name: "date", label: "Document date", placeholder: "YYYY-MM-DD", required: true },
+  { name: "date", label: "Document date (YYYY-MM-DD)", placeholder: "e.g. 2026-11-14", required: true },
   { name: "totals", label: "Grand total (₹)", placeholder: "e.g. 70800.00", required: false },
 ] as const;
 
@@ -136,7 +136,7 @@ function FilePreview({ fileId, fallbackName }: { fileId?: string; fallbackName: 
     return (
       <div className="flex h-full flex-col items-center justify-center text-[var(--muted)]">
         <FileText size={36} aria-hidden="true" />
-        <p className="mt-3 text-xs">Preview isn&apos;t available for this file.</p>
+        <p className="mt-3 text-[14px]">Preview isn&apos;t available for this file.</p>
         <p className="mt-1 text-[13px]">{mocksEnabled() ? "Mock mode — no real file stored." : "Use the fields on the right and the filename below."}</p>
         <p className="mt-2 font-code text-[13px] text-[var(--ink-2)]">{filename}</p>
       </div>
@@ -146,7 +146,7 @@ function FilePreview({ fileId, fallbackName }: { fileId?: string; fallbackName: 
     return (
       <div className="flex h-full flex-col items-center justify-center text-[var(--muted)]">
         <Loader2 size={22} className="animate-spin text-[var(--accent)]" aria-hidden="true" />
-        <p className="mt-3 text-xs">Loading {filename}…</p>
+        <p className="mt-3 text-[14px]">Loading {filename}…</p>
       </div>
     );
   }
@@ -161,13 +161,13 @@ function FilePreview({ fileId, fallbackName }: { fileId?: string; fallbackName: 
   return (
     <div className="flex h-full flex-col items-center justify-center text-[var(--muted)]">
       <FileText size={36} aria-hidden="true" />
-      <p className="mt-3 max-w-xs text-center text-xs">
+      <p className="mt-3 max-w-xs text-center text-[14px]">
         No inline preview for this file type{sub ? ` (${sub})` : ""} — open it to check the fields.
       </p>
       <a
         href={state.url}
         download={filename}
-        className="mt-3 inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--accent)]/45 px-3 py-1.5 text-xs font-medium text-[var(--accent-strong)] transition-colors hover:bg-[var(--accent-soft)]"
+        className="mt-3 inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--accent)]/45 px-3 py-1.5 text-[14px] font-medium text-[var(--accent-strong)] transition-colors hover:bg-[var(--accent-soft)]"
       >
         <Download size={13} /> Open {filename}
       </a>
@@ -297,7 +297,7 @@ function DraftReview({ draftId }: { draftId: string }) {
   };
 
   if (error) return <ErrorState message={error instanceof Error ? error.message : "Draft not found."} onRetry={() => refetch()} />;
-  if (isLoading || !data) return <div className="space-y-4"><Skeleton className="h-16 w-full" /><Skeleton className="h-96 w-full" /></div>;
+  if (isLoading || !data) return <div className="space-y-6" aria-busy="true"><Skeleton className="h-5 w-28" /><Skeleton className="h-9 w-80 max-w-full" /><div className="grid gap-6 lg:grid-cols-2"><Skeleton className="h-[520px]" /><Skeleton className="h-[520px]" /></div></div>;
 
   const { draft, fields, lines, issues, suggestions } = data;
   const typeLabel = (draft.detectedType && (DOC_TYPE_LABEL[draft.detectedType] ?? draft.detectedType.replaceAll("_", " ").toLowerCase())) ?? "document";
@@ -314,10 +314,10 @@ function DraftReview({ draftId }: { draftId: string }) {
           <div className="grid h-14 w-14 place-items-center rounded-full bg-[var(--accent-soft)]">
             <Loader2 size={22} className="animate-spin text-[var(--accent)]" />
           </div>
-          <p className="mt-5 text-sm font-medium text-[var(--ink-2)]">
+          <p className="mt-5 text-[17px] font-semibold text-[var(--ink)]">
             {draft.status === "extracting" ? "AI is reading the document…" : "Reading this file…"}
           </p>
-          <p className="mt-1 max-w-sm text-xs leading-relaxed text-[var(--muted)]">
+          <p className="mt-1.5 max-w-sm text-[15px] leading-relaxed text-[var(--muted)]">
             Satya is pulling text and fields out of {displayName}. This page updates on its own when it finishes.
           </p>
         </div>
@@ -329,15 +329,15 @@ function DraftReview({ draftId }: { draftId: string }) {
   if (draft.status === "confirmed" || confirmedDocId) {
     return (
       <FadeIn className="space-y-5">
-        <Link href="/app/documents" className="inline-flex items-center gap-1 text-sm text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
-          <ArrowLeft size={15} aria-hidden="true" /> Back to documents
+        <Link href="/app/documents" className="inline-flex items-center gap-1 text-[14px] font-medium text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
+          <ArrowLeft size={15} aria-hidden="true" /> Invoices & documents
         </Link>
         <Card className="flex flex-col items-center py-14 text-center">
           <div className="grid h-12 w-12 place-items-center rounded-full bg-[var(--confirmed-soft)]">
             <ShieldCheck size={22} className="text-[var(--confirmed)]" />
           </div>
-          <p className="mt-4 text-[15px] font-medium text-[var(--ink)]">Saved as evidence</p>
-          <p className="mt-1.5 max-w-md text-sm leading-relaxed text-[var(--muted)]">
+          <p className="mt-4 text-[17px] font-semibold text-[var(--ink)]">Saved as evidence</p>
+          <p className="mt-1.5 max-w-md text-[15px] leading-relaxed text-[var(--muted)]">
             {displayName} is now a posted {typeLabel}. It feeds orders, payments, findings and compliance like any
             other document — with this file kept as its source.
           </p>
@@ -361,26 +361,19 @@ function DraftReview({ draftId }: { draftId: string }) {
   if (draft.status === "failed") {
     return (
       <FadeIn className="space-y-5">
-        <Link href="/app/documents" className="inline-flex items-center gap-1 text-sm text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
-          <ArrowLeft size={15} aria-hidden="true" /> Back to documents
+        <Link href="/app/documents" className="inline-flex items-center gap-1 text-[14px] font-medium text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
+          <ArrowLeft size={15} aria-hidden="true" /> Invoices & documents
         </Link>
         <Card className="flex flex-col items-center py-14 text-center">
           <div className="grid h-12 w-12 place-items-center rounded-full bg-[var(--sev-critical-soft)]">
             <CircleAlert size={22} className="text-[var(--sev-critical)]" />
           </div>
-          <p className="mt-4 text-[15px] font-medium text-[var(--ink)]">Satya couldn&apos;t read this file</p>
-          <p className="mt-1.5 max-w-md text-sm leading-relaxed text-[var(--muted)]">
+          <p className="mt-4 text-[17px] font-semibold text-[var(--ink)]">Satya couldn&apos;t read this file</p>
+          <p className="mt-1.5 max-w-md text-[15px] leading-relaxed text-[var(--muted)]">
             {draft.issue ?? "The extraction failed — the file may be corrupt, password-protected, or too unclear to read."}
           </p>
           {canRetry ? (
-            <button
-              type="button"
-              onClick={retryRead}
-              disabled={retrying}
-              className="mt-5 inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-strong)] disabled:opacity-50"
-            >
-              <RefreshCw size={14} className={retrying ? "animate-spin" : ""} /> {retrying ? "Retrying…" : "Retry the read"}
-            </button>
+            <Btn className="mt-5" icon={RefreshCw} onClick={retryRead} disabled={retrying}>{retrying ? "Retrying…" : "Retry the read"}</Btn>
           ) : null}
         </Card>
       </FadeIn>
@@ -390,42 +383,22 @@ function DraftReview({ draftId }: { draftId: string }) {
   /* ---------- needs_review: split view ---------- */
   return (
     <FadeIn className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Link href="/app/documents" className="inline-flex items-center gap-1 text-sm text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
-            <ArrowLeft size={15} aria-hidden="true" /> Documents
-          </Link>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="type-page-title">{displayName}</h1>
-              <StatusBadge status={draft.status} />
-            </div>
-            <p className="text-xs text-[var(--muted)]">
-              {typeLabel} · read via {methodLabel}
-              {draft.uploadedAt ? <> · uploaded <DateText value={draft.uploadedAt} withTime /></> : null}
-            </p>
-          </div>
-        </div>
-        {canRetry ? (
-          <button
-            type="button"
-            onClick={retryRead}
-            disabled={retrying}
-            className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--accent)]/45 px-3 py-1.5 text-xs font-medium text-[var(--accent-strong)] transition-colors hover:bg-[var(--accent-soft)] disabled:opacity-50"
-          >
-            <RefreshCw size={13} className={retrying ? "animate-spin" : ""} /> {retrying ? "Retrying…" : "Retry AI read"}
-          </button>
-        ) : null}
+      <div className="space-y-4">
+        <Link href="/app/documents" className="inline-flex items-center gap-1 text-[14px] font-medium text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
+          <ArrowLeft size={15} aria-hidden="true" /> Invoices & documents
+        </Link>
+        <PageHeader
+          eyebrow={`Check before it counts · ${typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1)}`}
+          title={displayName}
+          description={
+            <>
+              Satya read this using {methodLabel}{draft.uploadedAt ? <> · uploaded <DateText value={draft.uploadedAt} withTime /></> : null}. Correct anything
+              wrong on the right — it only feeds orders, payments and tax once you save it.
+            </>
+          }
+          actions={canRetry ? <Btn variant="secondary" icon={RefreshCw} onClick={retryRead} disabled={retrying}>{retrying ? "Retrying…" : "Retry the AI read"}</Btn> : undefined}
+        />
       </div>
-
-      {/* why this page exists */}
-      <Card className="border-[var(--accent)]/30 bg-[var(--accent-soft)]/40 p-4">
-        <p className="text-xs leading-relaxed text-[var(--ink-2)]">
-          <span className="font-semibold text-[var(--ink)]">Check before it counts.</span> Satya read this file
-          automatically — on the right is what it found. Correct anything wrong; only when you save does this become a
-          document that feeds orders, payments, findings and tax.
-        </p>
-      </Card>
 
       {/* issues — what went wrong, why it matters, what to do */}
       {issues.length > 0 && (
@@ -443,9 +416,9 @@ function DraftReview({ draftId }: { draftId: string }) {
               >
                 <TriangleAlert size={15} className={cn("mt-0.5 shrink-0", errorTone ? "text-[var(--sev-critical)]" : "text-[var(--possible)]")} aria-hidden="true" />
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-[var(--ink)]">{guide.title}</p>
-                  <p className="mt-0.5 text-xs leading-relaxed text-[var(--ink-2)]">{guide.detail}</p>
-                  {guide.action ? <p className="mt-1 text-xs text-[var(--muted)]">What to do: {guide.action}</p> : null}
+                  <p className="text-[15px] font-semibold text-[var(--ink)]">{guide.title}</p>
+                  <p className="mt-0.5 text-[14px] leading-relaxed text-[var(--ink-2)]">{guide.detail}</p>
+                  {guide.action ? <p className="mt-1 text-[14px] text-[var(--ink-2)]"><span className="font-medium">What to do:</span> {guide.action}</p> : null}
                 </div>
               </li>
             );
@@ -453,15 +426,15 @@ function DraftReview({ draftId }: { draftId: string }) {
         </ul>
       )}
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* preview */}
-        <Card pad={false} className="p-4">
-          <h2 className="text-xs font-semibold text-[var(--muted)]">Document preview</h2>
+        <Card pad={false} className="p-5 lg:sticky lg:top-24 lg:self-start">
+          <h2 className="text-[15px] font-semibold text-[var(--ink)]">The file</h2>
           <div className="mt-3 min-h-[480px] rounded-[var(--radius-sm)] bg-[var(--surface-2)] p-1">
             <FilePreview fileId={draft.fileId} fallbackName={displayName} />
           </div>
           {highlight ? (
-            <p className="mt-3 rounded-[var(--radius-sm)] bg-[var(--accent-soft)] px-3 py-2 text-xs text-[var(--accent-strong)]">
+            <p className="mt-3 rounded-[var(--radius-sm)] bg-[var(--accent-soft)] px-3 py-2 text-[14px] text-[var(--accent-strong)]">
               Found on the page: “{highlight}”
             </p>
           ) : null}
@@ -471,15 +444,15 @@ function DraftReview({ draftId }: { draftId: string }) {
         <div className="space-y-4">
           {hasFields ? (
             fields.map((group) => (
-              <section key={group.group} className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-1)]">
-                <h2 className="text-xs font-semibold text-[var(--muted)]">{group.group}</h2>
-                <div className="mt-3 space-y-3">
+              <section key={group.group} className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)]">
+                <h2 className="text-[15px] font-semibold text-[var(--ink)]">{group.group}</h2>
+                <div className="mt-4 space-y-4">
                   {group.items.map((item: FieldItem) => {
                     const conf = CONFIDENCE[item.confidence];
                     return (
                       <div key={item.name}>
                         <div className="flex items-center justify-between gap-2">
-                          <label htmlFor={item.name} className="text-xs text-[var(--muted)]">{item.label}</label>
+                          <label htmlFor={item.name} className="text-[14px] font-medium text-[var(--ink-2)]">{item.label}</label>
                           <button
                             type="button"
                             title={item.quote ? "Show where this was found" : item.source}
@@ -494,10 +467,7 @@ function DraftReview({ draftId }: { draftId: string }) {
                           value={values[item.name] ?? item.value}
                           onChange={(event) => setValues((prev) => ({ ...prev, [item.name]: event.target.value }))}
                           onFocus={() => item.quote && setHighlight(item.quote)}
-                          className={cn(
-                            "mt-1 h-9 w-full rounded-[var(--radius-sm)] border bg-[var(--surface-2)]/50 px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:bg-[var(--surface)]",
-                            item.confidence === "high" ? "border-[var(--line)] focus:border-[var(--accent)]" : "border-[var(--possible)] focus:border-[var(--accent)]",
-                          )}
+                          className={cn(inputClass, "mt-1.5", item.confidence !== "high" && "border-[var(--possible)]")}
                         />
                         <p className="mt-0.5 text-[13px] text-[var(--muted)]">{item.source}</p>
                       </div>
@@ -508,18 +478,18 @@ function DraftReview({ draftId }: { draftId: string }) {
             ))
           ) : (
             /* nothing extracted — let the reviewer key the essentials by hand */
-            <section className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-1)]">
-              <h2 className="flex items-center gap-2 text-xs font-semibold text-[var(--muted)]">
+            <section className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)]">
+              <h2 className="flex items-center gap-2 text-[15px] font-semibold text-[var(--ink)]">
                 <PenLine size={13} aria-hidden="true" /> Type it in yourself
               </h2>
-              <p className="mt-1.5 text-xs leading-relaxed text-[var(--muted)]">
+              <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--muted)]">
                 Nothing could be read automatically from this file. Fill the key fields from the document on the left —
                 that&apos;s enough to save it as evidence.
               </p>
-              <div className="mt-3 space-y-3">
+              <div className="mt-4 space-y-4">
                 {MANUAL_FIELDS.map((f) => (
                   <div key={f.name}>
-                    <label htmlFor={`manual-${f.name}`} className="text-xs text-[var(--muted)]">
+                    <label htmlFor={`manual-${f.name}`} className="text-[14px] font-medium text-[var(--ink-2)]">
                       {f.label}{f.required ? "" : " (optional)"}
                     </label>
                     <input
@@ -527,7 +497,7 @@ function DraftReview({ draftId }: { draftId: string }) {
                       value={values[f.name] ?? ""}
                       placeholder={f.placeholder}
                       onChange={(event) => setValues((prev) => ({ ...prev, [f.name]: event.target.value }))}
-                      className="mt-1 h-10 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface-2)]/50 px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)]"
+                      className={cn(inputClass, "mt-1.5")}
                     />
                   </div>
                 ))}
@@ -537,11 +507,11 @@ function DraftReview({ draftId }: { draftId: string }) {
 
           {lines.length > 0 && (
             <section className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
-              <h2 className="text-xs font-semibold text-[var(--muted)]">Lines</h2>
+              <h2 className="text-[15px] font-semibold text-[var(--ink)]">Items</h2>
               <div className="table-scroll mt-2">
-                <table className="w-full text-xs">
+                <table className="w-full text-[14px]">
                   <thead>
-                    <tr className="text-left text-[var(--muted)]">
+                    <tr className="text-left text-[13px] text-[var(--muted)]">
                       <th scope="col" className="py-1.5 pr-2">#</th>
                       <th scope="col" className="py-1.5 pr-2">Description</th>
                       <th scope="col" className="py-1.5 pr-2 text-right">Qty</th>
@@ -572,10 +542,10 @@ function DraftReview({ draftId }: { draftId: string }) {
                 totalCheck.matches ? "border-[var(--confirmed)]/30 bg-[var(--confirmed-soft)]/50" : "border-[var(--possible)]/40 bg-[var(--possible-soft)]",
               )}
             >
-              <p className="text-xs font-medium text-[var(--ink)]">
+              <p className="text-[15px] font-semibold text-[var(--ink)]">
                 {totalCheck.matches ? "The maths checks out" : "The lines don\u2019t add up to the total"}
               </p>
-              <p className="mt-1 text-xs leading-relaxed text-[var(--ink-2)]">
+              <p className="mt-1 text-[14px] leading-relaxed text-[var(--ink-2)]">
                 Lines add to <span className="tnum">{formatMoney(totalCheck.linesSum)}</span> — the stated total is{" "}
                 <span className="tnum">{formatMoney(totalCheck.grand)}</span>
                 {totalCheck.matches ? "." : <> (off by <span className="tnum">{formatMoney(totalCheck.diff)}</span>). Check the values above.</>}
@@ -585,26 +555,26 @@ function DraftReview({ draftId }: { draftId: string }) {
 
           {(suggestions.supplier || suggestions.po) && (
             <section className="rounded-[var(--radius-md)] border border-[var(--accent)]/30 bg-[var(--accent-soft)]/50 p-4">
-              <h2 className="text-xs font-semibold text-[var(--accent-strong)]">Suggested links — confirm or change</h2>
+              <h2 className="text-[15px] font-semibold text-[var(--ink)]">Satya thinks this belongs to</h2>
               <div className="mt-2 flex flex-wrap gap-2">
-                {suggestions.supplier && <span className="rounded-full border border-[var(--accent)]/25 bg-[var(--surface)] px-3 py-1 text-xs text-[var(--ink-2)]">Supplier: {suggestions.supplier}</span>}
-                {suggestions.po && <span className="rounded-full border border-[var(--accent)]/25 bg-[var(--surface)] px-3 py-1 text-xs text-[var(--ink-2)]">Order: {suggestions.po}</span>}
+                {suggestions.supplier && <span className="rounded-full border border-[var(--accent)]/25 bg-[var(--surface)] px-3 py-1 text-[14px] text-[var(--ink-2)]">Supplier: {suggestions.supplier}</span>}
+                {suggestions.po && <span className="rounded-full border border-[var(--accent)]/25 bg-[var(--surface)] px-3 py-1 text-[14px] text-[var(--ink-2)]">Order: {suggestions.po}</span>}
               </div>
             </section>
           )}
 
           {saveError ? (
-            <p className="rounded-[var(--radius-sm)] border border-[var(--sev-critical)]/40 bg-[var(--sev-critical-soft)] px-3 py-2 text-xs text-[var(--sev-critical)]">
+            <p className="rounded-[var(--radius-sm)] border border-[var(--sev-critical)]/40 bg-[var(--sev-critical-soft)] px-3 py-2 text-[14px] text-[var(--sev-critical)]">
               {saveError}
             </p>
           ) : null}
 
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-[var(--muted)]">
+          <div className="sticky bottom-20 z-[2] flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-2)] md:bottom-4">
+            <p className="min-w-0 flex-1 text-[14px] text-[var(--ink-2)]">
               {hasFields
                 ? checkFields.length
-                  ? `${checkFields.length} field${checkFields.length === 1 ? "" : "s"} marked “Check” or “Low” — look at them before saving.`
-                  : "Every field is high-confidence. One last look, then save."
+                  ? `${checkFields.length} field${checkFields.length === 1 ? "" : "s"} marked “Check this” or “Unsure” — compare with the file before saving.`
+                  : "Everything was read clearly. One last look, then save."
                 : "Type the fields on the right — nothing is saved until you do."}
             </p>
             {confirmedDocId ? (
@@ -612,15 +582,14 @@ function DraftReview({ draftId }: { draftId: string }) {
                 <ShieldCheck size={15} aria-hidden="true" /> Saved as evidence{confirmedDocId.startsWith("doc_mock") ? " (mock)" : ""}
               </span>
             ) : (
-              <button
-                type="button"
+              <Btn
                 disabled={!ready || saving}
                 onClick={saveAsEvidence}
+                icon={ShieldCheck}
                 title={ready ? "Save this document as evidence" : hasFields ? "Fill every field first" : "Fill in the required fields first"}
-                className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <ShieldCheck size={15} aria-hidden="true" /> {saving ? "Saving…" : "Save as evidence"}
-              </button>
+                {saving ? "Saving…" : "Save as evidence"}
+              </Btn>
             )}
           </div>
         </div>

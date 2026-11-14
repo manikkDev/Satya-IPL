@@ -1,9 +1,11 @@
 "use client";
 
-// Documents inbox (/app/documents) — docs/plan/06 §5.5. Drop zone → upload
-// every file, read each with the extraction pipeline, then show a per-file
-// results list. The AI data-policy notice must be acknowledged once before
-// the first upload (remembered in this browser).
+// Invoices & documents (/app/documents) — two views of one question, "what
+// paperwork does Satya have, and what still needs me?":
+//   • Recorded — the register of every bill, receipt, payment, QC and note.
+//   • Uploads to check — drop zone + files Satya has read and you confirm.
+// The AI data-policy notice must be acknowledged once before the first
+// upload (remembered in this browser).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -12,16 +14,19 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   UploadCloud, FileText, CircleCheck, CircleAlert, LoaderCircle, ShieldAlert, ArrowRight,
-  Landmark, FileSpreadsheet, X, FileUp, Inbox, CircleDashed,
+  Landmark, FileSpreadsheet, X, Inbox, CircleDashed,
 } from "lucide-react";
 import { ingestApi, readLocal, writeLocal, AI_NOTICE_KEY, type DraftListRow } from "@/lib/api/v2-pages";
 import { mocksEnabled } from "@/lib/flags";
 import { useSession } from "@/components/v2/session";
-import { DateText, ErrorState, EmptyState, PageHeader, FadeIn, Card, Btn } from "@/components/ui/v2";
+import { DateText, ErrorState, EmptyState, PageHeader, FadeIn, Card, Btn, BtnLink } from "@/components/ui/v2";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Skeleton } from "@/components/ui/skeleton";
 import { docTypeLabel, MAX_UPLOAD_MB, ACCEPT_EXT, formatBytes } from "@/components/pages/documents/labels";
-import { LinkBtn } from "@/components/pages/shared/link-btn";
+import { DocumentRegister } from "@/components/pages/documents/register";
+import { FilterChips } from "@/components/pages/shared/filter-chips";
+import { ResponsiveTable, TableSkeleton, type Column } from "@/components/pages/shared/data-table";
+import { RowActions } from "@/components/pages/shared/row-actions";
+import { pageTabsList, pageTabsTrigger, tabCount } from "@/components/pages/shared/page-tabs";
 import { cn } from "@/lib/utils";
 
 /* ---------- statuses: icon + word + colour ---------- */
@@ -40,59 +45,52 @@ function StatusWord({ status }: { status: DraftListRow["status"] }) {
   const meta = STATUS_META[status] ?? STATUS_META.queued;
   const Icon = meta.icon;
   return (
-    <span className={cn("inline-flex shrink-0 items-center gap-1.5 text-xs font-medium", meta.tone)}>
+    <span className={cn("inline-flex shrink-0 items-center gap-1.5 text-[14px] font-medium", meta.tone)}>
       <Icon size={14} className={meta.spin ? "animate-spin motion-reduce:animate-none" : ""} aria-hidden="true" />
       {meta.label}
     </span>
   );
 }
 
-function DraftRow({ draft }: { draft: DraftListRow }) {
-  const name = draft.filename ?? `Upload ${draft.id.slice(-6)}`;
-  const issue = draft.status === "failed" || draft.status === "needs_review" ? draft.issues?.find((i) => i.severity !== "info")?.message : undefined;
-  return (
-    <li>
-      <Link
-        href={`/app/documents/${draft.id}`}
-        className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-[var(--line)] px-4 py-3 text-left transition-colors last:border-0 hover:bg-[var(--surface-2)]/60 focus-visible:bg-[var(--surface-2)] focus-visible:outline-none"
-      >
-        <FileText size={18} className="shrink-0 text-[var(--muted)]" aria-hidden="true" />
-        <div className="min-w-0 flex-1 basis-[calc(100%-2.5rem)] sm:basis-0">
-          <p className="truncate text-sm font-medium text-[var(--ink)]" title={name}>{name}</p>
-          <p className="mt-0.5 truncate text-xs text-[var(--muted)]">
-            {draft.detectedType ? `${docTypeLabel(draft.detectedType)} · ` : ""}
-            {draft.uploadedAt ? <>uploaded <DateText value={draft.uploadedAt} withTime /></> : "upload time not recorded"}
-            {draft.size ? ` · ${formatBytes(draft.size)}` : ""}
-          </p>
-          {issue ? <p className="mt-1 line-clamp-2 text-xs text-[var(--ink-2)]">{issue}</p> : null}
+const draftColumns: Column<DraftListRow>[] = [
+  {
+    key: "file", header: "File", mobile: "title", className: "min-w-[240px]",
+    cell: (d) => {
+      const name = d.filename ?? "Uploaded file";
+      const issue = d.status === "failed" || d.status === "needs_review" ? d.issues?.find((i) => i.severity !== "info")?.message : undefined;
+      return (
+        <div className="flex min-w-0 items-start gap-3">
+          <FileText size={18} className="mt-0.5 shrink-0 text-[var(--muted)]" aria-hidden="true" />
+          <div className="min-w-0">
+            <Link href={`/app/documents/${d.id}`} onClick={(e) => e.stopPropagation()} className="block truncate font-medium text-[var(--ink)] hover:underline" title={name}>{name}</Link>
+            {issue ? <p className="mt-0.5 line-clamp-1 text-[13px] text-[var(--ink-2)]">{issue}</p> : null}
+          </div>
         </div>
-        <span className="pl-[30px] sm:pl-0"><StatusWord status={draft.status} /></span>
-        <ArrowRight size={14} className="hidden shrink-0 text-[var(--muted)] sm:block" aria-hidden="true" />
-      </Link>
-    </li>
-  );
-}
+      );
+    },
+  },
+  { key: "type", header: "Looks like", cell: (d) => <span className="text-[14px]">{d.detectedType ? docTypeLabel(d.detectedType) : "—"}</span> },
+  { key: "uploaded", header: "Uploaded", cell: (d) => (d.uploadedAt ? <DateText value={d.uploadedAt} withTime className="whitespace-nowrap text-[14px]" /> : <span className="text-[var(--muted)]">—</span>) },
+  { key: "status", header: "Status", cell: (d) => <StatusWord status={d.status} /> },
+];
 
-function DraftList({ items, empty }: { items: DraftListRow[]; empty: React.ReactNode }) {
+function DraftTable({ items, empty }: { items: DraftListRow[]; empty: React.ReactNode }) {
+  const router = useRouter();
   if (!items.length) return <>{empty}</>;
   return (
-    <Card pad={false} className="overflow-hidden">
-      <ul>{items.map((d) => <DraftRow key={d.id} draft={d} />)}</ul>
-    </Card>
-  );
-}
-
-function ListSkeleton() {
-  return (
-    <Card pad={false} aria-hidden="true">
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="flex items-center gap-3 border-b border-[var(--line)] px-4 py-3 last:border-0">
-          <Skeleton className="h-5 w-5 rounded" />
-          <div className="flex-1 space-y-1.5"><Skeleton className="h-4 w-2/5" /><Skeleton className="h-3 w-1/4" /></div>
-          <Skeleton className="h-4 w-24" />
-        </div>
-      ))}
-    </Card>
+    <ResponsiveTable
+      caption="Uploaded files"
+      columns={draftColumns}
+      rows={items}
+      rowKey={(d) => d.id}
+      onRowClick={(d) => router.push(`/app/documents/${d.id}`)}
+      actions={(d) => (
+        <RowActions
+          primaryVariant={d.status === "needs_review" ? "primary" : "secondary"}
+          primary={{ label: d.status === "needs_review" ? "Review" : d.status === "failed" ? "Fix" : "Open", href: `/app/documents/${d.id}` }}
+        />
+      )}
+    />
   );
 }
 
@@ -110,7 +108,7 @@ function BatchResults({ items, onDismiss }: { items: BatchItem[]; onDismiss: () 
   return (
     <Card pad={false}>
       <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] px-4 py-3">
-        <h2 className="text-sm font-semibold text-[var(--ink)]" aria-live="polite">
+        <h2 className="text-[15px] font-semibold text-[var(--ink)]" aria-live="polite">
           {running ? `Uploading ${items.length} file${items.length === 1 ? "" : "s"}…` : `${done} of ${items.length} ready for review`}
         </h2>
         {!running ? (
@@ -132,15 +130,15 @@ function BatchResults({ items, onDismiss }: { items: BatchItem[]; onDismiss: () 
             <li key={item.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--line)] px-4 py-3 last:border-0">
               <FileText size={16} className="shrink-0 text-[var(--muted)]" aria-hidden="true" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm text-[var(--ink)]" title={item.name}>{item.name}</p>
-                <p className="text-xs text-[var(--muted)]">{formatBytes(item.size)}{item.message ? ` · ${item.message}` : ""}</p>
+                <p className="truncate text-[15px] text-[var(--ink)]" title={item.name}>{item.name}</p>
+                <p className="text-[13px] text-[var(--muted)]">{formatBytes(item.size)}{item.message ? ` · ${item.message}` : ""}</p>
               </div>
-              <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", meta.tone)}>
+              <span className={cn("inline-flex items-center gap-1.5 text-[14px] font-medium", meta.tone)}>
                 <Icon size={14} className={spin ? "animate-spin motion-reduce:animate-none" : ""} aria-hidden="true" /> {meta.word}
               </span>
               {item.draftId ? (
-                <Link href={`/app/documents/${item.draftId}`} className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:text-[var(--accent-strong)] hover:underline">
-                  Open draft <ArrowRight size={12} aria-hidden="true" />
+                <Link href={`/app/documents/${item.draftId}`} className="inline-flex items-center gap-1 text-[14px] font-medium text-[var(--accent-strong)] hover:underline dark:text-[var(--accent)]">
+                  Review <ArrowRight size={12} aria-hidden="true" />
                 </Link>
               ) : null}
             </li>
@@ -159,10 +157,10 @@ function AiNotice({ onAccept }: { onAccept: () => void }) {
       aria-labelledby="ai-notice-title"
       className="rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--possible)_45%,transparent)] bg-[var(--possible-soft)] p-4"
     >
-      <h2 id="ai-notice-title" className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
+      <h2 id="ai-notice-title" className="flex items-center gap-2 text-[15px] font-semibold text-[var(--ink)]">
         <ShieldAlert size={16} className="text-[var(--possible)]" aria-hidden="true" /> Before Satya reads documents with AI
       </h2>
-      <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-[var(--ink-2)]">
+      <p className="mt-1.5 max-w-3xl text-[15px] leading-relaxed text-[var(--ink-2)]">
         Scans and photos are read by an external AI service. On the demo plan that is Google Gemini’s free tier, where
         inputs may be used to improve Google’s products. Upload sample documents, or only documents your company has
         agreed to share this way.
@@ -195,7 +193,8 @@ export default function DocumentsPage() {
     refetchInterval: (q) => ((q.state.data ?? []).some((d) => IN_FLIGHT.has(d.status)) ? 4000 : false),
   });
 
-  const [tab, setTab] = useState<string | null>(null);
+  const [view, setView] = useState<"recorded" | "uploads" | null>(null);
+  const [filter, setFilter] = useState<"review" | "all" | "saved" | "failed" | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [batch, setBatch] = useState<BatchItem[] | null>(null);
   const busy = Boolean(batch?.some((i) => i.state === "waiting" || i.state === "uploading" || i.state === "reading"));
@@ -282,111 +281,123 @@ export default function DocumentsPage() {
     if (canUpload) fileInput.current?.click();
     else if (ack !== true) toast.warning("Please read and accept the AI notice first.");
   };
+  const activeView = view ?? (needsReview.length || batch ? "uploads" : "recorded");
+  const activeFilter = filter ?? (needsReview.length ? "review" : "all");
+  const shown = activeFilter === "review" ? needsReview : activeFilter === "saved" ? saved : activeFilter === "failed" ? failed : items;
+  const startUpload = () => {
+    setView("uploads");
+    if (ack === true) openPicker();
+  };
 
   return (
-    <FadeIn className="space-y-5">
+    <FadeIn className="space-y-6">
       <PageHeader
         title="Invoices & documents"
-        description="Upload supplier invoices, delivery notes and receipts. Satya reads each one; you check what it found and confirm. Nothing counts until you confirm it."
+        description="Every bill, goods receipt and payment Satya has — and new uploads waiting for you to check."
+        actions={
+          <>
+            <BtnLink href="/app/imports" variant="secondary" icon={FileSpreadsheet}>Import in bulk</BtnLink>
+            <Btn icon={UploadCloud} onClick={startUpload}>Upload documents</Btn>
+          </>
+        }
       />
 
-      {ack === false ? <AiNotice onAccept={accept} /> : null}
+      <Tabs value={activeView} onValueChange={(v) => setView(v as "recorded" | "uploads")}>
+        <TabsList className={pageTabsList}>
+          <TabsTrigger value="recorded" className={pageTabsTrigger}>Recorded</TabsTrigger>
+          <TabsTrigger value="uploads" className={pageTabsTrigger}>
+            Uploads to check{needsReview.length ? <span className={tabCount}>{needsReview.length}</span> : null}
+          </TabsTrigger>
+        </TabsList>
 
-      <div
-        role="button"
-        tabIndex={canUpload ? 0 : -1}
-        aria-disabled={!canUpload}
-        aria-label={canUpload ? "Upload documents — drop files here or press Enter to choose" : "Uploads are disabled until the AI notice is accepted"}
-        onDragOver={(e) => { e.preventDefault(); if (canUpload) setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => { e.preventDefault(); setDragOver(false); if (canUpload) void onFiles(e.dataTransfer.files); else openPicker(); }}
-        onClick={openPicker}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPicker(); } }}
-        className={cn(
-          "group flex flex-col items-center rounded-[var(--radius-lg)] border-2 border-dashed px-6 py-10 text-center transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60",
-          !canUpload
-            ? "cursor-not-allowed border-[var(--line)] bg-[var(--surface)] opacity-70"
-            : dragOver
-              ? "cursor-pointer border-[var(--accent)] bg-[var(--accent-soft)]"
-              : "cursor-pointer border-[var(--line-strong)] bg-[var(--surface)] hover:border-[var(--accent)]/60 hover:bg-[var(--surface-2)]/40",
-        )}
-      >
-        <div className="grid h-12 w-12 place-items-center rounded-full bg-[var(--surface-2)] transition-colors group-hover:bg-[var(--accent-soft)]">
-          {busy ? <LoaderCircle size={22} className="animate-spin text-[var(--accent)] motion-reduce:animate-none" aria-hidden="true" /> : <UploadCloud size={22} className="text-[var(--accent)]" aria-hidden="true" />}
-        </div>
-        <p className="mt-4 text-base font-medium text-[var(--ink)]">
-          {busy ? "Uploading and reading…" : ack === false ? "Accept the notice above to start uploading" : "Drop files here, or click to choose"}
-        </p>
-        <p className="mt-1 text-[14px] text-[var(--muted)]">PDF, photo (PNG, JPEG, WebP), Excel, CSV or e-invoice JSON — up to {MAX_UPLOAD_MB} MB each</p>
-        <input
-          ref={fileInput}
-          type="file"
-          multiple
-          className="hidden"
-          accept={ACCEPT_EXT.join(",")}
-          onChange={(e) => { void onFiles(e.target.files); e.target.value = ""; }}
-        />
-      </div>
+        <TabsContent value="recorded" className="mt-6">
+          {mocks ? <EmptyState icon={Inbox} title="The register needs the live server" body="Demo mode has no stored documents." /> : <DocumentRegister />}
+        </TabsContent>
 
-      {batch ? <BatchResults items={batch} onDismiss={() => setBatch(null)} /> : null}
+        <TabsContent value="uploads" className="mt-6 space-y-5">
+          {ack === false ? <AiNotice onAccept={accept} /> : null}
 
-      {mocks ? (
-        <EmptyState icon={Inbox} title="Uploads need the live server" body="Demo mode has no stored files. Connect to a Satya server to upload and review documents." />
-      ) : (
-        <Tabs value={tab ?? (needsReview.length ? "review" : "uploads")} onValueChange={setTab}>
-          <div className="-mx-1 overflow-x-auto px-1">
-            <TabsList className="w-max [&>button]:whitespace-nowrap">
-              <TabsTrigger value="review">Needs review{needsReview.length ? ` (${needsReview.length})` : ""}</TabsTrigger>
-              <TabsTrigger value="uploads">All uploads</TabsTrigger>
-              <TabsTrigger value="saved">Saved{saved.length ? ` (${saved.length})` : ""}</TabsTrigger>
-              {failed.length ? <TabsTrigger value="failed">Couldn’t read ({failed.length})</TabsTrigger> : null}
-            </TabsList>
+          <div
+            role="button"
+            tabIndex={canUpload ? 0 : -1}
+            aria-disabled={!canUpload}
+            aria-label={canUpload ? "Upload documents — drop files here or press Enter to choose" : "Uploads are disabled until the AI notice is accepted"}
+            onDragOver={(e) => { e.preventDefault(); if (canUpload) setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => { e.preventDefault(); setDragOver(false); if (canUpload) void onFiles(e.dataTransfer.files); else openPicker(); }}
+            onClick={openPicker}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPicker(); } }}
+            className={cn(
+              "group flex flex-col items-center gap-3 rounded-[var(--radius-md)] border-2 border-dashed px-6 py-8 text-center transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60 sm:flex-row sm:text-left",
+              !canUpload
+                ? "cursor-not-allowed border-[var(--line)] bg-[var(--surface)] opacity-70"
+                : dragOver
+                  ? "cursor-pointer border-[var(--accent)] bg-[var(--accent-soft)]"
+                  : "cursor-pointer border-[var(--line-strong)] bg-[var(--surface)] hover:border-[var(--accent)]/60 hover:bg-[var(--surface-2)]/40",
+            )}
+          >
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[var(--surface-2)] transition-colors group-hover:bg-[var(--accent-soft)]">
+              {busy ? <LoaderCircle size={22} className="animate-spin text-[var(--accent)] motion-reduce:animate-none" aria-hidden="true" /> : <UploadCloud size={22} className="text-[var(--accent)]" aria-hidden="true" />}
+            </div>
+            <div>
+              <p className="text-[16px] font-medium text-[var(--ink)]">
+                {busy ? "Uploading and reading…" : ack === false ? "Accept the notice above to start uploading" : "Drop files here, or click to choose"}
+              </p>
+              <p className="mt-0.5 text-[14px] text-[var(--muted)]">PDF, photo, Excel, CSV or e-invoice JSON — up to {MAX_UPLOAD_MB} MB each. Satya reads each file; nothing counts until you confirm it.</p>
+            </div>
+            <input
+              ref={fileInput}
+              type="file"
+              multiple
+              className="hidden"
+              accept={ACCEPT_EXT.join(",")}
+              onChange={(e) => { void onFiles(e.target.files); e.target.value = ""; }}
+            />
           </div>
 
-          {error ? (
-            <div className="mt-4"><ErrorState message={error instanceof Error ? error.message : "Something went wrong."} onRetry={() => refetch()} /></div>
-          ) : isLoading ? (
-            <div className="mt-4"><ListSkeleton /></div>
-          ) : (
-            <>
-              <TabsContent value="review" className="mt-4">
-                <DraftList
-                  items={needsReview}
-                  empty={<EmptyState icon={CircleCheck} title="Nothing waiting for review" body="When you upload a document, Satya reads it and it lands here for you to check before it counts." />}
-                />
-              </TabsContent>
-              <TabsContent value="uploads" className="mt-4">
-                <DraftList
-                  items={items}
-                  empty={<EmptyState icon={UploadCloud} title="No uploads yet" body="Drop a supplier invoice, delivery challan or GRN above to get started." />}
-                />
-              </TabsContent>
-              <TabsContent value="saved" className="mt-4">
-                <DraftList
-                  items={saved}
-                  empty={<EmptyState icon={FileText} title="Nothing saved yet" body="Documents you confirm become evidence and show up here, linked to their orders." />}
-                />
-              </TabsContent>
-              <TabsContent value="failed" className="mt-4">
-                <DraftList items={failed} empty={null} />
-              </TabsContent>
-            </>
-          )}
-        </Tabs>
-      )}
+          {batch ? <BatchResults items={batch} onDismiss={() => setBatch(null)} /> : null}
 
-      <Card>
-        <h2 className="flex items-center gap-2 text-[17px] font-semibold text-[var(--ink)]">
-          <FileSpreadsheet size={18} className="text-[var(--muted)]" aria-hidden="true" /> Bringing in a lot at once?
-        </h2>
-        <p className="mt-1.5 text-[15px] leading-relaxed text-[var(--muted)]">
-          Tally exports, bank statements and GSTR-2B have their own importers that check every row before it is saved.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <LinkBtn href="/app/imports" icon={FileUp} variant="primary">Go to Import data</LinkBtn>
-          <LinkBtn href="/app/payments" icon={Landmark}>Bank statement → Payments</LinkBtn>
-        </div>
-      </Card>
+          {mocks ? (
+            <EmptyState icon={Inbox} title="Uploads need the live server" body="Demo mode has no stored files. Connect to a Satya server to upload and review documents." />
+          ) : error ? (
+            <ErrorState message={error instanceof Error ? error.message : "Something went wrong."} onRetry={() => refetch()} />
+          ) : isLoading ? (
+            <TableSkeleton rows={4} cols={5} />
+          ) : (
+            <div className="space-y-4">
+              {items.length ? (
+                <FilterChips
+                  ariaLabel="Upload status"
+                  value={activeFilter}
+                  onChange={setFilter}
+                  options={[
+                    { value: "review" as const, label: "Needs review", count: needsReview.length, tone: "warn" as const },
+                    { value: "all" as const, label: "All uploads", count: items.length },
+                    { value: "saved" as const, label: "Saved", count: saved.length },
+                    ...(failed.length ? [{ value: "failed" as const, label: "Couldn’t read", count: failed.length, tone: "bad" as const }] : []),
+                  ]}
+                />
+              ) : null}
+              <DraftTable
+                items={shown}
+                empty={
+                  items.length ? (
+                    <EmptyState icon={CircleCheck} title="Nothing here" body="Pick another filter above." />
+                  ) : (
+                    <p className="text-[15px] text-[var(--muted)]">No uploads yet. Files you drop above are listed here until you confirm them.</p>
+                  )
+                }
+              />
+            </div>
+          )}
+
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-[var(--muted)]">
+            <Landmark size={15} aria-hidden="true" /> Bank statements go to{" "}
+            <Link href="/app/payments" className="font-medium text-[var(--accent-strong)] hover:underline dark:text-[var(--accent)]">Payments</Link>; Tally and GSTR-2B files to{" "}
+            <Link href="/app/imports" className="font-medium text-[var(--accent-strong)] hover:underline dark:text-[var(--accent)]">Import data</Link>.
+          </p>
+        </TabsContent>
+      </Tabs>
     </FadeIn>
   );
 }
