@@ -10,6 +10,7 @@ const DEFAULT_FREE_LIMITS = {
   "gemini-2.5-flash": { rpm: 10, rpd: 250 },
   "gemini-2.5-flash-lite": { rpm: 15, rpd: 1000 },
   "gemini-3.1-flash-lite": { rpm: 15, rpd: 1000 },
+  "gemini-3.5-flash-lite": { rpm: 15, rpd: 1000 },
   "gemini-3-flash-preview": { rpm: 10, rpd: 250 },
   "gemini-flash-latest": { rpm: 10, rpd: 250 },
   "gemini-flash-lite-latest": { rpm: 15, rpd: 1000 },

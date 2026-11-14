@@ -235,7 +235,7 @@ const sumOf = (rows, key) => rows.reduce((s, r) => s + toPaise(r[key]?.amount ??
 
 /* ---------------------------------------------------------------- routes */
 
-// GET /assistant/payables?entityId&supplierId&status&dueWithinDays&sort&limit&cursor
+// GET /assistant/payables?entityId&supplierId&documentId&status&dueWithinDays&sort&limit&cursor
 // status: open (default) | overdue | due_soon | msme | msme_overdue | s43bh | disputed
 router.get("/payables", handle(async (req, res) => {
   const entityIds = scopeEntities(req);
@@ -254,7 +254,8 @@ router.get("/payables", handle(async (req, res) => {
     disputed: (r) => toPaise(r.disputed.amount) > 0n,
   };
   if (!filters[status]) throw fail(422, "VALIDATION_FAILED", `status must be one of ${Object.keys(filters).join(", ")}`);
-  const rows = all.filter(filters[status]);
+  const documentId = req.query.documentId ? String(req.query.documentId) : null;
+  const rows = all.filter(filters[status]).filter((r) => !documentId || r.documentId === documentId);
   const sorts = {
     priority: (a, b) => a.priority - b.priority || b.overdueDays - a.overdueDays || (toPaise(b.outstanding.amount) > toPaise(a.outstanding.amount) ? 1 : -1),
     due: (a, b) => String(a.dueDate).localeCompare(String(b.dueDate)),

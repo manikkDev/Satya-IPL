@@ -1,333 +1,450 @@
-// pipeline.js — "Evidence-first agentic GraphRAG" copilot (P2-C4).
-// Stages: guard → understand → resolve → retrieve (agentic loop, or
-// deterministic seeded retrieval when the LLM is down) → check → write →
-// validate → stream. Numbers come from tools, language from the LLM, and a
-// validator sits between them. Emits contract SSE events via send().
+// pipeline.js — the "Ask Satya" agent runtime.
+//
+//   guard → route (deterministic; cheap model when unsure) → resolve named
+//   records → plan/execute:
+//     * LLM available: tool-calling loop (≤6 rounds, parallel calls), the
+//       final round streamed token-by-token through a grounding gate;
+//     * LLM unavailable, or it answered without touching tools on a
+//       substantive question: the deterministic plan runs the same tools
+//       and the evidence composer writes the answer
+//   → verify (numbers ⊆ tool results ∪ calculator ∪ user input; [S#] refs
+//     real; no action claims; no echoed injections) → retry once → repair or
+//     fall back → persist.
+//
+// SSE events (send): status, tool, delta, reset, action, (answer is returned)
 
-import { FactRegistry } from "./facts.js";
-import { understand } from "./understand.js";
-import { validateAnswer, collectIdentifiers } from "./validate.js";
-import { deterministicAnswer } from "./templates.js";
-import { createTools } from "./tools/index.js";
+import { ulid } from "ulid";
+import { classify, classifyWithLlm, planFor, NO_DATA_INTENTS } from "./router.js";
+import { createToolkit, viewJson } from "./tools/index.js";
+import { SourceRegistry } from "./sources.js";
+import { NumberBank, verifyAnswer, stripUngrounded, extractClaims } from "./grounding.js";
+import { composeEvidenceAnswer } from "./compose.js";
 import { workingMemory, refreshSummary } from "./memory.js";
 import { prompt, fill } from "./promptLoader.js";
 
 const MAX_MESSAGE = 2000;
-const MAX_ROUNDS = 4;
-const MAX_TOOL_CALLS = 8;
-const RETRIEVE_BUDGET_MS = 20_000;
-const CONTROL_CHARS = /[-\x08\x0B\x0C\x0E-\x1F\x7F]/g;
-
+const MAX_STEPS = 6;
+const AGENT_BUDGET_MS = 45_000;
+const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 const stripControl = (text) => String(text || "").replace(CONTROL_CHARS, " ").slice(0, MAX_MESSAGE);
+const todayIst = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+
+/** Intents whose answer must rest on tool data. */
+const needsData = (intent) => !NO_DATA_INTENTS.has(intent) && intent !== "general";
+
+/**
+ * Tools offered to the model per routed intent (plus search + calculator).
+ * A focused tool list keeps prompts small — free tiers meter tokens per
+ * minute — and keeps the planner on task. "general" gets everything.
+ */
+const FAMILY = {
+  briefing: ["dashboard_today", "list_payables", "msme_payments_due", "list_findings", "gst_itc_at_risk", "supplier_exposure", "propose_payment_run"],
+  payables_due: ["list_payables", "supplier_exposure", "get_supplier_summary", "msme_payments_due", "propose_payment_run"],
+  ageing: ["list_payables", "supplier_exposure", "get_supplier_summary"],
+  supplier_balance: ["get_supplier_summary", "list_payables", "payment_history", "list_findings", "explain_finding", "draft_supplier_message", "spend_by_period"],
+  supplier_exposure: ["supplier_exposure", "list_payables", "get_supplier_summary"],
+  msme: ["msme_payments_due", "list_payables", "get_supplier_summary", "propose_payment_run", "draft_supplier_message"],
+  s43bh: ["msme_payments_due", "list_payables", "propose_payment_run"],
+  gst_itc: ["gst_itc_at_risk", "gstr2b_mismatches", "list_findings", "propose_ims_actions", "draft_supplier_message"],
+  gstr2b: ["gstr2b_mismatches", "gst_itc_at_risk", "propose_ims_actions", "draft_supplier_message"],
+  ims: ["propose_ims_actions", "gstr2b_mismatches", "gst_itc_at_risk"],
+  findings: ["list_findings", "explain_finding", "get_case", "get_document", "propose_decision", "draft_supplier_message"],
+  explain_finding: ["list_findings", "explain_finding", "get_case", "get_document", "propose_decision", "draft_supplier_message"],
+  case_status: ["get_case", "get_document", "list_findings", "list_payables", "propose_decision", "propose_assignment", "propose_reminder"],
+  document_lookup: ["get_document", "get_case", "list_payables", "list_findings", "propose_decision", "draft_supplier_message"],
+  payments: ["payment_history", "get_supplier_summary", "propose_allocation", "spend_by_period", "draft_supplier_message"],
+  unallocated_payments: ["payment_history", "list_findings", "propose_allocation"],
+  allocation: ["payment_history", "propose_allocation", "get_document"],
+  payment_run: ["propose_payment_run", "list_payables", "msme_payments_due"],
+  draft_message: ["draft_supplier_message", "get_supplier_summary", "list_findings", "payment_history"],
+  decision: ["get_case", "propose_decision", "list_findings", "draft_supplier_message"],
+  assign: ["get_case", "propose_assignment"],
+  reminder: ["get_case", "propose_reminder"],
+  calculation: [],
+  compare: ["compare_periods", "spend_by_period"],
+  spend: ["spend_by_period", "compare_periods"],
+  how_to: ["search_help"],
+  hsn: ["hsn_lookup", "search_help"],
+};
+const toolsFor = (intent) => (FAMILY[intent] ? [...new Set(["search_records", "calculate", ...FAMILY[intent]])] : null);
 
 /**
  * @param {object} o
- * @param {string} o.message raw user text
- * @param {object} o.context {page, caseId?, documentId?, supplierId?, entityId?}
- * @param {object} o.auth {userId, roles:Set, groupId}
- * @param {object} o.llm gateway-like {generate(task, body)}
- * @param {Function} o.call serverCall (user JWT already bound)
- * @param {object} [o.rag] hybrid search {search(groupId,q,k), searchHelp}
+ * @param {string} o.message
+ * @param {object} [o.context] {page, caseId?, documentId?, supplierId?, entityId?}
+ * @param {object} o.auth {userId, groupId, roles}
+ * @param {object|null} o.llm gateway-like {generate, stream?, canServe?} or null (evidence mode)
+ * @param {Function} o.call serverCall bound to the user's JWT
+ * @param {object} [o.rag]
  * @param {object} [o.store] ConversationStore
- * @param {object} [o.conversation] loaded conversation doc
- * @param {Function} [o.send] SSE emitter (event, data)
+ * @param {object} [o.conversation]
+ * @param {Function} [o.send] SSE emitter
  * @param {AbortSignal} [o.signal]
- * @returns {Promise<object>} final answer payload
+ * @param {string} [o.today] YYYY-MM-DD override (tests/eval)
  */
-export async function runCopilot({
-  message,
-  context = {},
-  auth,
-  llm,
-  call,
-  rag = null,
-  store = null,
-  conversation = null,
-  send = () => {},
-  signal,
-}) {
-  const registry = new FactRegistry();
-  const retrieved = {}; // tool name -> last data (for templates + identifiers)
-  const missing = [];
-  const toolLog = [];
-
-  /* ---- 1. Guard -------------------------------------------------------- */
-  const cleanMessage = stripControl(message);
-  if (!cleanMessage.trim()) {
-    return finish({ answerType: "clarification", content: "Ask me a question about your purchase orders, receipts, invoices, payments or deadlines.", certainty: "CONFIRMED" });
-  }
-
-  const scope = { groupId: auth?.groupId || context.groupId, entityId: context.entityId, userId: auth?.userId };
-  const tools = createTools({ call, rag, scope });
-  const toolCtx = { registry };
+export async function runCopilot({ message, context = {}, auth, llm = null, call, rag = null, store = null, conversation = null, send = () => {}, signal, today = todayIst() }) {
+  const started = Date.now();
+  const sources = new SourceRegistry();
+  const bank = new NumberBank();
+  const text = stripControl(message).trim();
+  bank.addUserText(text);
   const memory = workingMemory(conversation);
-  const runTool = async (name, args) => {
-    const started = Date.now();
-    const result = await tools[name].run(args, { registry });
-    toolLog.push({ name, args: sanitizeArgs(args), ms: Date.now() - started, ok: !result.missing });
-    send("tool", { name, args: sanitizeArgs(args), ms: Date.now() - started, ok: !result.missing });
-    retrieved[name] = result.data;
-    if (result.missing) missing.push(result.missing);
-    return result;
-  };
+  const focus = memory.focusEntities || {};
+  const scope = { groupId: auth?.groupId || null, entityId: context.entityId || null, userId: auth?.userId || null };
+  const toolkit = createToolkit({ call, rag, scope, sources, bank, userMessage: text, today, onEvent: send });
+  const llmInfo = { provider: null, model: null };
 
-  /* ---- 2. Understand --------------------------------------------------- */
+  if (!text) {
+    return finish({ content: "**Ask me about your payables, suppliers, invoices or GST/MSME deadlines.**", answerType: "clarification", intent: "general", responseMode: "evidence_only" });
+  }
+
+  /* ---- 1. route ------------------------------------------------------ */
   send("status", { stage: "understanding", detail: "Reading your question" });
-  const contextText = `page=${context.page || "ask"} caseId=${context.caseId || ""} documentId=${context.documentId || ""} supplierId=${context.supplierId || ""} memoryFocus=${JSON.stringify(memory.focusEntities || {})} memorySummary=${memory.summary || ""}`;
-  const intent = await understand(llm, { message: cleanMessage, contextText });
+  let route = classify(text, { memory: { ...focus, lastIntent: memory.lastIntent }, context, today });
+  const llmUsable = Boolean(llm) && (typeof llm.canServe !== "function" || llm.canServe("chat") || llm.groq?.enabled);
+  if (route.confidence < 0.5 && llmUsable) {
+    const better = await classifyWithLlm(llm, text, { contextText: `page=${context.page || "ask"}` }).catch(() => null);
+    if (better && better !== route.intent) route = { ...route, intent: better, confidence: 0.6, reason: "model classification" };
+  }
 
-  if (intent.needsClarification && intent.clarificationQuestion) {
-    return finish({
-      answerType: "clarification",
-      content: intent.clarificationQuestion,
-      certainty: "CONFIRMED",
+  if (NO_DATA_INTENTS.has(route.intent)) {
+    const c = composeEvidenceAnswer(route.intent, { data: {}, sources, route, message: text });
+    return finish({ content: c.markdown, answerType: c.answerType, followUps: c.followUps, intent: route.intent, responseMode: "evidence_only" });
+  }
+
+  /* ---- 2. resolve named records -------------------------------------- */
+  send("status", { stage: "retrieving", detail: "Finding the records you mentioned" });
+  const resolved = await resolveEntities({ toolkit, route, context, focus, text });
+  if (resolved.clarify) {
+    return finish({ content: resolved.clarify.content, answerType: "clarification", options: resolved.clarify.options, intent: route.intent, responseMode: "evidence_only" });
+  }
+
+  const plan = planFor(route.intent, { entities: route.entities, resolved, message: text, today });
+
+  /* ---- 3. agent loop (LLM) or deterministic plan ---------------------- */
+  let answerText = null;
+  let responseMode = "evidence_only";
+  const gate = new StreamGate({ bank, sources, send });
+  if (llmUsable && !signal?.aborted) {
+    send("status", { stage: "planning", detail: "Working out which records to check" });
+    const system = fill(prompt("agent.v2"), {
+      TODAY: today,
+      CONTEXT: contextBlock({ route, resolved, context, plan, memory }),
     });
-  }
-  if (intent.intent === "out_of_scope") {
-    return finishFromTemplate(intent.intent, registry, { retrieved, missing });
-  }
-
-  /* ---- 3. Resolve ------------------------------------------------------ */
-  const resolved = { caseId: context.caseId, documentId: context.documentId, supplierId: context.supplierId };
-  const mentions = [
-    ...(intent.entities.docRefs || []).map((v) => ({ q: v, type: null })),
-    ...(intent.entities.poNumbers || []).map((v) => ({ q: v, type: "PO" })),
-    ...(intent.entities.invoiceNumbers || []).map((v) => ({ q: v, type: "INVOICE_IN" })),
-    ...(intent.entities.grnNumbers || []).map((v) => ({ q: v, type: "GRN" })),
-    ...(intent.entities.suppliers || []).map((v) => ({ q: v, type: null })),
-  ];
-  // Drop shadowed mentions: a supplier/generic token contained in a doc ref
-  // ("SATYAD" inside "SATYAD/PO/26-27/100009") must not re-clarify after the
-  // exact doc already resolved.
-  const docQs = [...(intent.entities.docRefs || []), ...(intent.entities.poNumbers || []), ...(intent.entities.invoiceNumbers || []), ...(intent.entities.grnNumbers || [])];
-  const unshadowed = mentions.filter((m) => !docQs.some((q) => q !== m.q && q.includes(m.q)));
-  const resolutionOptions = [];
-  const supplierLevel = isSupplierLevelQuestion(cleanMessage) && !docQs.length;
-  const poDocIds = [];
-  for (const m of unshadowed.slice(0, 4)) {
-    const r = await runTool("search_records", { query: m.q, type: m.type || undefined });
-    const items = r.data?.items || [];
-    // A mention that names a supplier resolves to the SUPPLIER — the
-    // documents that merely carry that supplier's name are not alternatives
-    // to choose between ("How much do we owe Kaveri Pumps?" is about the
-    // supplier, not one of its invoices).
-    const supplierHit = !m.type && pickSupplier(items, m.q);
-    if (supplierHit) {
-      resolved.supplierId ||= supplierHit.id;
-      continue;
-    }
-    // If the message names one candidate verbatim (option pick, or the user
-    // typed a full number), resolve it instead of asking again.
-    const direct = items.length > 1 && items.find((i) => i.number && cleanMessage.includes(i.number));
-    if (direct) {
-      resolved.documentId ||= direct.id;
-      if (direct.type === "PO") poDocIds.push(direct.id);
-      continue;
-    }
-    if (items.length > 1) resolutionOptions.push({ mention: m.q, items });
-    else if (items.length === 1) {
-      if (items[0].kind === "supplier") resolved.supplierId ||= items[0].id;
-      else {
-        resolved.documentId ||= items[0].id;
-        if (items[0].type === "PO") poDocIds.push(items[0].id);
+    const contents = [...historyContents(memory), { role: "user", parts: [{ text }] }];
+    const agent = await agentLoop({ llm, toolkit, system, contents, gate, send, signal, started, toolNames: toolsFor(route.intent) });
+    if (agent.ok) {
+      llmInfo.provider = agent.provider;
+      llmInfo.model = agent.model;
+      // Bug fix (was: Groq answering without function calls skipped
+      // retrieval): a substantive question answered with ZERO tool calls is
+      // never trusted — run the deterministic plan and rewrite from data.
+      if (!toolkit.log.length && needsData(route.intent)) {
+        gate.discard();
+        await runPlan(plan);
+        if (toolkit.log.length) {
+          const rewrite = await writeFromData({ llm, system, contents, toolkit, gate, send, signal });
+          if (rewrite.ok) answerText = rewrite.text;
+        } else {
+          answerText = agent.text;
+        }
+      } else {
+        answerText = agent.text;
       }
+      if (answerText) responseMode = "agent";
     }
   }
-  // A PO's investigation is a CASE (case_*), not the PO document id.
-  if (!resolved.caseId && poDocIds.length) resolved.caseId = await caseForDocument(call, poDocIds[0]);
-  // Never clarify once a document (or, for supplier-level questions, the
-  // supplier) is resolved — remaining ambiguity is noise, not a question.
-  const stillAmbiguous = resolutionOptions.filter(() => !resolved.documentId && !(supplierLevel && resolved.supplierId));
-  if (stillAmbiguous.length) {
-    return finish({
-      answerType: "clarification",
-      content: `I found more than one match for ${resolutionOptions.map((o) => o.mention).join(", ")}. Which one do you mean?`,
-      options: resolutionOptions.flatMap((o) =>
-        o.items.slice(0, 5).map((i) => ({ id: i.id, label: i.number || i.name || i.id, kind: i.kind, hint: i.supplier || i.name })),
-      ),
-      certainty: "AMBIGUOUS",
-    });
-  }
-  // Pronoun/context fallback: reuse focus when nothing explicit resolved.
-  if (!resolved.caseId && !resolved.documentId && !resolved.supplierId) {
-    resolved.caseId = memory.focusEntities?.caseId || null;
-    resolved.documentId = memory.focusEntities?.documentId || null;
-  }
-
-  /* ---- 4. Retrieve (agentic loop or seeded deterministic) --------------- */
-  send("status", { stage: "retrieving", detail: "Pulling the matching records" });
-  const namedUnfound = mentions.length && !resolved.documentId && !resolved.caseId && !resolved.supplierId
-    ? `the record named in the question`
-    : null;
-
-  // Resolved doc + simple intent → deterministic retrieve; the LLM tool loop
-  // (up to 4 rounds) is only worth the calls for reasoning-heavy intents.
-  const SIMPLE = new Set(["status", "lookup", "why_amount", "summary"]);
-  // Supplier-level money questions ("how much do we owe X and why") are
-  // answered from the supplier summary deterministically: figures +
-  // the open invoices and issues behind them.
-  const supplierAnswer = Boolean(resolved.supplierId && !resolved.documentId && (supplierLevel || ["why_amount", "status", "lookup", "analytics", "summary"].includes(intent.intent)));
-  if (supplierAnswer) {
-    await runTool("get_supplier_summary", { supplierId: resolved.supplierId });
-  }
-  const skipAgentic = supplierAnswer || ((resolved.documentId || resolved.caseId) && SIMPLE.has(intent.intent));
-  const llmAlive = skipAgentic ? false : await agenticRetrieve({ llm, tools, toolCtx, runTool, intent, message: cleanMessage, resolved, send, signal });
-  if (!llmAlive && !supplierAnswer) await seededRetrieve({ runTool, intent, resolved, scope, registry });
-
-  /* ---- 4b. Surface retrieved records as evidence + focus ---------------- */
-  // Facts were registered per-tool, but documents themselves often weren't —
-  // this guarantees citations, the sources panel and graphRef for any path.
-  const docPool = collectDocs(retrieved);
-  for (const d of [...docPool.values()].slice(0, 8)) {
-    registry.addEvidence({
-      evidenceId: d.id,
-      label: `${d.type || "record"} ${d.number || d.externalRef || d.id}`.trim(),
-      documentId: d.id,
-    });
-  }
-  if (!resolved.documentId && !resolved.caseId && !supplierAnswer) {
-    const first = [...docPool.values()][0];
-    if (first) {
-      resolved.documentId = first.id;
-      if (first.type === "PO") resolved.caseId = first.caseId || (await caseForDocument(call, first.id));
+  if (!answerText) {
+    if (!toolkit.log.length || !plan.every((step) => toolkit.called().includes(step.tool))) {
+      await runPlan(plan.filter((step) => !toolkit.called().includes(step.tool)));
     }
   }
 
-  /* ---- 5. Check (sufficiency) ------------------------------------------ */
-  send("status", { stage: "checking", detail: "Checking the evidence covers the answer" });
-  const need = requiredSlots(intent.intent);
-  let covered = haveSlots(need, { registry, retrieved });
-  if (!covered) {
-    // one targeted follow-up before conceding
-    await targetedRetrieve({ runTool, intent, resolved, scope });
-    covered = haveSlots(need, { registry, retrieved });
+  /* ---- 4. verify; retry once; repair or fall back -------------------- */
+  send("status", { stage: "checking", detail: "Checking every figure against your records" });
+  const identifiers = [...collectIdentifiers(toolkit.results), ...Object.values(resolved).filter((v) => typeof v === "string")];
+  let verdict = answerText ? verifyAnswer(answerText, { bank, sourceRefs: sources.refs(), identifiers }) : null;
+  if (answerText && !verdict.ok && process.env.COPILOT_DEBUG) console.warn(`[copilot] grounding failed: ${verdict.violations.join(" | ")}\n${answerText}`);
+  if (answerText && !verdict.ok && llmUsable && !signal?.aborted) {
+    send("reset", { reason: "grounding" });
+    gate.discard();
+    send("status", { stage: "writing", detail: "Rewriting so every figure is backed by a record" });
+    const retry = await retryWrite({ llm, toolkit, answerText, violations: verdict.violations, gate, send, signal, today, route, resolved, context, memory, text });
+    if (retry.ok) {
+      const v2 = verifyAnswer(retry.text, { bank, sourceRefs: sources.refs(), identifiers });
+      answerText = retry.text;
+      verdict = v2;
+    }
   }
-  if (!covered) {
-    missing.push(need.missing || `evidence for "${intent.intent}"`);
-    if (namedUnfound) missing.push(namedUnfound);
-  }
-
-  /* ---- 6. Write (LLM, then validate; fallback to template) -------------- */
-  send("status", { stage: "writing", detail: "Drafting the answer from evidence" });
-  const draft = await writeAnswer({ llm, intent, message: cleanMessage, registry, memory, retrieved });
-  let responseMode = "grounded_ai";
-  let final = null;
-  if (draft) {
-    const identifiers = collectIdentifiers(retrieved).concat(
-      Object.values(intent.entities).flat(),
-      [context.caseId, context.documentId].filter(Boolean),
-    );
-    const verdict = validateAnswer(draft, registry, { identifiers });
-    if (verdict.ok) {
-      final = draft;
+  if (answerText && !verdict.ok) {
+    const repaired = stripUngrounded(answerText, verdict.ungrounded).replace(/\[S\d+\]/g, (m) => (sources.get(m.slice(1, -1)) ? m : ""));
+    const v3 = verifyAnswer(repaired, { bank, sourceRefs: sources.refs(), identifiers });
+    if (v3.ok && repaired.length > 60 && /^\*\*/.test(repaired.trim())) {
+      answerText = repaired;
+      verdict = v3;
     } else {
-      const retry = await writeAnswer({ llm, intent, message: cleanMessage, registry, memory, retrieved, violations: verdict.violations });
-      if (retry && validateAnswer(retry, registry, { identifiers }).ok) final = retry;
+      answerText = null; // fall back to the evidence composer
     }
   }
-  if (!final) {
+  const composed = composeEvidenceAnswer(route.intent, { data: dataByTool(toolkit.results), missing: toolkit.results.filter((r) => r.missing).map((r) => r.missing), sources, route: { ...route, needs: resolved.needs }, message: text, bank: answerText ? null : bank });
+  if (!answerText) {
+    if (gate.emitted) send("reset", { reason: "fallback" });
+    answerText = composed.markdown;
     responseMode = "evidence_only";
-    const t = deterministicAnswer(supplierAnswer && retrieved.get_supplier_summary ? "supplier_balance" : intent.intent, registry, {
-      retrieved,
-      missing,
-      findings: retrieved.list_findings?.items || (retrieved.explain_finding ? [retrieved.explain_finding] : []),
-      deadlines: retrieved.get_compliance_deadlines?.deadlines,
-      helpSnippets: retrieved.search_help?.hits,
-      calculation: calculationFacts(registry),
-      draft: draftText(registry, retrieved, intent),
-    });
-    final = t;
+    verdict = verifyAnswer(answerText, { bank, sourceRefs: sources.refs(), identifiers });
+    if (!verdict.ok && verdict.ungrounded.length) {
+      answerText = stripUngrounded(answerText, verdict.ungrounded);
+      verdict = verifyAnswer(answerText, { bank, sourceRefs: sources.refs(), identifiers });
+    }
   }
 
+  const missing = toolkit.results.filter((r) => r.missing).map((r) => r.missing);
   return finish({
-    answerType: intent.needsClarification ? "clarification" : answerTypeFor(intent.intent, covered),
-    content: final.answerMarkdown,
-    certainty: final.certainty || registry.weakestCertainty(),
-    suggestedFollowUps: final.followUps || [],
-    cards: final.cards || [],
-    responseMode: final.responseMode || responseMode,
-    missingEvidence: missing.length ? missing : undefined,
-    focus: { caseId: resolved.caseId, documentId: resolved.documentId, supplierId: resolved.supplierId },
-    toolCalls: toolLog,
-    intent: intent.intent,
+    content: answerText,
+    answerType: toolkit.cards.length ? "proposal" : responseMode === "agent" ? "answer" : composed.answerType,
+    followUps: composed.followUps,
+    intent: route.intent,
+    responseMode,
+    verdict,
+    missing,
+    focus: { caseId: resolved.caseId || null, documentId: resolved.documentId || null, supplierId: resolved.supplierId || null, paymentId: resolved.paymentId || null },
   });
 
-  /* ---- helpers ---------------------------------------------------------- */
-  function finish(result) {
-    return finalize(result, { registry, conversation, store, auth, message: cleanMessage, toolLog, llm });
-  }
-
-  function finishFromTemplate(intentName, reg, ctx) {
-    const t = deterministicAnswer(intentName, reg, ctx);
-    return finish({
-      answerType: intentName === "out_of_scope" ? "refusal" : "answer",
-      content: t.answerMarkdown,
-      certainty: t.certainty,
-      suggestedFollowUps: t.followUps,
-      responseMode: "evidence_only",
-      toolCalls: toolLog,
-      intent: intentName,
-    });
-  }
-}
-
-/* ---------- agentic retrieval ------------------------------------------ */
-
-async function agenticRetrieve({ llm, tools, toolCtx, runTool, intent, message, resolved, send, signal }) {
-  const declarations = Object.values(tools).map((t) => t.declaration);
-  const seed = `User question: <record>${message}</record>\nIntent: ${intent.intent}\nResolved ids: ${JSON.stringify(resolved)}\nEntities mentioned: ${JSON.stringify(intent.entities)}\nCall the tools needed to gather the evidence for this answer. Stop when you have enough.`;
-  const contents = [{ role: "user", parts: [{ text: seed }] }];
-  const started = Date.now();
-  let calls = 0;
-  for (let round = 0; round < MAX_ROUNDS && calls < MAX_TOOL_CALLS && Date.now() - started < RETRIEVE_BUDGET_MS; round++) {
-    if (signal?.aborted) break;
-    const out = await llm.generate("understand", {
-      contents,
-      tools: [{ functionDeclarations: declarations }],
-      generationConfig: { temperature: 0, maxOutputTokens: 1200 },
-    });
-    if (!out.ok) return false;
-    const parts = out.raw?.candidates?.[0]?.content?.parts || [];
-    const fnCalls = parts.filter((p) => p.functionCall).map((p) => p.functionCall);
-    if (!fnCalls.length) return true;
-    contents.push({ role: "model", parts });
-    const responses = [];
-    for (const fc of fnCalls) {
-      if (calls >= MAX_TOOL_CALLS || Date.now() - started >= RETRIEVE_BUDGET_MS) break;
-      const tool = tools[fc.name];
-      if (!tool) {
-        responses.push({ functionResponse: { name: fc.name, response: { name: fc.name, content: { error: "unknown tool" } } } });
-        continue;
-      }
-      calls += 1;
-      let result;
-      try {
-        result = await runTool(fc.name, fc.args || {});
-      } catch (error) {
-        result = { data: null, missing: `${fc.name} failed (${error.message})` };
-      }
-      responses.push({
-        functionResponse: {
-          name: fc.name,
-          response: { name: fc.name, content: { data: result.data, missing: result.missing || null } },
-        },
-      });
+  /* ---- helpers --------------------------------------------------------- */
+  async function runPlan(steps) {
+    if (!steps.length) return;
+    send("status", { stage: "retrieving", detail: "Pulling the matching records" });
+    // independent reads in parallel; two-step plans (find → explain) follow up
+    await Promise.all(steps.map((step) => toolkit.run(step.tool, step.args)));
+    if (route.intent === "explain_finding" && !toolkit.called().includes("explain_finding")) {
+      const fnd = dataByTool(toolkit.results).list_findings;
+      if (fnd?.items?.[0]?.id) await toolkit.run("explain_finding", { findingId: fnd.items[0].id });
     }
-    contents.push({ role: "user", parts: responses });
+    if (route.intent === "allocation" && !toolkit.called().includes("propose_allocation")) {
+      const unalloc = (dataByTool(toolkit.results).payment_history?.rows || []).filter((r) => r.status !== "allocated");
+      if (unalloc.length === 1) await toolkit.run("propose_allocation", { paymentId: unalloc[0].id });
+    }
+    if (route.intent === "draft_message" && !toolkit.called().includes("draft_supplier_message") && resolved.supplierId) {
+      await toolkit.run("draft_supplier_message", { supplierId: resolved.supplierId });
+    }
   }
-  return true;
+
+  async function finish(result) {
+    const verdict = result.verdict || verifyAnswer(result.content, { bank, sourceRefs: sources.refs(), identifiers: [] });
+    const citations = sources.used(result.content);
+    const messageId = `msg_${ulid().toLowerCase()}`;
+    const payload = {
+      messageId,
+      content: result.content,
+      answerType: result.answerType || "answer",
+      certainty: result.missing?.length ? "INSUFFICIENT_EVIDENCE" : verdict.ok ? "CONFIRMED" : "PROBABLE",
+      citations: citations.length ? citations : [],
+      sources: sources.top(12),
+      tables: toolkit.tables.slice(0, 4).map((t) => ({ ...t, rows: t.rows.slice(0, 50) })),
+      actions: toolkit.cards,
+      followUps: result.followUps || [],
+      suggestedFollowUps: result.followUps || [],
+      options: result.options,
+      grounding: {
+        checked: true,
+        claims: verdict.claims,
+        grounded: verdict.grounded,
+        ungrounded: verdict.ungrounded,
+        rate: verdict.claims ? Number((verdict.grounded / verdict.claims).toFixed(3)) : 1,
+        citationsValid: verdict.citations.valid.length,
+        citationsInvalid: verdict.citations.invalid.length,
+      },
+      responseMode: result.responseMode || "evidence_only",
+      mode: result.responseMode === "agent" ? "llm" : "evidence_only",
+      llm: llmInfo,
+      intent: result.intent,
+      missingEvidence: result.missing?.length ? result.missing : undefined,
+      toolCalls: toolkit.log,
+      graphRef: result.focus,
+      latencyMs: Date.now() - started,
+      queriedAt: new Date().toISOString(),
+    };
+    await persist(payload, result);
+    return payload;
+  }
+
+  async function persist(payload, result) {
+    if (!store || !auth?.userId) return;
+    try {
+      let conv = conversation;
+      if (!conv) conv = await store.create({ userId: auth.userId, groupId: auth.groupId, title: text });
+      await store.appendMessages(conv.id, { userId: auth.userId, groupId: auth.groupId }, [
+        { role: "user", content: text, at: payload.queriedAt },
+        {
+          role: "assistant", id: payload.messageId, content: payload.content, answerType: payload.answerType,
+          citations: payload.citations, tables: payload.tables, actions: payload.actions, followUps: payload.followUps,
+          grounding: payload.grounding, responseMode: payload.responseMode, intent: payload.intent, toolCalls: payload.toolCalls, at: payload.queriedAt,
+        },
+      ]);
+      const patch = { lastIntent: result.intent };
+      if (result.focus && Object.values(result.focus).some(Boolean)) patch.focusEntities = { ...focus, ...Object.fromEntries(Object.entries(result.focus).filter(([, v]) => v)) };
+      await store.update(conv.id, patch);
+      payload.conversationId = conv.id;
+      if (llm) void refreshSummary(llm, store, conv).catch(() => {});
+    } catch {
+      /* persistence is best-effort */
+    }
+  }
 }
 
-/* ---------- deterministic seeded retrieval (evidence-only path) -------- */
+/* ======================================================= agent loop */
 
-/* ---------- resolution helpers ----------------------------------------- */
-
-const SUPPLIER_LEVEL_RE = /\b(owe|owed|owing|outstanding|balance|payable|paid|pay\b|how much|dues?|due to|pending (?:amount|payment)|account with|statement)\b/i;
-
-/** "How much do we owe X?", "what's our balance with X" — about a supplier, not a document. */
-export function isSupplierLevelQuestion(text) {
-  return SUPPLIER_LEVEL_RE.test(String(text || ""));
+async function agentLoop({ llm, toolkit, system, contents, gate, send, signal, started, toolNames = null }) {
+  let provider = null;
+  let model = null;
+  for (let step = 0; step < MAX_STEPS; step++) {
+    if (signal?.aborted || Date.now() - started > AGENT_BUDGET_MS) break;
+    const body = {
+      systemInstruction: { parts: [{ text: system }] },
+      contents,
+      tools: [{ functionDeclarations: toolkit.declarations(toolNames) }],
+      generationConfig: { temperature: 0.1, maxOutputTokens: 1400, lowLatency: true },
+    };
+    const out = typeof llm.stream === "function"
+      ? await llm.stream("chat", body, { onText: (t) => gate.push(t), signal })
+      : await llm.generate("chat", body);
+    if (!out.ok) return { ok: false, reason: out.reason };
+    provider = out.provider || provider;
+    model = out.model || model;
+    const parts = out.parts || out.raw?.candidates?.[0]?.content?.parts || [];
+    const calls = parts.filter((p) => p.functionCall);
+    if (!calls.length) {
+      if (typeof llm.stream !== "function" && out.text) gate.push(out.text);
+      gate.end();
+      return { ok: true, text: String(out.text || "").trim(), provider, model, steps: step + 1 };
+    }
+    // the model chose tools: anything streamed this round was preamble
+    if (gate.emitted) send("reset", { reason: "tools" });
+    gate.discard();
+    send("status", { stage: "retrieving", detail: calls.length > 1 ? `Checking ${calls.length} things at once` : "Checking your records" });
+    contents.push({ role: "model", parts });
+    const results = await Promise.all(calls.map((c) => toolkit.run(c.functionCall.name, c.functionCall.args || {})));
+    contents.push({
+      role: "user",
+      parts: results.map((r, i) => ({
+        functionResponse: {
+          name: calls[i].functionCall.name,
+          ...(calls[i].functionCall.id ? { id: calls[i].functionCall.id } : {}),
+          response: { result: viewJson(r.view ?? { missing: r.missing || r.error }) },
+        },
+      })),
+    });
+  }
+  // out of rounds: answer from what we have, no more tools
+  send("status", { stage: "writing", detail: "Writing the answer" });
+  contents.push({ role: "user", parts: [{ text: "Answer now from the tool results above, in the required format. Do not call more tools." }] });
+  const out = typeof llm.stream === "function"
+    ? await llm.stream("chat", { systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { temperature: 0.1, maxOutputTokens: 1200, lowLatency: true } }, { onText: (t) => gate.push(t), signal })
+    : await llm.generate("chat", { systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { temperature: 0.1, maxOutputTokens: 1200 } });
+  if (!out.ok) return { ok: false, reason: out.reason };
+  if (typeof llm.stream !== "function" && out.text) gate.push(out.text);
+  gate.end();
+  return { ok: true, text: String(out.text || "").trim(), provider: out.provider || provider, model: out.model || model, steps: MAX_STEPS };
 }
+
+/** After a deterministic retrieval, have the model write from the data. */
+async function writeFromData({ llm, system, contents, toolkit, gate, send, signal }) {
+  send("status", { stage: "writing", detail: "Writing the answer from your records" });
+  const views = toolkit.results.map((r, i) => `Tool ${r.name} result: ${viewJson(toolViewOf(toolkit, i))}`).join("\n\n");
+  const body = {
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [...contents, { role: "user", parts: [{ text: `Records retrieved for this question (tool results):\n${views}\n\nAnswer the question from these results only, in the required format.` }] }],
+    generationConfig: { temperature: 0.1, maxOutputTokens: 1200, lowLatency: true },
+  };
+  const out = typeof llm.stream === "function" ? await llm.stream("chat", body, { onText: (t) => gate.push(t), signal }) : await llm.generate("chat", body);
+  if (!out.ok) return { ok: false };
+  if (typeof llm.stream !== "function" && out.text) gate.push(out.text);
+  gate.end();
+  return { ok: true, text: String(out.text || "").trim() };
+}
+
+async function retryWrite({ llm, toolkit, answerText, violations, gate, signal, today, route, resolved, context, memory, text }) {
+  const system = fill(prompt("agent.v2"), { TODAY: today, CONTEXT: contextBlock({ route, resolved, context, plan: [], memory }) });
+  const views = toolkit.results.map((r, i) => `Tool ${r.name} result: ${viewJson(toolViewOf(toolkit, i))}`).join("\n\n");
+  const body = {
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [{
+      role: "user",
+      parts: [{ text: `Question: ${text}\n\nTool results:\n${views}\n\nYour previous draft:\n${answerText}\n\nProblems found by the checker:\n- ${violations.join("\n- ")}\n\nRewrite the answer fixing every problem. Use only figures present in the tool results (or computed by calculate), cite only [S#] refs from the results, and never claim an action was taken.` }],
+    }],
+    generationConfig: { temperature: 0, maxOutputTokens: 1200, lowLatency: true },
+  };
+  const out = typeof llm.stream === "function" ? await llm.stream("chat", body, { onText: (t) => gate.push(t), signal }) : await llm.generate("chat", body);
+  if (!out.ok) return { ok: false };
+  if (typeof llm.stream !== "function" && out.text) gate.push(out.text);
+  gate.end();
+  return { ok: true, text: String(out.text || "").trim() };
+}
+
+// The toolkit keeps model-facing views on each run's return value; we store
+// the structured data, which is what the writer needs.
+const toolViewOf = (toolkit, i) => toolkit.results[i]?.data ?? { missing: toolkit.results[i]?.missing };
+
+/* ======================================================= streaming gate */
+
+/**
+ * Emits model text as `delta` events line by line, but only after each
+ * complete line passes the numeric-grounding and citation check. The first
+ * failing line stops the stream; the pipeline then resets and rewrites.
+ */
+export class StreamGate {
+  constructor({ bank, sources, send }) {
+    this.bank = bank;
+    this.sources = sources;
+    this.send = send;
+    this.buffer = "";
+    this.emitted = false;
+    this.failed = false;
+  }
+
+  push(text) {
+    if (this.failed) return;
+    this.buffer += text;
+    let idx;
+    while ((idx = this.buffer.indexOf("\n")) >= 0) {
+      const line = this.buffer.slice(0, idx + 1);
+      this.buffer = this.buffer.slice(idx + 1);
+      if (!this.ok(line)) {
+        this.failed = true;
+        return;
+      }
+      this.emit(line);
+    }
+  }
+
+  end() {
+    if (!this.failed && this.buffer) {
+      if (this.ok(this.buffer)) this.emit(this.buffer);
+      else this.failed = true;
+    }
+    this.buffer = "";
+  }
+
+  ok(line) {
+    const claims = extractClaims(line, { identifiers: [...this.bank.identifiers] });
+    if (claims.some((c) => !this.bank.supports(c))) return false;
+    for (const m of line.matchAll(/\[S(\d+)\]/g)) if (!this.sources.get(`S${m[1]}`)) return false;
+    return true;
+  }
+
+  emit(text) {
+    this.emitted = true;
+    this.send("delta", { text });
+  }
+
+  discard() {
+    this.buffer = "";
+    this.emitted = false;
+    this.failed = false;
+  }
+}
+
+/* ======================================================= resolution */
 
 const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
@@ -338,218 +455,132 @@ export function pickSupplier(items, mention) {
   const suppliers = (items || []).filter((i) => i.kind === "supplier");
   const named = suppliers.filter((i) => {
     const n = norm(i.name);
-    return n && (n.includes(q) || q.includes(n));
+    return n && (n.includes(q) || q.includes(n) || n.split(" ").slice(0, 2).join(" ") === q.split(" ").slice(0, 2).join(" "));
   });
   if (named.length === 1) return named[0];
-  if (named.length > 1) return named.find((i) => norm(i.name) === q) || null; // genuinely ambiguous -> ask
-  return suppliers.length === 1 && !(items || []).some((i) => i.kind === "document" && i.number && norm(i.number) === q) ? suppliers[0] : null;
+  if (named.length > 1) return named.find((i) => norm(i.name) === q) || null;
+  return suppliers.length === 1 ? suppliers[0] : null;
 }
 
-/** The investigation case of a document (PO) — never the document id itself. */
-export async function caseForDocument(call, documentId) {
-  try {
-    const r = await call(`/api/v2/documents/${encodeURIComponent(documentId)}`);
-    return r.ok ? r.data?.caseId || null : null;
-  } catch {
-    return null;
-  }
-}
+const PRONOUN = /\b(them|they|their|it|this|that|these|those|same|him|her|the supplier|this supplier|that invoice|this invoice|this case|that case)\b/i;
+const SUPPLIER_INTENTS = new Set(["supplier_balance", "draft_message", "payments"]);
+const CASE_INTENTS = new Set(["decision", "assign", "reminder", "case_status", "explain_finding"]);
 
-async function seededRetrieve({ runTool, intent, resolved, scope, registry }) {
-  const eid = resolved.entityId || scope.entityId;
-  switch (intent.intent) {
-    case "status":
-    case "lookup":
-      if (resolved.caseId) await runTool("get_case_context", { caseId: resolved.caseId });
-      else if (resolved.documentId) {
-        await runTool("get_document", { documentId: resolved.documentId });
-        await runTool("get_line_lifecycle", { poId: resolved.documentId });
-      } else if (eid) await runTool("dashboard_today", { entityId: eid });
-      break;
-    case "why_amount":
-    case "compare":
-    case "analytics":
-      if (resolved.caseId) await runTool("get_case_context", { caseId: resolved.caseId });
-      else if (eid) await runTool("dashboard_today", { entityId: eid });
-      await runTool("list_findings", { entityId: eid, caseId: resolved.caseId });
-      break;
-    case "explain_finding":
-      await runTool("list_findings", { entityId: eid, caseId: resolved.caseId, status: "open" });
-      break;
-    case "compliance":
-      if (eid) await runTool("get_compliance_deadlines", { entityId: eid });
-      break;
-    case "how_to":
-      await runTool("search_help", { query: intent.entities.items?.[0] || intent.clarificationQuestion || "procurement documents" });
-      break;
-    case "draft_message":
-      if (resolved.supplierId) await runTool("get_supplier_summary", { supplierId: resolved.supplierId });
-      if (resolved.caseId) await runTool("get_case_context", { caseId: resolved.caseId });
-      break;
-    case "what_if":
-      if (resolved.caseId) await runTool("run_scenario", { caseId: resolved.caseId, changes: [] });
-      break;
-    default:
-      if (resolved.caseId) await runTool("get_case_context", { caseId: resolved.caseId });
-      else if (eid) await runTool("dashboard_today", { entityId: eid });
-  }
-  void registry;
-}
-
-async function targetedRetrieve({ runTool, intent, resolved, scope }) {
-  // Last-resort fetch for missing slots: focus doc/case, else entity dashboard.
-  if (resolved.caseId && !resolved._caseFetched) {
-    await runTool("get_case_context", { caseId: resolved.caseId });
-    resolved._caseFetched = true;
-    return;
-  }
-  if (resolved.documentId) return runTool("get_document", { documentId: resolved.documentId });
-  const eid = scope.entityId;
-  if (eid) return runTool("dashboard_today", { entityId: eid });
-}
-
-/* ---------- write ------------------------------------------------------- */
-
-async function writeAnswer({ llm, intent, message, registry, memory, retrieved, violations = [] }) {
-  const contextJson = JSON.stringify({
-    facts: registry.asPromptMap(),
-    evidence: [...registry.evidence.values()].map((e) => ({ n: `E${e.n}`, label: e.label, documentId: e.documentId })),
-    identifiers: collectIdentifiers(retrieved).slice(0, 80),
-    records: slimRecords(retrieved),
-    memory: { summary: memory.summary, recent: memory.turns.map((t) => `${t.role}: ${t.content.slice(0, 300)}`) },
-  });
-  const taskPrompt = fill(prompt("write.v1"), {
-    QUESTION: message,
-    INTENT: intent.intent,
-    CONTEXT: contextJson,
-    VIOLATIONS: violations.length ? `VIOLATIONS TO FIX: ${violations.join("; ")}` : "",
-  });
-  const systemText = intent.intent === "draft_message"
-    ? `${prompt("system.v1")}\n\n${prompt("draft_message.v1")}`
-    : prompt("system.v1");
-  const out = await llm.generate("chat", {
-    systemInstruction: { parts: [{ text: systemText }] },
-    contents: [{ role: "user", parts: [{ text: taskPrompt }] }],
-    generationConfig: {
-      temperature: 0.2,
-      maxOutputTokens: 1800,
-      responseMimeType: "application/json",
-    },
-  });
-  if (!out.ok) return null;
-  try {
-    const parsed = JSON.parse(String(out.text).replace(/^```(?:json)?\s*|\s*```$/g, ""));
-    if (typeof parsed.answerMarkdown !== "string") return null;
-    return {
-      answerMarkdown: parsed.answerMarkdown,
-      certainty: parsed.certainty,
-      followUps: Array.isArray(parsed.followUps) ? parsed.followUps.slice(0, 3) : [],
-      cards: Array.isArray(parsed.cards) ? parsed.cards.slice(0, 4) : undefined,
-    };
-  } catch {
-    return null;
-  }
-}
-
-/* ---------- slots & misc ------------------------------------------------ */
-
-const REQUIRED = {
-  status: { test: (reg) => reg.factIds().length > 0, missing: "order/delivery records" },
-  lookup: { test: (reg, ret) => Boolean(ret.get_document || ret.get_case_context || ret.search_records?.items?.length), missing: "the record asked for" },
-  why_amount: { test: (reg) => [...reg.facts.values()].some((f) => f.unit === "INR"), missing: "the figures behind that amount" },
-  explain_finding: { test: (reg, ret) => Boolean(ret.list_findings?.items?.length || ret.explain_finding), missing: "a matching finding" },
-  compliance: { test: (reg, ret) => Boolean(ret.get_compliance_deadlines || ret.dashboard_today), missing: "compliance deadlines" },
-  analytics: { test: (reg) => reg.factIds().length >= 1, missing: "summary figures" },
-  how_to: { test: (reg, ret) => Boolean(ret.search_help?.hits?.length), missing: "help text" },
-  draft_message: { test: (reg, ret) => Boolean(ret.get_supplier_summary || ret.get_case_context || ret.search_records?.items?.length), missing: "the supplier or document for the draft" },
-  what_if: { test: (reg, ret) => Boolean(ret.run_scenario), missing: "the scenario result" },
-};
-
-function requiredSlots(intent) {
-  return REQUIRED[intent] || { test: () => true };
-}
-function haveSlots(need, { registry, retrieved }) {
-  return need.test(registry, retrieved);
-}
-function answerTypeFor(intent, covered) {
-  if (!covered) return "partial";
-  return { status: "status", lookup: "record", explain_finding: "finding", why_amount: "breakdown", compliance: "compliance", how_to: "help", draft_message: "draft", smalltalk: "answer" }[intent] || "answer";
-}
-function calculationFacts(registry) {
-  return [...registry.facts.values()].map((f) => ({ step: f.label, factId: f.id }));
-}
-function draftText(registry, retrieved, intent) {
-  if (intent.intent !== "draft_message") return null;
-  const supplier = retrieved.get_supplier_summary?.name || retrieved.search_records?.items?.find((i) => i.kind === "supplier")?.name || "the supplier";
-  const refs = [...registry.facts.values()].filter((f) => f.label).slice(0, 4).map((f) => `{{${f.id}}}`).join(", ");
-  return `Draft message for ${supplier} — copy and send yourself:\n\nSubject: Clarification needed on our records\n\nDear ${supplier} team,\n\nWhile checking our records we found items we can't match yet (${refs || "the referenced documents"}). Please share the supporting document (remittance advice, credit note, or PO reference as applicable) so we can complete the reconciliation.\n\nRegards,\nAccounts team`;
-}
-/** Pull document-shaped objects out of tool payloads at any depth. */
-const collectDocs = (retrieved) => {
-  const out = new Map();
-  const walk = (v, depth) => {
-    if (!v || typeof v !== "object" || depth > 4) return;
-    if (Array.isArray(v)) { for (const x of v) walk(x, depth + 1); return; }
-    if (v.id && (v.number || v.externalRef || v.type)) { out.set(v.id, v); return; }
-    for (const key of ["items", "documents", "document", "nodes", "po", "invoice"]) if (v[key]) walk(v[key], depth + 1);
+async function resolveEntities({ toolkit, route, context, focus, text }) {
+  const e = route.entities;
+  const resolved = {
+    caseId: e.caseIds[0] || null,
+    supplierId: e.supplierIds[0] || null,
+    findingId: e.findingIds[0] || null,
+    documentId: null,
+    paymentId: e.paymentIds[0] || null,
   };
-  for (const data of Object.values(retrieved)) walk(data, 0);
-  return out;
-};
-
-const slimRecords = (retrieved) =>
-  Object.fromEntries(Object.entries(retrieved).map(([k, v]) => [k, JSON.stringify(v).slice(0, 1500)]));
-const sanitizeArgs = (args) =>
-  Object.fromEntries(Object.entries(args || {}).map(([k, v]) => [k, typeof v === "string" ? v.slice(0, 120) : v]));
-
-/* ---------- finalize ---------------------------------------------------- */
-
-async function finalize(result, { registry, conversation, store, auth, message, toolLog, llm }) {
-  const content = registry.render(result.content);
-  const payload = {
-    content,
-    answerType: result.answerType || "answer",
-    certainty: result.certainty || registry.weakestCertainty(),
-    // When the writer skipped [E#] markers, still surface the evidence used —
-    // labeled as sources, not inline cites.
-    citations: registry.citations(result.content).length
-      ? registry.citations(result.content)
-      : [...registry.evidence.values()].slice(0, 6).map((e) => ({ n: e.n, evidenceId: e.evidenceId, label: e.label, documentId: e.documentId, href: e.href })),
-    facts: registry.forAnswer(),
-    // Fill missing card values from the fact registry — the LLM often emits
-    // label+detail but drops the number it was given.
-    cards: (result.cards || []).map((c) => {
-      if (c?.value) return c;
-      const fact = [...registry.facts.values()].find((f) => f.label.toLowerCase().includes((c?.label || "").toLowerCase()) || (c?.label || "").toLowerCase().includes(f.label.toLowerCase()));
-      return { ...c, value: fact ? fact.value : c?.value };
-    }),
-    suggestedFollowUps: result.suggestedFollowUps || [],
-    options: result.options,
-    responseMode: result.responseMode || "evidence_tools",
-    missingEvidence: result.missingEvidence,
-    toolCalls: toolLog,
-    intent: result.intent,
-    queriedAt: new Date().toISOString(),
-  };
-  if (result.focus) payload.graphRef = result.focus;
-
-  // Persist the turn (conversations are C-owned).
-  if (store && auth?.userId) {
-    try {
-      let conv = conversation;
-      if (!conv) conv = await store.create({ userId: auth.userId, groupId: auth.groupId, title: message });
-      await store.appendMessages(conv.id, { userId: auth.userId, groupId: auth.groupId }, [
-        { role: "user", content: message, at: payload.queriedAt },
-        { role: "assistant", content: payload.content, citations: payload.citations, toolCalls: toolLog, responseMode: payload.responseMode, at: payload.queriedAt },
-      ]);
-      if (result.focus && (result.focus.caseId || result.focus.documentId || result.focus.supplierId)) {
-        await store.update(conv.id, { focusEntities: result.focus });
-      }
-      payload.conversationId = conv.id;
-      void refreshSummary(llm, store, conv).catch(() => {});
-    } catch {
-      /* persistence is best-effort */
+  const lookups = [];
+  for (const ref of e.docRefs.slice(0, 2)) lookups.push({ kind: "doc", q: ref });
+  for (const utr of e.utrs.slice(0, 1)) lookups.push({ kind: "utr", q: utr });
+  if (!resolved.supplierId) for (const name of e.suppliers.slice(0, 2)) lookups.push({ kind: "supplier", q: name });
+  const results = await Promise.all(lookups.map((l) => toolkit.run("search_records", { query: l.q, ...(l.kind === "utr" ? { type: "PAYMENT_OUT" } : {}) })));
+  const ambiguous = [];
+  results.forEach((r, i) => {
+    const l = lookups[i];
+    const docs = r.data?.documents || [];
+    const sups = r.data?.suppliers || [];
+    if (l.kind === "doc" || l.kind === "utr") {
+      const exact = docs.find((d) => norm(d.number) === norm(l.q)) || (docs.length === 1 ? docs[0] : null) || docs.find((d) => norm(d.number).endsWith(norm(l.q)));
+      if (exact) {
+        if (/^PAYMENT|^ADVANCE/.test(exact.type)) resolved.paymentId ||= exact.id;
+        else resolved.documentId ||= exact.id;
+        resolved.caseId ||= exact.caseId || null;
+        resolved.supplierId ||= exact.supplierId || null;
+        resolved.docType ||= exact.type;
+      } else if (docs.length > 1) ambiguous.push({ mention: l.q, items: docs.map((d) => ({ id: d.id, label: d.number, hint: `${d.type} · ${d.supplier || ""}`.trim() })) });
+    } else {
+      const hit = pickSupplier(sups, l.q);
+      if (hit) resolved.supplierId ||= hit.id;
+      else if (sups.length > 1) ambiguous.push({ mention: l.q, items: sups.map((s) => ({ id: s.id, label: s.name, hint: s.gstin || "" })) });
+    }
+  });
+  // page context ("Explain this" deep links) and conversation focus
+  resolved.caseId ||= context.caseId || null;
+  resolved.documentId ||= context.documentId || null;
+  resolved.supplierId ||= context.supplierId || null;
+  const named = e.docRefs.length || e.suppliers.length || e.caseIds.length || e.utrs.length;
+  if (!named || PRONOUN.test(text)) {
+    if (SUPPLIER_INTENTS.has(route.intent) || CASE_INTENTS.has(route.intent) || PRONOUN.test(text)) {
+      resolved.supplierId ||= focus.supplierId || null;
+      resolved.caseId ||= focus.caseId || null;
+      resolved.documentId ||= focus.documentId || null;
+      resolved.paymentId ||= focus.paymentId || null;
     }
   }
-  return payload;
+  if (!resolved.caseId && resolved.documentId) {
+    const known = toolkit.results.flatMap((r) => r.data?.documents || []).find((d) => d.id === resolved.documentId);
+    resolved.caseId = known?.caseId || null;
+  }
+  if (ambiguous.length && !(resolved.supplierId && SUPPLIER_INTENTS.has(route.intent)) && !resolved.documentId) {
+    const first = ambiguous[0];
+    return {
+      ...resolved,
+      clarify: {
+        content: `**I found more than one match for "${first.mention}". Which one do you mean?**`,
+        options: first.items.slice(0, 6).map((item) => ({ id: item.id, label: item.label, hint: item.hint, action: text.replace(first.mention, item.label) })),
+      },
+    };
+  }
+  if (SUPPLIER_INTENTS.has(route.intent) && !resolved.supplierId) resolved.needs = e.suppliers.length ? `which supplier — I couldn't find "${e.suppliers[0]}"` : "which supplier you mean";
+  if (["decision", "assign", "reminder"].includes(route.intent) && !resolved.caseId) resolved.needs = "the PO or case you mean";
+  return resolved;
 }
+
+/* ======================================================= context */
+
+function contextBlock({ route, resolved, context, plan, memory }) {
+  const ids = Object.entries(resolved).filter(([k, v]) => v && typeof v === "string" && k !== "needs").map(([k, v]) => `${k}=${v}`).join(", ");
+  return [
+    `Page: ${context.page || "/app/ask"}${context.entityId ? ` · entity ${context.entityId}` : ""}`,
+    `Router guess: ${route.intent} (${route.reason})`,
+    ids ? `Already resolved ids (use them, no need to search): ${ids}` : "No ids resolved yet.",
+    resolved.needs ? `Missing: ${resolved.needs}` : "",
+    plan.length ? `Suggested tools: ${plan.map((p) => `${p.tool}(${JSON.stringify(p.args)})`).join("; ")}` : "",
+    memory.summary ? `Conversation so far (summary): ${memory.summary}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+/** Last turns as alternating user/model text (old [S#] refs removed). */
+function historyContents(memory) {
+  const out = [];
+  for (const t of (memory.turns || []).slice(-4)) {
+    const role = t.role === "assistant" ? "model" : "user";
+    const textPart = String(t.content || "").replace(/\[S\d+\]/g, "").slice(0, 700);
+    if (!out.length && role === "model") continue;
+    if (out.length && out[out.length - 1].role === role) out[out.length - 1].parts[0].text += `\n${textPart}`;
+    else out.push({ role, parts: [{ text: textPart }] });
+  }
+  if (out.length && out[out.length - 1].role === "user") out.pop();
+  return out;
+}
+
+function dataByTool(results) {
+  const out = {};
+  for (const r of results) if (r.data) out[r.name] = r.data;
+  return out;
+}
+
+function collectIdentifiers(results) {
+  const out = new Set();
+  const walk = (v, depth, key = "") => {
+    if (depth > 6 || v == null) return;
+    if (typeof v === "string") {
+      if (/\d/.test(v) && v.length <= 60 && /(number|invoice|utr|id|gstin|code|label|name|supplier|title)$/i.test(key)) out.add(v);
+      return;
+    }
+    if (Array.isArray(v)) return v.forEach((x) => walk(x, depth + 1, key));
+    if (typeof v === "object") for (const [k, x] of Object.entries(v)) walk(x, depth + 1, k);
+  };
+  for (const r of results) walk(r.data, 0);
+  return [...out];
+}
+
+/* ------------------------------------------------- back-compat exports */
+const SUPPLIER_LEVEL_RE = /\b(owe|owed|owing|outstanding|balance|payable|paid|pay\b|how much|dues?|due to|pending (?:amount|payment)|account with|statement)\b/i;
+export const isSupplierLevelQuestion = (text) => SUPPLIER_LEVEL_RE.test(String(text || ""));
