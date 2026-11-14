@@ -15,6 +15,8 @@ export type SessionEntity = (typeof mockEntities)[number];
 
 export type SessionValue = {
   user: { name: string; email: string; roles: string[] } | null;
+  /** Active workspace (company group); plan "demo" marks the fictional demo company. */
+  group: { id: string; name: string; plan?: string } | null;
   entities: SessionEntity[];
   activeEntity: SessionEntity | null;
   setActiveEntityId: (id: string) => void;
@@ -82,7 +84,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
     const roles = mocks
       ? mockUser.roles
-      : me?.memberships.flatMap((m) => m.roles) ?? (authUser ? [authUser.role] : []);
+      : me?.memberships.filter((m) => m.groupId === me.activeGroup?.id).flatMap((m) => m.roles) ?? authUser?.roles ?? [];
     return {
       user: mocks
         ? { name: mockUser.name, email: mockUser.email, roles: mockUser.roles }
@@ -91,6 +93,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           : authUser
             ? { name: authUser.name || authUser.email, email: authUser.email, roles }
             : null,
+      group: mocks ? { id: "grp_demo", name: "Vishwas Pumps", plan: "demo" } : (me?.activeGroup ?? null),
       entities,
       activeEntity,
       setActiveEntityId,

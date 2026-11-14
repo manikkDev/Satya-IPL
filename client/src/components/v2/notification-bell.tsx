@@ -53,16 +53,16 @@ export function NotificationBell() {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={count ? `${count} notifications` : "Notifications"}
-        className="relative grid h-9 w-9 place-items-center rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] text-[var(--ink-2)] shadow-[var(--shadow-1)] transition-colors hover:text-[var(--ink)]"
+        className="relative grid h-10 w-10 place-items-center rounded-[var(--radius-sm)] text-[var(--ink-2)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
       >
         <Bell size={15} aria-hidden="true" />
         {count > 0 ? (
-          <span className="tnum absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-[var(--sev-critical)] px-1 text-[10.5px] font-semibold leading-none text-white">
+          <span className="tnum absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[var(--sev-critical)] px-1 text-[13px] font-semibold leading-none text-white">
             {count > 9 ? "9+" : count}
           </span>
         ) : null}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[340px] p-0">
+      <DropdownMenuContent align="end" className="w-[360px] max-w-[calc(100vw-24px)] p-0">
         <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
           <p className="text-sm font-semibold text-[var(--ink)]">Notifications</p>
           {items.length ? (
@@ -85,7 +85,7 @@ export function NotificationBell() {
                 <li key={n.key} className="group flex items-start gap-3 px-4 py-2.5 hover:bg-[var(--surface-2)]">
                   <Icon size={16} className={cn("mt-0.5 shrink-0", TONE[n.severity] ?? "text-[var(--muted)]")} aria-hidden="true" />
                   <Link href={n.href} className="min-w-0 flex-1" onClick={() => dismiss([n.key])}>
-                    <p className="line-clamp-2 text-[13px] leading-snug text-[var(--ink)]">{n.title}</p>
+                    <p className="line-clamp-2 text-[14px] leading-snug text-[var(--ink)]">{n.title}</p>
                     {n.detail ? <p className="mt-0.5 text-xs text-[var(--muted)]">{n.detail}</p> : null}
                   </Link>
                   <button
