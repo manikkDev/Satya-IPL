@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/v2";
 import { KpiDrillDown, DrillRow, HBar, IssueBreakdown, UnallocatedList, ComplianceStrip } from "@/components/v2/today-insights";
 import { BALANCE_TERMS } from "@/content/copy/vocabulary";
-import { daysLeftText, formatMoney, formatDate } from "@/lib/format";
+import { daysLeftText, formatMoney, formatDate, toPaise } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -96,6 +96,21 @@ function buildTodos(findings: Finding[], deadlines: Deadline[]): Todo[] {
     if (d.daysLeft > 14) continue;
     const overdue = d.daysLeft < 0;
     const base = { id: `dl-${d.kind}-${d.documentId}`, amount: d.amount?.amount ?? null, due: { daysLeft: d.daysLeft, date: d.dueDate } };
+    const heldPaise = toPaise(d.disputed?.amount ?? "0");
+    if (d.kind === "MSME_45" && heldPaise > BigInt(0)) {
+      const payable = d.payable?.amount ?? "0";
+      const fullyHeld = toPaise(payable) === BigInt(0);
+      const duplicate = (d.disputeCodes ?? []).some((c) => c.startsWith("DUP"));
+      todos.push({
+        ...base, rank: overdue ? 1 : 3, tone: "bad",
+        title: fullyHeld
+          ? `${duplicate ? "Likely duplicate bill" : "Disputed bill"} from ${d.supplier} — resolve before paying`
+          : `Pay ${d.supplier} only the undisputed ${formatMoney(payable)}`,
+        rule: { label: "On hold", tip: `${formatMoney(d.disputed?.amount)} of this bill is disputed (${duplicate ? "it looks like a duplicate posting" : "it doesn’t match what was received, accepted or agreed"}). The MSME clock still runs, so settle the dispute with the supplier quickly.` },
+        href: d.caseId ? `/app/investigations/${d.caseId}` : "/app/investigations", action: "Review issue",
+      });
+      continue;
+    }
     if (d.kind === "MSME_45") {
       todos.push({
         ...base, rank: overdue ? 0 : d.daysLeft <= 7 ? 2 : 4, tone: overdue || d.daysLeft <= 3 ? "bad" : "warn",

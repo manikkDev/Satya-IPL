@@ -11,6 +11,7 @@ import { handle, fail, assertPlainInput } from "./util.js";
 import { caseGraph } from "../../services/graphProjection.js";
 import { enginePost } from "../../services/engine.js";
 import { settledPaiseFor } from "../../services/settlement.js";
+import { computePayables } from "./assistant.js";
 import { acceptanceDates, msmeCategoryOf, msmeCovered, msmeDeadline } from "../../services/msme.js";
 import { money, toPaise, fromPaise, grandOf, taxOf, taxableEstimate, toNumber, rawAmount } from "../../lib/money.js";
 
@@ -99,6 +100,23 @@ router.get("/dashboard/today", handle(async (req, res) => {
       netSupported += toPaise(b.supportedOutstanding);
       netDisputed += toPaise(b.disputedOutstanding ?? "0");
     }
+  }
+  // A deadline on a disputed bill (e.g. a suspected duplicate) is not a
+  // "pay now" item: attach the undisputed amount and the case to review.
+  try {
+    const entityIds = req.query.entityId ? [String(req.query.entityId)] : req.scope.entityIds;
+    const { items: payables } = await computePayables({ groupId: req.scope.groupId, entityIds });
+    const byDoc = new Map(payables.map((p) => [p.documentId, p]));
+    for (const dl of deadlines) {
+      const p = byDoc.get(dl.documentId);
+      if (!p) continue;
+      dl.disputed = p.disputed;
+      dl.payable = p.payable;
+      dl.caseId = p.caseId || p.findings?.[0]?.caseId || null;
+      dl.disputeCodes = (p.findings || []).map((x) => x.code);
+    }
+  } catch (error) {
+    console.warn("[today] dispute enrichment skipped:", error.message);
   }
   const cleanOutstanding = haveNet
     ? netSupported

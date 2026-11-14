@@ -132,6 +132,12 @@ export type LineLifecycle = {
 export type Deadline = {
   kind: "MSME_45" | "RULE_37_180" | "EINVOICE_30" | "PO_DELIVERY";
   documentId: string; supplier: string; dueDate: string; daysLeft: number; amount: Money;
+  /** Amount on hold because of an open dispute (duplicate, over-billing, wrong tax). */
+  disputed?: Money;
+  /** Undisputed part that can be paid. */
+  payable?: Money;
+  caseId?: string | null;
+  disputeCodes?: string[];
 };
 
 export type Today = {

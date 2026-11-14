@@ -7,7 +7,7 @@
 import { createToolkit } from "./tools/index.js";
 import { SourceRegistry } from "./sources.js";
 import { NumberBank } from "./grounding.js";
-import { sumMoney, parseExact } from "./exact.js";
+import { sumMoney, parseExact, inr } from "./exact.js";
 
 const todayIst = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -57,7 +57,7 @@ export async function buildBriefing({ call, scope, today = todayIst() }) {
     const t = msme.data.totals;
     sections.push({
       id: "msme", title: "MSME 45-day clock", tone: t.overdueCount ? "critical" : t.dueThisWeekCount ? "warn" : "ok",
-      metric: { value: t.overdueAmount, format: "inr", caption: `${t.overdueCount} past the limit${nonZero(t.interestEstimate) ? ` · interest est. ₹${t.interestEstimate}` : ""}` },
+      metric: { value: t.overdueAmount, format: "inr", caption: `${t.overdueCount} past the limit${nonZero(t.interestEstimate) ? ` · interest est. ${inr(t.interestEstimate)}` : ""}` },
       items: msme.data.rows.slice(0, 3).map((r) => ({ label: r.supplier, detail: `${r.invoice} · ${r.daysLeft < 0 ? `${-r.daysLeft} days past` : `${r.daysLeft} days left`}`, amount: r.outstanding, href: sources.get(r.ref)?.href, ref: r.ref })),
       ask: "Which MSME payments are past 45 days?",
     });
@@ -67,7 +67,7 @@ export async function buildBriefing({ call, scope, today = todayIst() }) {
     const exposure = sumMoney(f.items.map((x) => x.exposure || "0"));
     sections.push({
       id: "issues", title: "Biggest open issues", tone: f.total ? "warn" : "ok",
-      metric: { value: String(f.total), format: "int", caption: nonZero(exposure) ? `₹${exposure} exposure in the top ${f.items.length}` : "critical and high" },
+      metric: { value: String(f.total), format: "int", caption: nonZero(exposure) ? `${inr(exposure)} at stake in the top ${f.items.length}` : "critical and high" },
       items: f.items.slice(0, 3).map((x) => ({ label: x.meaning, detail: x.detail || x.severity, amount: x.exposure, href: sources.get(x.ref)?.href, ref: x.ref })),
       ask: "What are the critical issues I should review first?",
     });
@@ -94,7 +94,7 @@ export async function buildBriefing({ call, scope, today = todayIst() }) {
     cash,
     sections,
     suggestions: [
-      ...(cash && nonZero(cash.total) ? [`We have ₹${cash.total} this week — what should we pay first?`] : []),
+      ...(cash && nonZero(cash.total) ? [`We have ${inr(cash.total, { paise: false })} this week — what should we pay first?`] : []),
       ...sections.filter((s) => s.tone !== "ok").map((s) => s.ask),
     ].slice(0, 4),
     missing: failed.length ? failed : undefined,
