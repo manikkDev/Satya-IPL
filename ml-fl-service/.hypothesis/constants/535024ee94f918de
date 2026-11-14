@@ -1,0 +1,4 @@
+# file: /w/satya_engine/cli.py
+# hypothesis_version: 6.142.4
+
+[',', '--code-column', '--description-column', '--directory-url', '--hsn-csv', '--hsn-xlsx', '--input', '--output', '--retrieved-at', '--reviewed-rates', ':', '__main__', 'build-hsn', 'changes', 'codes', 'command', 'output', 'rateRules', 'rb', 'repair-hsn', 'version', 'warning', 'xb']
