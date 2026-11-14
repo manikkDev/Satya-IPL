@@ -101,7 +101,7 @@ export function SeriesBars({ series }: { series: DashboardSummary["monthlySeries
       </div>
       <div className="mt-1.5 flex gap-1.5">
         {items.map((m) => (
-          <span key={m.month} className="min-w-0 flex-1 truncate text-center text-[9px] text-[var(--muted)]">
+          <span key={m.month} className="min-w-0 flex-1 truncate text-center text-[11px] text-[var(--muted)]">
             {m.month.slice(5)}/{m.month.slice(2, 4)}
           </span>
         ))}
@@ -156,11 +156,11 @@ export function IssueBreakdown({ summary }: { summary: DashboardSummary }) {
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">How sure are we</p>
           {certOrder.map((c) => (
             <div key={c} className="flex items-center justify-between gap-2 border-b border-[var(--line)] py-2 last:border-0">
-              <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${CERT_STYLE[c]}`}>{c.toLowerCase().replaceAll("_", " ")}</span>
+              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${CERT_STYLE[c]}`}>{c.toLowerCase().replaceAll("_", " ")}</span>
               <span className="tnum text-sm font-medium text-[var(--ink)]">{summary.findingsByCertainty[c] ?? 0}</span>
             </div>
           ))}
-          <p className="mt-2 text-[10px] leading-relaxed text-[var(--muted)]">Confirmed = proven by a document. Anything less still needs your review — never guessed.</p>
+          <p className="mt-2 text-[11px] leading-relaxed text-[var(--muted)]">Confirmed = proven by a document. Anything less still needs your review — never guessed.</p>
         </div>
       </div>
     </div>
@@ -183,7 +183,7 @@ export function UnallocatedList({ summary }: { summary: DashboardSummary }) {
             <Link href="/app/payments" className="group flex items-center justify-between gap-3 py-2 transition-opacity hover:opacity-75">
               <span className="min-w-0">
                 <span className="block truncate text-xs font-medium text-[var(--ink)]">{p.counterparty || p.documentId}</span>
-                <span className="mt-0.5 block text-[10px] text-[var(--muted)]">
+                <span className="mt-0.5 block text-[11px] text-[var(--muted)]">
                   {p.date || "—"}{p.utr ? ` · UTR ${p.utr}` : " · no bank ref"}{p.mode ? ` · ${p.mode}` : ""}
                 </span>
               </span>

@@ -454,7 +454,7 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
               <div className="pointer-events-none absolute inset-0" aria-hidden="true">
                 {LANES.filter((lane) => filtered.nodes.some((n) => n.stage === lane.id)).map((lane) => (
                   <div key={lane.id} className="absolute top-0 bottom-0 border-l border-dashed border-[var(--line)]" style={{ left: LANE_X[lane.id] - 96 }}>
-                    <span className="absolute left-2 top-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">{lane.label}</span>
+                    <span className="absolute left-2 top-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--muted)]">{lane.label}</span>
                   </div>
                 ))}
               </div>

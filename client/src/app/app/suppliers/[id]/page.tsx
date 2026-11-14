@@ -61,7 +61,7 @@ const PILL_CLASSES: Record<PillTone, string> = {
 
 function Pill({ tone = "muted", children }: { tone?: PillTone; children: React.ReactNode }) {
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", PILL_CLASSES[tone])}>
+    <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium", PILL_CLASSES[tone])}>
       {children}
     </span>
   );
@@ -82,7 +82,7 @@ function Kpi({ label, value, sub, warn }: { label: string; value: React.ReactNod
     <div className="rounded-[var(--radius-sm)] bg-[var(--surface-2)]/60 p-3.5">
       <p className="text-[11px] text-[var(--muted)]">{label}</p>
       <p className={cn("tnum mt-1.5 text-lg font-semibold tracking-tight", warn ? "text-[var(--sev-high)]" : "text-[var(--ink)]")}>{value}</p>
-      {sub ? <p className="mt-0.5 text-[10px] leading-snug text-[var(--muted)]">{sub}</p> : null}
+      {sub ? <p className="mt-0.5 text-[11px] leading-snug text-[var(--muted)]">{sub}</p> : null}
     </div>
   );
 }
@@ -92,9 +92,9 @@ function Meter({ label, pct }: { label: string; pct?: string }) {
   const value = Math.min(100, Math.max(0, Number(pct ?? 0) || 0));
   return (
     <div className="flex items-center gap-2">
-      <span className="w-14 shrink-0 text-[10px] uppercase tracking-wide text-[var(--muted)]">{label}</span>
+      <span className="w-14 shrink-0 text-[11px] uppercase tracking-wide text-[var(--muted)]">{label}</span>
       <Progress value={value} className="h-[4px] flex-1" />
-      <span className="tnum w-9 shrink-0 text-right text-[10px] text-[var(--ink-2)]">{value}%</span>
+      <span className="tnum w-9 shrink-0 text-right text-[11px] text-[var(--ink-2)]">{value}%</span>
     </div>
   );
 }

@@ -96,11 +96,11 @@ function MiniTrail({ caseId }: { caseId: string }) {
             <li key={stage} className="relative pb-3 pl-4 last:pb-0">
               {i < stages.length - 1 && <span className="absolute left-[5px] top-4 h-full w-px bg-[var(--line-strong)]" aria-hidden="true" />}
               <span className="absolute left-0 top-1.5 h-[11px] w-[11px] rounded-full border-2 border-[var(--accent)] bg-[var(--paper)]" aria-hidden="true" />
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">{STAGE_LABEL[stage] ?? stage}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">{STAGE_LABEL[stage] ?? stage}</p>
               {nodes.slice(0, 2).map((n) => (
                 <p key={n.id} className="truncate text-[11px] text-[var(--ink-2)]" title={n.label}>{n.label}</p>
               ))}
-              {nodes.length > 2 && <p className="text-[10px] text-[var(--muted)]">+{nodes.length - 2} more</p>}
+              {nodes.length > 2 && <p className="text-[11px] text-[var(--muted)]">+{nodes.length - 2} more</p>}
             </li>
           ))}
           {!stages.length && <li className="text-xs text-[var(--muted)]">Graph has no trail yet — run the check on the investigation.</li>}

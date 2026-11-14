@@ -51,11 +51,11 @@ export default function SuppliersPage() {
         header: "Status",
         cell: ({ row }) => (
           <span className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--accent-strong)]">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-medium text-[var(--accent-strong)]">
               <ShieldCheck size={10} /> Active
             </span>
             {row.original.msme && (
-              <span className="rounded-full bg-[var(--likely-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--likely)]">
+              <span className="rounded-full bg-[var(--likely-soft)] px-2 py-0.5 text-[11px] font-medium text-[var(--likely)]">
                 <Term of="MSME">{row.original.msme}</Term>
               </span>
             )}

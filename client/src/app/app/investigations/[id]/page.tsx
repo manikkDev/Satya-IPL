@@ -7,7 +7,10 @@
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/v2/confirm-dialog";
+import { useSession } from "@/components/v2/session";
 import { Sparkles, FileSearch, FileDown, X, ArrowUpRight, GitBranch } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
 import dynamic from "next/dynamic";
@@ -147,13 +150,21 @@ export default function InvestigationDetailPage() {
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
 
-  const CHECK_STEPS = ["Reading the documents", "Linking the money trail", "Asking the engine", "Scoring findings"];
-  const [checkStep, setCheckStep] = useState(0);
+  const queryClient = useQueryClient();
+  const { hasPermission } = useSession();
+  // Real progress only: the job's own status and elapsed time — no invented steps.
+  const [jobStatus, setJobStatus] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
-    if (!checking) { setCheckStep(0); return; }
-    const t = setInterval(() => setCheckStep((s) => (s + 1) % CHECK_STEPS.length), 1400);
+    if (!checking) { setElapsed(0); return; }
+    const started = Date.now();
+    const t = setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 1000);
     return () => clearInterval(t);
   }, [checking]);
+  // Stop polling loops when the user leaves the page.
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+  const [pendingDecision, setPendingDecision] = useState<string | null>(null);
 
   const [deciding, setDeciding] = useState(false);
   const [decideError, setDecideError] = useState<string | null>(null);
@@ -163,11 +174,12 @@ export default function InvestigationDetailPage() {
   const [scenarioResult, setScenarioResult] = useState<Record<string, unknown> | null>(null);
   const [scenarioError, setScenarioError] = useState<string | null>(null);
 
-  const decide = async (action: string) => {
+  const decide = async (action: string, reason: string) => {
     setDeciding(true); setDecideError(null);
     try {
-      const reason = action === "APPROVE" ? "Approved from the investigation workbench." : action === "REQUEST_CLARIFICATION" ? "Clarification requested from the investigation workbench." : `Decision recorded: ${action.replaceAll("_", " ").toLowerCase()}.`;
-      await v2.caseDecision(id, { action, reason, expectedRevision: data?.case?.revision, snapshotId: null });
+      const revision = (data?.case as { revision?: number } | undefined)?.revision;
+      await v2.caseDecision(id, { action, reason, expectedRevision: typeof revision === "number" ? revision : undefined, snapshotId: null });
+      toast.success("Decision recorded");
       setDecideDone(true);
       setTimeout(() => setDecideDone(false), 5000);
       await refetch();
@@ -177,7 +189,10 @@ export default function InvestigationDetailPage() {
         router.push(`/app/ask?about=${encodeURIComponent(`Draft a clarification message to the supplier about ${docLabel} — ask them to confirm the disputed items so we can close this check.`)}&case=${encodeURIComponent(id)}`);
       }
     } catch (e) {
-      setDecideError(e instanceof Error ? e.message : "Could not record the decision.");
+      const message = e instanceof Error ? e.message : "Could not record the decision.";
+      setDecideError(message);
+      toast.error(message);
+      throw e;
     } finally { setDeciding(false); }
   };
 
@@ -186,7 +201,7 @@ export default function InvestigationDetailPage() {
     try {
       const { job } = await v2.caseScenario(id, changes);
       if (!job?.id) throw new Error("The engine did not start the scenario.");
-      for (let i = 0; i < 40; i++) {
+      for (let i = 0; i < 40 && alive.current; i++) {
         await new Promise((r) => setTimeout(r, 1500));
         const j = await v2.job(job.id);
         if (j.status === "completed") {
@@ -204,17 +219,23 @@ export default function InvestigationDetailPage() {
 
   const autoRan = useRef(false);
   const runCheck = async () => {
-    setChecking(true); setCheckError(null);
+    setChecking(true); setCheckError(null); setJobStatus("queued");
     try {
       const { job } = await v2.reconcileCase(id);
       if (job?.id) {
-        for (let i = 0; i < 40; i++) {
+        for (let i = 0; i < 60 && alive.current; i++) {
           await new Promise((r) => setTimeout(r, 1500));
+          if (!alive.current) return;
           const j = await v2.job(job.id);
-          if (j.status === "completed") { await refetch(); return; }
-          if (j.status === "dead") throw new Error(j.error || "The check failed — try again.");
+          setJobStatus(j.status);
+          if (j.status === "completed") {
+            await Promise.all([refetch(), queryClient.invalidateQueries({ queryKey: ["graph", id] })]);
+            return;
+          }
+          if (j.status === "dead" || j.status === "failed") throw new Error(j.error || "The check failed — try again.");
         }
-        throw new Error("The check is still running — refresh in a moment.");
+        if (alive.current) throw new Error("The check is still running — refresh in a moment.");
+        return;
       }
       await refetch();
     } catch (e) {
@@ -224,10 +245,16 @@ export default function InvestigationDetailPage() {
     }
   };
 
-  // auto-run the check once per open when the case has never been reconciled
+  // A never-checked case is checked once on first open — but only for users
+  // allowed to run checks (read-only auditors just see the prompt).
+  const canCheck = hasPermission("finding.decide") || hasPermission("case.reconcile") || hasPermission("po.create");
   useEffect(() => {
-    if (!autoRan.current && data && !data.snapshot && !checking) { autoRan.current = true; runCheck(); }
-  }, [data, checking]);
+    if (!autoRan.current && data && !data.snapshot && !checking && canCheck) {
+      autoRan.current = true;
+      void runCheck();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, checking, canCheck]);
 
   if (error) return <ErrorState message={error instanceof Error ? error.message : "Investigation not found."} onRetry={() => refetch()} />;
   if (isLoading || !data) return <div className="space-y-4"><Skeleton className="h-28 w-full" /><Skeleton className="h-80 w-full" /></div>;
@@ -265,13 +292,12 @@ export default function InvestigationDetailPage() {
                   <GitBranch size={16} className="animate-pulse text-[var(--accent-strong)]" aria-hidden="true" />
                 </div>
               </div>
-              <p className="text-sm font-medium text-[var(--ink)]">{CHECK_STEPS[checkStep]}…</p>
-              <div className="flex gap-1.5">
-                {CHECK_STEPS.map((_, i) => (
-                  <span key={i} className={`h-1.5 rounded-full transition-all duration-500 ${i <= checkStep ? "w-6 bg-[var(--accent)]" : "w-3 bg-[var(--surface-2)]"}`} />
-                ))}
-              </div>
-              <p className="text-[11px] text-[var(--muted)]">The engine is reconstructing this case — usually a few seconds.</p>
+              <p className="text-sm font-medium text-[var(--ink)]">
+                {jobStatus === "running" ? "Checking the records" : "Waiting for the checking engine"}… <span className="tnum text-[var(--muted)]">{elapsed}s</span>
+              </p>
+              <p className="max-w-xs text-xs text-[var(--muted)]">
+                Usually a few seconds. On the free hosting tier the engine may need up to a minute to wake up.
+              </p>
             </div>
           )}
           {checkError && <p className="text-xs text-[var(--sev-critical)]">{checkError}</p>}
@@ -310,13 +336,13 @@ export default function InvestigationDetailPage() {
           {recommendation?.reasons?.length ? recommendation.reasons.join(" ") : "Review the issues below and decide the next step."}
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          {recommendation?.action && <ActionButton action={recommendation.action} amount={recommendation.scope?.holdAmount} onClick={() => decide(recommendation.action)} disabled={deciding} />}
+          {recommendation?.action && <ActionButton action={recommendation.action} amount={recommendation.scope?.holdAmount} onClick={() => setPendingDecision(recommendation.action)} disabled={deciding} />}
           {recommendation?.scope?.approveAmount && (
-            <ActionButton action="APPROVE" amount={recommendation.scope.approveAmount} onClick={() => decide("APPROVE")} disabled={deciding} />
+            <ActionButton action="APPROVE" amount={recommendation.scope.approveAmount} onClick={() => setPendingDecision("APPROVE")} disabled={deciding} />
           )}
           <ActionButton
             action="REQUEST_CLARIFICATION"
-            onClick={() => decide("REQUEST_CLARIFICATION")}
+            onClick={() => setPendingDecision("REQUEST_CLARIFICATION")}
             disabled={deciding}
           />
         </div>
@@ -559,6 +585,20 @@ export default function InvestigationDetailPage() {
       </Tabs>
       {openEvidence && <EvidenceDrawer evidence={openEvidence} onClose={() => setOpenEvidence(null)} />}
       {previewDocId && <DocPreviewModal documentId={previewDocId} onClose={() => setPreviewDocId(null)} />}
+      <ConfirmDialog
+        open={pendingDecision !== null}
+        onOpenChange={(open) => !open && setPendingDecision(null)}
+        tone={pendingDecision === "APPROVE" ? "primary" : pendingDecision === "REQUEST_CLARIFICATION" ? "primary" : "danger"}
+        requireReason
+        title={
+          pendingDecision === "APPROVE" ? "Approve the supported amount?"
+            : pendingDecision === "REQUEST_CLARIFICATION" ? "Ask the supplier to clarify?"
+            : `Record “${(pendingDecision ?? "").replaceAll("_", " ").toLowerCase()}”?`
+        }
+        description="Your decision and reason are saved to this investigation’s history, and the check re-runs with it. It does not move any money."
+        confirmLabel="Record decision"
+        onConfirm={(reason) => decide(pendingDecision as string, reason)}
+      />
     </FadeIn>
   );
 }

@@ -261,6 +261,17 @@ function Palette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: b
   );
 }
 
+function MeErrorBanner() {
+  const { meError, retryMe } = useSession();
+  if (!meError) return null;
+  return (
+    <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 rounded-[var(--radius-sm)] border border-[var(--sev-high)]/40 bg-[var(--sev-high-soft)] px-4 py-2.5 text-sm text-[var(--ink-2)]">
+      <span>Your workspace permissions couldn’t be loaded, so some actions are hidden. {meError}</span>
+      <button type="button" onClick={retryMe} className="ml-auto font-medium text-[var(--accent)] hover:underline">Try again</button>
+    </div>
+  );
+}
+
 function ShellInner({ children }: { children: ReactNode }) {
   const { user } = useSession();
   const pathname = usePathname();
@@ -332,6 +343,7 @@ function ShellInner({ children }: { children: ReactNode }) {
           <main id="app-content" tabIndex={-1} className="flex-1 px-4 py-6 pb-28 outline-none sm:px-6 sm:py-8 md:pb-12 lg:px-10">
             <div className="mx-auto w-full max-w-[var(--content-max)]">
               <HealthBanner />
+              <MeErrorBanner />
               {children}
             </div>
           </main>

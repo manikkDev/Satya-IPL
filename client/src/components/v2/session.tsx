@@ -4,7 +4,8 @@
 // group (Vishwas Pumps) without touching auth; otherwise it wraps the real
 // auth context and resolves entities + permissions from GET /api/v2/me.
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
 import { mocksEnabled } from "@/lib/flags";
 import { mockEntities, mockUser } from "@/lib/mocks/flagship";
@@ -23,6 +24,9 @@ export type SessionValue = {
   hasPermission: (perm: string, entityId?: string) => boolean;
   mocks: boolean;
   loading: boolean;
+  /** Set when GET /me failed — the shell shows a retry banner. */
+  meError: string | null;
+  retryMe: () => void;
   logout: () => void;
 };
 
@@ -33,10 +37,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const { user: authUser, isLoading, logout } = useAuth();
   const [activeEntityId, setActiveEntityId] = useState<string>(mockEntities[0].id);
   const [me, setMe] = useState<MeResponse | null>(null);
+  const [meError, setMeError] = useState<string | null>(null);
+  const [meAttempt, setMeAttempt] = useState(0);
+  const retryMe = useCallback(() => setMeAttempt((n) => n + 1), []);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (mocks || !authUser) return;
     let live = true;
+    setMeError(null);
     v2.me()
       .then((data) => {
         if (!live) return;
@@ -45,13 +54,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           data.entities.some((e) => e.id === current) ? current : (data.entities[0]?.id ?? current),
         );
       })
-      .catch(() => {
-        // /me unavailable (old v1 token or cold start) — shell stays usable.
+      .catch((error) => {
+        if (!live) return;
+        setMeError(error instanceof Error ? error.message : "Your workspace details couldn’t be loaded.");
       });
     return () => {
       live = false;
     };
-  }, [mocks, authUser]);
+  }, [mocks, authUser, meAttempt]);
+
+  // Switching entity refetches every query so no page shows another entity's data.
+  const lastEntity = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastEntity.current && lastEntity.current !== activeEntityId) void queryClient.invalidateQueries();
+    lastEntity.current = activeEntityId;
+  }, [activeEntityId, queryClient]);
 
   const value = useMemo<SessionValue>(() => {
     const entities = mocks ? mockEntities : (me?.entities ?? []);
@@ -80,9 +97,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       hasPermission,
       mocks,
       loading: !mocks && isLoading,
+      meError,
+      retryMe,
       logout,
     };
-  }, [mocks, authUser, me, isLoading, logout, activeEntityId]);
+  }, [mocks, authUser, me, isLoading, logout, activeEntityId, meError, retryMe]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

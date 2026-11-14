@@ -31,7 +31,7 @@ const TERMS_FIXED = [
 function MetaCell({ label, value, code }: { label: string; value?: React.ReactNode; code?: boolean }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">{label}</p>
       <p className={cn("mt-0.5 text-[13px] text-[var(--ink)]", code && "font-code")}>{value ?? "—"}</p>
     </div>
   );
@@ -40,7 +40,7 @@ function MetaCell({ label, value, code }: { label: string; value?: React.ReactNo
 function PartyBlock({ label, name, lines, foot }: { label: string; name?: string | null; lines: (string | null | undefined | false)[]; foot?: React.ReactNode }) {
   return (
     <div className="min-w-0 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface-2)]/40 p-3.5">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">{label}</p>
       <p className="mt-1.5 text-sm font-semibold leading-snug text-[var(--ink)]">{name ?? "—"}</p>
       {lines.filter(Boolean).map((l, i) => (
         <p key={i} className="mt-0.5 text-xs leading-relaxed text-[var(--ink-2)]">{l}</p>
@@ -121,7 +121,7 @@ export function PoSheet({ model }: { model: RenderModel }) {
             supplier?.pan ? `PAN ${supplier.pan}` : null,
           ]}
           foot={supplier?.udyam?.category ? (
-            <p className="mt-2 inline-flex rounded-full bg-[var(--likely-soft)] px-2 py-0.5 text-[10px] font-medium capitalize text-[var(--likely)]">
+            <p className="mt-2 inline-flex rounded-full bg-[var(--likely-soft)] px-2 py-0.5 text-[11px] font-medium capitalize text-[var(--likely)]">
               {supplier.udyam.category} enterprise · MSMED
             </p>
           ) : undefined}
@@ -148,7 +148,7 @@ export function PoSheet({ model }: { model: RenderModel }) {
       <div className="px-6 pt-5">
         <table className="w-full text-[13px]">
           <thead>
-            <tr className="border-y border-[var(--line)] text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">
+            <tr className="border-y border-[var(--line)] text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">
               <th className="py-2 pr-2">#</th>
               <th className="pr-2">Particulars</th>
               <th className="pr-2">HSN</th>
@@ -193,7 +193,7 @@ export function PoSheet({ model }: { model: RenderModel }) {
         <div className="max-w-sm">
           {model.amountInWords ? (
             <>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Amount in words</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Amount in words</p>
               <p className="mt-1 text-xs italic leading-relaxed text-[var(--ink-2)]">{model.amountInWords}</p>
             </>
           ) : null}
@@ -212,7 +212,7 @@ export function PoSheet({ model }: { model: RenderModel }) {
       {(pick(paymentKeys).length > 0 || pick(deliveryKeys).length > 0 || restTerms.length > 0 || supplier?.bankAccounts?.length) && (
         <div className="grid grid-cols-1 gap-3 px-6 pb-5 sm:grid-cols-2">
           <div className="rounded-[var(--radius-sm)] border border-[var(--line)] p-3.5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Payment details</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Payment details</p>
             <dl className="mt-2 space-y-1.5 text-xs">
               {pick(paymentKeys).map((k) => (
                 <div key={k} className="flex justify-between gap-4"><dt className="text-[var(--muted)]">{TERM_LABEL[k] ?? titleCase(k)}</dt><dd className="text-right text-[var(--ink)]">{String(terms[k])}{k === "advancePct" ? "%" : k === "creditDays" ? " days" : ""}</dd></div>
@@ -223,7 +223,7 @@ export function PoSheet({ model }: { model: RenderModel }) {
             </dl>
           </div>
           <div className="rounded-[var(--radius-sm)] border border-[var(--line)] p-3.5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Delivery &amp; logistics</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Delivery &amp; logistics</p>
             <dl className="mt-2 space-y-1.5 text-xs">
               {pick(deliveryKeys).map((k) => (
                 <div key={k} className="flex justify-between gap-4"><dt className="text-[var(--muted)]">{TERM_LABEL[k] ?? titleCase(k)}</dt><dd className="text-right text-[var(--ink)]">{k === "warranty" && /^\d+$/.test(String(terms[k])) ? `${terms[k]} months` : String(terms[k])}</dd></div>
@@ -238,7 +238,7 @@ export function PoSheet({ model }: { model: RenderModel }) {
 
       {/* terms & conditions */}
       <div className="border-t border-[var(--line)] px-6 py-4">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Terms &amp; conditions</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Terms &amp; conditions</p>
         <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs leading-relaxed text-[var(--ink-2)]">
           {termsList.map((t, i) => <li key={i}>{t}</li>)}
         </ol>
@@ -258,7 +258,7 @@ export function PoSheet({ model }: { model: RenderModel }) {
             <p className="mt-0.5 truncate text-[11px] text-[var(--ink-2)]">{approver?.actor ?? "—"}</p>
           </div>
           <div className="w-44">
-            <div className="grid h-10 place-items-center rounded-[var(--radius-sm)] border border-dashed border-[var(--line-strong)] text-[10px] text-[var(--muted)]">Stamp</div>
+            <div className="grid h-10 place-items-center rounded-[var(--radius-sm)] border border-dashed border-[var(--line-strong)] text-[11px] text-[var(--muted)]">Stamp</div>
             <p className="mt-1.5 text-[11px] text-[var(--muted)]">For {entity?.legalName ?? "the entity"}</p>
             <p className="mt-0.5 text-[11px] font-medium text-[var(--ink-2)]">Authorised signatory</p>
           </div>
@@ -267,9 +267,9 @@ export function PoSheet({ model }: { model: RenderModel }) {
 
       {(model.verify?.url || entity?.letterhead?.footerText) && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] bg-[var(--surface-2)]/40 px-6 py-3">
-          {entity?.letterhead?.footerText ? <p className="text-[10px] text-[var(--muted)]">{entity.letterhead.footerText}</p> : <span />}
+          {entity?.letterhead?.footerText ? <p className="text-[11px] text-[var(--muted)]">{entity.letterhead.footerText}</p> : <span />}
           {model.verify?.url ? (
-            <p className="inline-flex items-center gap-1.5 text-[10px] text-[var(--muted)]">
+            <p className="inline-flex items-center gap-1.5 text-[11px] text-[var(--muted)]">
               <ShieldCheck size={12} className="text-[var(--confirmed)]" aria-hidden="true" />
               Verify at <span className="font-code">{model.verify.url}</span>
               {model.verify.hash ? <span className="font-code">· {model.verify.hash.slice(0, 16)}…</span> : null}

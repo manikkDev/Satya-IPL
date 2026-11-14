@@ -10,10 +10,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { motion } from "framer-motion";
 import { GitBranch, Search, ChevronLeft, ChevronRight, CircleCheck, Clock3 } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
-import { StatusBadge, SeverityBadge, ErrorState, EmptyState, PageHeader, FadeIn, Card } from "@/components/ui/v2";
+import { StatusBadge, SeverityBadge, ErrorState, EmptyState, PageHeader, FadeIn } from "@/components/ui/v2";
 import type { Severity } from "@/lib/api/types";
 import { Money } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -106,7 +105,7 @@ export default function InvestigationsPage() {
         <>
           <ul className="space-y-2">
             {items.map((item, i) => (
-              <motion.li key={item.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03, duration: 0.25 }}>
+              <li key={item.id} className="rise" style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}>
                 <button
                   type="button"
                   onClick={() => router.push(`/app/investigations/${item.id}`)}
@@ -140,7 +139,7 @@ export default function InvestigationsPage() {
                   {item.topSeverity && <SeverityBadge severity={item.topSeverity} />}
                   <ChevronRight size={15} className="shrink-0 text-[var(--muted)] transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
                 </button>
-              </motion.li>
+              </li>
             ))}
           </ul>
 

@@ -332,7 +332,7 @@ export default function TodayPage() {
                   <li key={f.id}>
                     <Link href={(f as { caseId?: string }).caseId ? `/app/investigations/${(f as { caseId?: string }).caseId}` : "/app/investigations"} className="block py-2.5 hover:opacity-75">
                       <div className="flex items-center gap-2">
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${{
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase ${{
                           critical: "bg-[var(--sev-critical-soft)] text-[var(--sev-critical)]",
                           high: "bg-[var(--sev-high-soft)] text-[var(--sev-high)]",
                           medium: "bg-[var(--sev-medium-soft)] text-[var(--sev-medium)]",
