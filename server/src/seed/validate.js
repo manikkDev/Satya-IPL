@@ -310,6 +310,14 @@ export const validateDataset = ({ documents, links, cases, suppliers = SUPPLIERS
         const dup = exceptionsOf(inv, documents)?.duplicateOf;
         if (dup) fail(`${p.id}: pays a duplicate posting ${inv.number}`);
       }
+      for (const pl of p.lines || []) {
+        const inv = byId.get(pl.refs?.invoiceId);
+        const il = inv?.lines.find((x) => x.lineNo === pl.refs.invoiceLineNo);
+        if (!il || il.refs.poLineNo !== pl.refs.poLineNo || inv.lines[0].refs.poId !== pl.refs.poId) { fail(`${p.id} line ${pl.lineNo}: refs do not match an invoice line`); continue; }
+        const credit = documents.filter((d) => d.type === "CREDIT_NOTE_IN").flatMap((d) => d.lines).filter((x) => x.refs?.invoiceId === inv.id && x.refs?.invoiceLineNo === il.lineNo).reduce((s, x) => s + toPaise(x.lineTotal), 0n);
+        const paidOnLine = documents.filter((d) => d.type === "PAYMENT_OUT").flatMap((d) => d.lines || []).filter((x) => x.refs?.invoiceId === inv.id && x.refs?.invoiceLineNo === il.lineNo).reduce((s, x) => s + toPaise(x.lineTotal), 0n);
+        if (paidOnLine > toPaise(il.lineTotal) - credit) fail(`${inv.number} line ${il.lineNo}: paid ${fmt(paidOnLine)} > net billed ${fmt(toPaise(il.lineTotal) - credit)}`);
+      }
       if (p.payment.bankAccountMasked !== supById.get(p.supplierId)?.bankMasked && p.payment.bankAccountMasked !== supById.get(p.supplierId)?.bankAccounts?.[0]?.accountMasked) fail(`${p.id}: paid to an account not on the supplier master`);
     }
   });

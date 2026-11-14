@@ -320,7 +320,10 @@ export const buildDataset = ({ today, groupId, entityId, actors }) => {
             const amount = how === "full" || how === "rest" ? grand - already : how === "netOfCredit" ? grand - credit - already : toPaise(how);
             allocations.push({ documentId: inv.id, amount: fmt(amount), basis: "reference" });
             // per-PO-line split so the engine ledger carries paid value
-            const shares = splitProRata(amount, inv.lines.map((l) => toPaise(l.lineTotal)));
+            // weights are each line's value net of credit notes on that line,
+            // so a net-of-credit payment never exceeds a line's net billing
+            const creditOn = (l) => Object.values(meta.cns).flatMap((c) => c.lines).filter((x) => x.refs.invoiceId === inv.id && x.refs.invoiceLineNo === l.lineNo).reduce((s, x) => s + toPaise(x.lineTotal), 0n);
+            const shares = splitProRata(amount, inv.lines.map((l) => toPaise(l.lineTotal) - creditOn(l)));
             inv.lines.forEach((l, i) => pay.lines.push({
               lineNo: pay.lines.length + 1, description: `Against invoice line ${l.lineNo}`, uom: "NOS", qty: "1",
               lineTotal: fmt(shares[i]), refs: { poId, poLineNo: l.refs.poLineNo, invoiceId: inv.id, invoiceLineNo: l.lineNo },
