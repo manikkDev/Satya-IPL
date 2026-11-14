@@ -7,14 +7,14 @@ export type AuditObject = { kind: string; label: string; id?: string; href?: str
 export type AuditDescription = { verb: string; object: AuditObject; method: string; ok: boolean; denied: boolean };
 
 const PO_LIFECYCLE: Record<string, string> = {
-  submit: "Sent for approval",
-  approve: "Approved",
-  reject: "Rejected",
-  issue: "Issued",
-  amend: "Amended",
-  "short-close": "Short-closed",
-  cancel: "Cancelled",
-  compute: "Recalculated totals",
+  submit: "Sent an order for approval",
+  approve: "Approved an order",
+  reject: "Rejected an order",
+  issue: "Issued an order to the supplier",
+  amend: "Amended an order",
+  "short-close": "Short-closed an order",
+  cancel: "Cancelled an order",
+  compute: "Worked out an order’s totals",
 };
 
 const CASE_VERBS: Record<string, string> = {
