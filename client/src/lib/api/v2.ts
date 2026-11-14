@@ -754,7 +754,8 @@ export const v2 = {
       const data = await response.json().catch(() => null);
       throw new Error(data?.error?.message || `Upload failed (${response.status})`);
     }
-    return response.json();
+    const data = (await response.json()) as FileDoc & { fileId?: string };
+    return { ...data, id: data.id ?? data.fileId ?? "" };
   },
 
   extractFile: (fileId: string): Promise<{ draftId: string; status: string; draft: IngestDraft }> =>

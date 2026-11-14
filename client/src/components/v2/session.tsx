@@ -76,6 +76,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const permissions = me?.permissions ?? {};
     const hasPermission = (perm: string, entityId?: string) => {
       const target = entityId ?? activeEntity?.id;
+      if (permissions["*"]?.includes(perm)) return true;
       if (target) return permissions[target]?.includes(perm) ?? false;
       return Object.values(permissions).some((list) => list.includes(perm));
     };
