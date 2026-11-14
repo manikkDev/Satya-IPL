@@ -1,242 +1,286 @@
 "use client";
 
-// Drill-down + chart pieces for the Today page (06 §5.1).
-// KpiDrillDown: per-card modal with the numbers behind the number.
-// Bar components are pure CSS/SVG — no chart dependency, exact strings in.
+// Building blocks for Home (/app), per docs/design/UI_SPEC.md §7:
+//   KpiDrillDown   — "See why" dialog behind a KPI (focus-trapped, Esc closes)
+//   DrillRow/HBar  — label/value rows and a proportional bar for drill-downs
+//   WeekStrip      — "This week": a 7-day strip of what falls due, not a list
+//   UnallocatedList— payments that left the bank without a bill
+//   ActivityList   — recent activity as five plain sentences
+// Money is exact (integer paise); dates are IST business dates.
 
 import Link from "next/link";
-import { useEffect } from "react";
-import { X } from "lucide-react";
-import { Money } from "@/components/ui/v2";
-import type { DashboardSummary, ComplianceSummary } from "@/lib/api/v2";
-import { formatMoney, fromPaise, toPaise } from "@/lib/format";
+import { useMemo, useState } from "react";
+import { PauseCircle } from "lucide-react";
+import { Money, StatusChip } from "@/components/ui/v2";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import type { DashboardSummary } from "@/lib/api/v2";
+import { formatMoney, formatMoneyCompact, fromPaise, toPaise, isoDateIst, formatDate } from "@/lib/format";
+import { plural, sanitizeEngineText, timeAgo } from "@/lib/humanize";
+import type { PayableRow } from "@/components/pages/compliance/api";
+import { effectiveDue } from "@/components/pages/compliance/api";
+import { cn } from "@/lib/utils";
 
-// Exact rupee formatting (integer paise inside) — never float arithmetic.
-const fmt = (v: string) => formatMoney(v);
-
-export function KpiDrillDown({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  useEffect(() => {
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", esc);
-    return () => window.removeEventListener("keydown", esc);
-  }, [onClose]);
+/** "See why" drill-down: a calm dialog with the numbers behind a number. */
+export function KpiDrillDown({ title, description, onClose, children }: { title: string; description?: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow-3)]">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="type-section-title">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-[var(--radius-sm)] text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"><X size={18} /></button>
-        </div>
-        {children}
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent
+        {...(description ? {} : { "aria-describedby": undefined })}
+        className="max-h-[85vh] gap-0 overflow-y-auto rounded-[var(--radius-lg)] border-[var(--line)] bg-[var(--surface)] p-6 text-[var(--ink)] shadow-[var(--shadow-3)] sm:max-w-xl"
+      >
+        <DialogTitle className="type-section-title pr-8">{title}</DialogTitle>
+        {description ? <DialogDescription className="mt-1.5 text-[15px] leading-relaxed text-[var(--muted)]">{description}</DialogDescription> : null}
+        <div className="mt-5">{children}</div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function DrillRow({ label, value, note }: { label: React.ReactNode; value: React.ReactNode; note?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4 border-b border-[var(--line)] py-3 last:border-0">
+      <div className="min-w-0">
+        <p className="text-[15px] text-[var(--ink-2)]">{label}</p>
+        {note ? <p className="mt-0.5 text-[13px] text-[var(--muted)]">{note}</p> : null}
       </div>
+      <div className="tnum shrink-0 text-right text-[15px] font-medium text-[var(--ink)]">{value}</div>
     </div>
   );
 }
 
-export function DrillRow({ label, value, note }: { label: React.ReactNode; value: React.ReactNode; note?: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b border-[var(--line)] py-2.5 last:border-0">
-      <div className="min-w-0"><p className="text-sm text-[var(--ink-2)]">{label}</p>{note && <p className="text-[13px] text-[var(--muted)]">{note}</p>}</div>
-      <div className="tnum shrink-0 text-sm font-medium text-[var(--ink)]">{value}</div>
-    </div>
-  );
-}
-
-/** Horizontal bar — label left, bar middle, value right. */
+/** Horizontal bar — label left, value right, bar underneath. */
 export function HBar({ label, value, max, display, href }: { label: string; value: number; max: number; display: string; href?: string }) {
   const pct = max > 0 ? Math.max(3, (value / max) * 100) : 0;
   const inner = (
     <>
-      <div className="flex items-center justify-between gap-2 text-sm">
+      <div className="flex items-center justify-between gap-3 text-[15px]">
         <span className="min-w-0 truncate text-[var(--ink-2)]">{label}</span>
-        <span className="tnum shrink-0 text-xs font-medium text-[var(--ink)]">{display}</span>
+        <span className="tnum shrink-0 font-medium text-[var(--ink)]">{display}</span>
       </div>
-      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]">
-        <div className="h-full rounded-full bg-[var(--accent)] transition-all duration-500" style={{ width: `${pct}%` }} />
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]">
+        <div className="bar-anim h-full rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} />
       </div>
     </>
   );
-  return href ? <Link href={href} className="block py-1.5 hover:opacity-80">{inner}</Link> : <div className="py-1.5">{inner}</div>;
-}
-
-/** Aging buckets "0-30/31-60/61-90/90+" — severity rises with age; rows are
- *  more readable than bars when one bucket dwarfs the rest. Click-through
- *  lands on the investigations list. */
-export function AgingBars({ aging }: { aging: DashboardSummary["aging"] }) {
-  const entries = Object.entries(aging);
-  const total = Math.max(1, entries.reduce((s, [, n]) => s + n, 0));
-  const tones = ["var(--confirmed)", "var(--sev-low)", "var(--sev-medium)", "var(--sev-critical)"];
-  return (
-    <div className="space-y-2">
-      {entries.map(([bucket, n], i) => (
-        <Link key={bucket} href="/app/investigations" className="block py-0.5 hover:opacity-80" title={`${n} investigation${n === 1 ? "" : "s"} open ${bucket} days`}>
-          <div className="flex items-center justify-between gap-2 text-sm">
-            <span className="text-[var(--ink-2)]">{bucket === "90+" ? "Over 90 days" : `${bucket} days`}</span>
-            <span className="tnum text-xs font-semibold text-[var(--ink)]">{n}</span>
-          </div>
-          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]">
-            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(n ? 2 : 0, (n / total) * 100)}%`, background: tones[i] }} />
-          </div>
-        </Link>
-      ))}
-    </div>
+  return href ? (
+    <Link href={href} className="block rounded-[6px] py-2 transition-opacity hover:opacity-80">{inner}</Link>
+  ) : (
+    <div className="py-2">{inner}</div>
   );
 }
 
-/** Monthly document-value series — vertical bars, last ≤8 months.
- *  min-w-0 + overflow-hidden keep wide values inside the card. */
-export function SeriesBars({ series }: { series: DashboardSummary["monthlySeries"] }) {
-  const items = series.slice(-8);
-  const max = Math.max(1, ...items.map((m) => Number(m.value)));
+/* ---------------- This week ---------------- */
+
+type Day = { iso: string; label: string; dayNum: string; rows: PayableRow[]; payable: bigint; held: number };
+
+const addDaysIso = (iso: string, n: number) => {
+  const t = Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000;
+  return new Date(t).toISOString().slice(0, 10);
+};
+
+/** Builds overdue + 7 day buckets from open payables (deadline = the earlier
+ *  of the terms due date and the MSME legal date). */
+export function weekBuckets(rows: PayableRow[], today = isoDateIst()) {
+  const days: Day[] = Array.from({ length: 7 }, (_, i) => {
+    const iso = addDaysIso(today, i);
+    const d = new Date(`${iso}T00:00:00+05:30`);
+    return {
+      iso,
+      label: i === 0 ? "Today" : d.toLocaleDateString("en-IN", { weekday: "short", timeZone: "Asia/Kolkata" }),
+      dayNum: d.toLocaleDateString("en-IN", { day: "numeric", timeZone: "Asia/Kolkata" }),
+      rows: [],
+      payable: BigInt(0),
+      held: 0,
+    };
+  });
+  const overdue: PayableRow[] = [];
+  for (const row of rows) {
+    const due = effectiveDue(row);
+    if (!due) continue;
+    if (due < today) {
+      overdue.push(row);
+      continue;
+    }
+    const day = days.find((d) => d.iso === due);
+    if (!day) continue;
+    day.rows.push(row);
+    day.payable += toPaise(row.payable.amount);
+    if (toPaise(row.disputed.amount) > BigInt(0)) day.held += 1;
+  }
+  const overduePayable = overdue.reduce((s, r) => s + toPaise(r.payable.amount), BigInt(0));
+  const overdueHeld = overdue.filter((r) => toPaise(r.disputed.amount) > BigInt(0)).length;
+  return { days, overdue, overduePayable: fromPaise(overduePayable), overdueHeld };
+}
+
+/** "This week": seven compact day cells (amount that falls due each day);
+ *  choosing a day lists its bills. Overdue bills collapse into one line. */
+export function WeekStrip({ rows, onShowOverdue }: { rows: PayableRow[]; onShowOverdue?: () => void }) {
+  const { days, overdue, overduePayable, overdueHeld } = useMemo(() => weekBuckets(rows), [rows]);
+  const firstBusy = days.find((d) => d.rows.length)?.iso ?? days[0].iso;
+  const [picked, setPicked] = useState<string | null>(null);
+  const selected = days.find((d) => d.iso === (picked ?? firstBusy)) ?? days[0];
+  const weekTotal = days.reduce((s, d) => s + d.rows.length, 0);
+
   return (
-    <div className="overflow-hidden">
-      <div className="flex h-24 items-end gap-1.5">
-        {items.map((m) => {
-          const h = Math.max(4, (Number(m.value) / max) * 96);
+    <div>
+      {overdue.length ? (
+        <button
+          type="button"
+          onClick={onShowOverdue}
+          className="mb-4 flex w-full items-center gap-3 rounded-[var(--radius-sm)] border border-[var(--line)] px-3.5 py-2.5 text-left text-[15px] transition-colors hover:bg-[var(--surface-2)]"
+        >
+          <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--sev-critical)]" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            <span className="font-medium text-[var(--ink)]">{plural(overdue.length, "bill")} already overdue</span>
+            <span className="text-[var(--muted)]">
+              {" "}· {formatMoneyCompact(overduePayable)} payable{overdueHeld ? ` · ${overdueHeld} on hold` : ""}
+            </span>
+          </span>
+          <span className="shrink-0 text-[14px] font-medium text-[var(--accent-strong)] dark:text-[var(--accent)]">See list</span>
+        </button>
+      ) : null}
+
+      <div role="group" aria-label="Next 7 days" className="grid grid-cols-7 gap-1.5">
+        {days.map((d) => {
+          const active = d.iso === selected.iso;
+          const busy = d.rows.length > 0;
           return (
-            <div key={m.month} className="group flex min-w-0 flex-1 flex-col items-center justify-end" title={`${m.month}: ${fmt(m.value)} across ${m.docs} docs`}>
-              <div className="w-full rounded-t bg-[var(--accent)]/70 transition-colors group-hover:bg-[var(--accent)]" style={{ height: `${h}px` }} />
-            </div>
+            <button
+              key={d.iso}
+              type="button"
+              onClick={() => setPicked(d.iso)}
+              aria-pressed={active}
+              aria-label={`${formatDate(d.iso)}: ${busy ? `${plural(d.rows.length, "bill")} due, ${formatMoney(fromPaise(d.payable))} payable` : "nothing due"}`}
+              className={cn(
+                "flex min-w-0 flex-col items-center rounded-[var(--radius-sm)] border px-1 pb-2 pt-1.5 text-center transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60",
+                active ? "border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-[var(--accent-soft)]" : "border-[var(--line)] hover:bg-[var(--surface-2)]",
+              )}
+            >
+              <span className={cn("text-[13px]", active ? "font-semibold text-[var(--accent-strong)]" : "text-[var(--muted)]")}>{d.label}</span>
+              <span className="tnum text-[17px] font-semibold leading-6 text-[var(--ink)]">{d.dayNum}</span>
+              <span className="mt-1 flex h-2 items-center gap-0.5" aria-hidden="true">
+                {busy
+                  ? Array.from({ length: Math.min(d.rows.length, 3) }, (_, i) => (
+                    <span key={i} className={cn("h-1.5 w-1.5 rounded-full", i < d.held ? "bg-[var(--sev-medium)]" : "bg-[var(--accent)]")} />
+                  ))
+                  : <span className="h-px w-3 bg-[var(--line-strong)]" />}
+              </span>
+            </button>
           );
         })}
       </div>
-      <div className="mt-1.5 flex gap-1.5">
-        {items.map((m) => (
-          <span key={m.month} className="min-w-0 flex-1 truncate text-center text-[13px] text-[var(--muted)]">
-            {m.month.slice(5)}/{m.month.slice(2, 4)}
-          </span>
-        ))}
-      </div>
-      {!items.length && <p className="py-6 text-center text-xs text-[var(--muted)]">No document history yet.</p>}
-    </div>
-  );
-}
 
-const SEV_TONE: Record<string, string> = {
-  critical: "var(--sev-critical)", high: "var(--sev-high)", medium: "var(--sev-medium)",
-  low: "var(--sev-low)", info: "var(--sev-info)",
-};
-const CERT_STYLE: Record<string, string> = {
-  CONFIRMED: "bg-[var(--confirmed-soft)] text-[var(--confirmed)]",
-  PROBABLE: "bg-[var(--likely-soft)] text-[var(--likely)]",
-  POSSIBLE: "bg-[var(--possible-soft)] text-[var(--possible)]",
-  AMBIGUOUS: "bg-[var(--unclear-soft)] text-[var(--unclear)]",
-  INSUFFICIENT_EVIDENCE: "bg-[var(--missing-soft)] text-[var(--missing)]",
-};
-
-/** Severity/certainty breakdown for the "under question" drill-down —
- *  bar-proportioned severity, badge-styled certainty, totals up top. */
-export function IssueBreakdown({ summary }: { summary: DashboardSummary }) {
-  const sevOrder = ["critical", "high", "medium", "low", "info"];
-  const certOrder = ["CONFIRMED", "PROBABLE", "POSSIBLE", "AMBIGUOUS", "INSUFFICIENT_EVIDENCE"];
-  const totalIssues = sevOrder.reduce((s, k) => s + (summary.issuesBySeverity[k] ?? 0), 0);
-  const maxSev = Math.max(1, ...sevOrder.map((k) => summary.issuesBySeverity[k] ?? 0));
-  return (
-    <div>
-      <p className="mb-3 text-sm text-[var(--muted)]">
-        <span className="tnum text-lg font-semibold text-[var(--ink)]">{totalIssues}</span> open issues —{" "}
-        <span style={{ color: "var(--sev-critical)" }}>{summary.issuesBySeverity.critical ?? 0} critical</span>,{" "}
-        <span style={{ color: "var(--sev-high)" }}>{summary.issuesBySeverity.high ?? 0} high</span> need eyes first.
-      </p>
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        <div>
-          <p className="mb-2 text-[13px] font-semibold text-[var(--muted)]">By severity</p>
-          {sevOrder.map((s) => (
-            <div key={s} className="py-1.5">
-              <div className="flex items-center justify-between text-sm">
-                <span className="capitalize text-[var(--ink-2)]">{s}</span>
-                <span className="tnum text-xs font-semibold text-[var(--ink)]">{summary.issuesBySeverity[s] ?? 0}</span>
-              </div>
-              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]">
-                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max((summary.issuesBySeverity[s] ? 2 : 0), ((summary.issuesBySeverity[s] ?? 0) / maxSev) * 100)}%`, background: SEV_TONE[s] }} />
-              </div>
-            </div>
-          ))}
-        </div>
-        <div>
-          <p className="mb-2 text-[13px] font-semibold text-[var(--muted)]">How sure are we</p>
-          {certOrder.map((c) => (
-            <div key={c} className="flex items-center justify-between gap-2 border-b border-[var(--line)] py-2 last:border-0">
-              <span className={`rounded-full px-2.5 py-0.5 text-[13px] font-semibold ${CERT_STYLE[c]}`}>{c === "INSUFFICIENT_EVIDENCE" ? "Missing information" : c === "PROBABLE" ? "Likely" : c === "AMBIGUOUS" ? "Unclear" : c.charAt(0) + c.slice(1).toLowerCase()}</span>
-              <span className="tnum text-sm font-medium text-[var(--ink)]">{summary.findingsByCertainty[c] ?? 0}</span>
-            </div>
-          ))}
-          <p className="mt-2 text-[13px] leading-relaxed text-[var(--muted)]">Confirmed = proven by a document. Anything less still needs your review — never guessed.</p>
-        </div>
+      <div className="mt-4 min-h-[124px]">
+        <p className="text-[14px] font-medium text-[var(--muted)]">
+          {formatDate(selected.iso)} · {selected.rows.length ? `${plural(selected.rows.length, "bill")} due` : "nothing due"}
+        </p>
+        {selected.rows.length ? (
+          <ul className="mt-2 divide-y divide-[var(--line)]">
+            {selected.rows.slice(0, 4).map((r) => {
+              const held = toPaise(r.disputed.amount) > BigInt(0);
+              return (
+                <li key={r.documentId} className="flex items-center justify-between gap-3 py-2.5">
+                  <span className="min-w-0">
+                    <span className="block truncate text-[15px] text-[var(--ink)]">{r.supplier}</span>
+                    <span className="block truncate font-code text-[13px] text-[var(--muted)]">{r.invoice}{r.msme ? " · MSME" : ""}</span>
+                  </span>
+                  <span className="flex shrink-0 flex-col items-end gap-1">
+                    <Money value={held ? r.payable : r.outstanding} className="text-[15px] font-medium text-[var(--ink)]" />
+                    {held ? <StatusChip tone="warn" icon={PauseCircle}>{toPaise(r.payable.amount) > BigInt(0) ? "Part on hold" : "On hold"}</StatusChip> : null}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="mt-2 text-[15px] text-[var(--muted)]">
+            {weekTotal ? "Pick a day with dots to see its bills." : "Nothing else falls due in the next 7 days."}
+          </p>
+        )}
+        {selected.rows.length > 4 ? <p className="mt-1 text-[14px] text-[var(--muted)]">and {selected.rows.length - 4} more</p> : null}
       </div>
     </div>
   );
 }
 
-export function UnallocatedList({ summary }: { summary: DashboardSummary }) {
-  if (!summary.unallocatedPayments.length)
-    return <p className="py-3 text-sm text-[var(--muted)]">Every payment is allocated — nothing is waiting for a remittance reference.</p>;
+/* ---------------- unmatched money ---------------- */
+
+export function UnallocatedList({ summary, limit = 4 }: { summary: DashboardSummary; limit?: number }) {
+  if (!summary.unallocatedPayments.length) {
+    return <p className="py-2 text-[15px] text-[var(--muted)]">Every payment is matched to a bill.</p>;
+  }
   const waiting = fromPaise(summary.unallocatedPayments.reduce((s, p) => {
     const open = toPaise(p.amount) - toPaise(p.allocated);
     return open > BigInt(0) ? s + open : s;
   }, BigInt(0)));
   return (
     <div>
-      <p className="mb-1 text-xs text-[var(--muted)]">
-        <span className="tnum font-semibold text-[var(--ink)]">{fmt(waiting)}</span> is unlinked across{" "}
-        {summary.unallocatedPayments.length} payment{summary.unallocatedPayments.length === 1 ? "" : "s"} — click one to allocate it.
+      <p className="text-[15px] text-[var(--ink-2)]">
+        <span className="tnum text-[22px] font-semibold tracking-tight text-[var(--ink)]">{formatMoney(waiting)}</span>
+        <span className="mt-0.5 block text-[14px] text-[var(--muted)]">across {plural(summary.unallocatedPayments.length, "payment")} with no bill linked</span>
       </p>
-      <ul className="divide-y divide-[var(--line)]">
-        {summary.unallocatedPayments.slice(0, 8).map((p) => (
+      <ul className="mt-3 divide-y divide-[var(--line)]">
+        {summary.unallocatedPayments.slice(0, limit).map((p) => (
           <li key={p.documentId}>
-            <Link href="/app/payments" className="group flex items-center justify-between gap-3 py-2 transition-opacity hover:opacity-75">
+            <Link href="/app/payments" className="flex items-center justify-between gap-3 py-2.5 transition-opacity hover:opacity-75">
               <span className="min-w-0">
-                <span className="block truncate text-xs font-medium text-[var(--ink)]">{p.counterparty || p.documentId}</span>
-                <span className="mt-0.5 block text-[13px] text-[var(--muted)]">
-                  {p.date || "—"}{p.utr ? ` · UTR ${p.utr}` : " · no bank ref"}{p.mode ? ` · ${p.mode}` : ""}
+                <span className="block truncate text-[15px] text-[var(--ink)]">{p.counterparty || "Unknown payee"}</span>
+                <span className="mt-0.5 block truncate text-[13px] text-[var(--muted)]">
+                  {p.date ? formatDate(p.date) : "Date not recorded"}
+                  {p.utr ? ` · UTR ${p.utr}` : " · no bank reference"}
                 </span>
               </span>
-              <span className="tnum shrink-0 text-sm"><Money value={{ amount: p.amount, currency: "INR" }} /></span>
+              <Money value={{ amount: fromPaise(toPaise(p.amount) - toPaise(p.allocated)), currency: "INR" }} className="shrink-0 text-[15px] font-medium text-[var(--ink)]" />
             </Link>
           </li>
         ))}
       </ul>
+      {summary.unallocatedPayments.length > limit ? (
+        <p className="mt-1 text-[14px] text-[var(--muted)]">and {summary.unallocatedPayments.length - limit} more</p>
+      ) : null}
     </div>
   );
 }
 
-export function ComplianceStrip({ summary }: { summary: ComplianceSummary }) {
-  const items = [
-    {
-      label: "MSME 45-day", value: summary.msme45.count, detail: summary.msme45.count
-        ? `${summary.msme45.count} payment${summary.msme45.count === 1 ? "" : "s"} approaching the 45-day limit — late MSME payments cost 3× interest and can't be deducted until paid.`
-        : "No micro/small supplier payments are near the 45-day limit.",
-      tone: summary.msme45.count ? "var(--sev-high)" : "var(--confirmed)",
-    },
-    {
-      label: "Rule 37 risk", value: summary.rule37.count, detail: summary.rule37.count
-        ? `${fmt(summary.rule37.itcAtRisk)} of GST credit reverses if these invoices stay unpaid past 180 days.`
-        : "No invoices are close to the 180-day ITC-reversal window.",
-      tone: summary.rule37.count ? "var(--sev-medium)" : "var(--confirmed)",
-    },
-    {
-      label: "e-invoice coverage", value: `${summary.einvoiceCoverage.pct}%`, detail: `${summary.einvoiceCoverage.withIrn} of ${summary.einvoiceCoverage.invoices} recorded invoices carry an IRN — a missing IRN on an e-invoicing-registered seller's bill is a finding.`,
-      tone: "var(--ink)",
-    },
-    {
-      label: "Credit notes pending", value: summary.creditNotesUnapplied.count, detail: summary.creditNotesUnapplied.count
-        ? "Issued credit notes that haven't been applied against an invoice yet — apply them before they lapse."
-        : "All issued credit notes have been applied.",
-      tone: summary.creditNotesUnapplied.count ? "var(--possible)" : "var(--confirmed)",
-    },
-  ];
+/* ---------------- recent activity ---------------- */
+
+export type ActivityItem = { id: string; text: string; at: string; href?: string; severity?: string; code?: string; docRef?: string | null };
+
+const SEV_DOT: Record<string, string> = {
+  critical: "var(--sev-critical)", high: "var(--sev-high)", medium: "var(--sev-medium)", low: "var(--sev-low)", info: "var(--sev-info)",
+};
+
+/** First clause of an engine message, cleaned: one readable sentence. */
+export function activitySentence(text: string): string {
+  const clean = sanitizeEngineText(text);
+  const first = clean.split(/;\s|\.\s(?=[A-Z])/)[0].replace(/[.;]\s*$/, "");
+  return first.length > 150 ? `${first.slice(0, 147).trimEnd()}…` : first;
+}
+
+export function ActivityList({ items }: { items: ActivityItem[] }) {
+  if (!items.length) return <p className="py-2 text-[15px] text-[var(--muted)]">Nothing recorded yet.</p>;
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {items.map((item) => (
-        <Link key={item.label} href="/app/compliance" className="flex flex-col rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 transition-colors hover:border-[var(--accent)]/60 hover:bg-[var(--surface-2)]/40">
-          <div className="flex items-center justify-between">
-            <p className="text-[13px] font-medium text-[var(--muted)]">{item.label}</p>
-            <span className="tnum text-xl font-semibold tracking-tight" style={{ color: item.tone }}>{item.value}</span>
-          </div>
-          <p className="mt-2 flex-1 text-[13px] leading-relaxed text-[var(--muted)]">{item.detail}</p>
-        </Link>
-      ))}
-    </div>
+    <ul className="divide-y divide-[var(--line)]">
+      {items.slice(0, 5).map((item) => {
+        const row = (
+          <>
+            <span className="mt-[9px] h-2 w-2 shrink-0 rounded-full" style={{ background: SEV_DOT[item.severity ?? "info"] ?? SEV_DOT.info }} aria-hidden="true" />
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-start sm:gap-4">
+              <span className="min-w-0 flex-1 text-[15px] leading-relaxed text-[var(--ink-2)]">{activitySentence(item.text)}</span>
+              <span className="shrink-0 text-[14px] text-[var(--muted)] sm:pt-0.5">{timeAgo(item.at)}</span>
+            </span>
+          </>
+        );
+        return (
+          <li key={item.id}>
+            {item.href ? (
+              <Link href={item.href} className="flex items-start gap-3 py-3 transition-colors hover:text-[var(--ink)] ">{row}</Link>
+            ) : (
+              <div className="flex items-start gap-3 py-3">{row}</div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }

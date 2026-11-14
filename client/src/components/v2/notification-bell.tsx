@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/compon
 import { workflow, type Notification } from "@/lib/api/workflow";
 import { mocksEnabled } from "@/lib/flags";
 import { cn } from "@/lib/utils";
+import { sanitizeEngineText } from "@/lib/humanize";
 
 const ICON = { finding: OctagonAlert, reminder: AlarmClock, assignment: UserRound } as const;
 const TONE: Record<string, string> = {
@@ -53,25 +54,25 @@ export function NotificationBell() {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={count ? `${count} notifications` : "Notifications"}
-        className="relative grid h-10 w-10 place-items-center rounded-[var(--radius-sm)] text-[var(--ink-2)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+        className="relative grid h-10 w-10 place-items-center rounded-[var(--radius-sm)] text-[var(--ink-2)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60 data-[state=open]:bg-[var(--surface-2)]"
       >
-        <Bell size={15} aria-hidden="true" />
+        <Bell size={18} aria-hidden="true" />
         {count > 0 ? (
-          <span className="tnum absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[var(--sev-critical)] px-1 text-[13px] font-semibold leading-none text-white">
+          <span className="tnum absolute right-1 top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-[var(--sev-critical)] px-1 text-[11px] font-semibold leading-none text-white ring-2 ring-[var(--paper)] dark:text-[var(--paper)]">
             {count > 9 ? "9+" : count}
           </span>
         ) : null}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-[360px] max-w-[calc(100vw-24px)] p-0">
         <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
-          <p className="text-sm font-semibold text-[var(--ink)]">Notifications</p>
+          <p className="text-[15px] font-semibold text-[var(--ink)]">Notifications</p>
           {items.length ? (
             <button
               type="button"
               onClick={() => dismiss(items.map((n) => n.key))}
-              className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline"
+              className="inline-flex items-center gap-1 text-[13px] font-medium text-[var(--accent-strong)] hover:underline dark:text-[var(--accent)]"
             >
-              <CheckCheck size={13} aria-hidden="true" /> Clear all
+              <CheckCheck size={14} aria-hidden="true" /> Clear all
             </button>
           ) : null}
         </div>
@@ -82,11 +83,11 @@ export function NotificationBell() {
             {items.map((n) => {
               const Icon = ICON[n.kind] ?? Bell;
               return (
-                <li key={n.key} className="group flex items-start gap-3 px-4 py-2.5 hover:bg-[var(--surface-2)]">
+                <li key={n.key} className="group flex items-start gap-3 px-4 py-3 hover:bg-[var(--surface-2)]">
                   <Icon size={16} className={cn("mt-0.5 shrink-0", TONE[n.severity] ?? "text-[var(--muted)]")} aria-hidden="true" />
                   <Link href={n.href} className="min-w-0 flex-1" onClick={() => dismiss([n.key])}>
-                    <p className="line-clamp-2 text-[14px] leading-snug text-[var(--ink)]">{n.title}</p>
-                    {n.detail ? <p className="mt-0.5 text-xs text-[var(--muted)]">{n.detail}</p> : null}
+                    <p className="line-clamp-2 text-[14px] leading-snug text-[var(--ink)]">{sanitizeEngineText(n.title)}</p>
+                    {n.detail ? <p className="mt-0.5 line-clamp-2 text-[13px] text-[var(--muted)]">{sanitizeEngineText(n.detail)}</p> : null}
                   </Link>
                   <button
                     type="button"

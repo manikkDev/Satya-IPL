@@ -5,16 +5,29 @@
 // labels 13–14px (never smaller). Certainty, severity and status are always
 // icon + word + colour — never colour alone. Money renders exact decimal
 // strings only (lib/format).
+//
+// Binding spec: docs/design/UI_SPEC.md. The page kit (§3) lives here:
+//   PageHeader · SectionHeader · TextLink · Card · StatCard (alias KpiCard) ·
+//   StatusChip · Money · DateText · RelativeDue · ResponsiveTable (+ Column) ·
+//   RowActions · FilterChips · InfoPanel · EmptyState · TableSkeleton /
+//   ListSkeleton / CardGridSkeleton / StatCardSkeleton. Use these instead of
+//   page-local variants so every list aligns the same way.
 
 import Link from "next/link";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   CheckCircle2, CircleDot, Circle, CircleHelp, CircleDashed, OctagonAlert, TriangleAlert, CircleAlert, Info, Check,
-  MessageCircleQuestion, CircleArrowUp, PauseCircle, Inbox, RotateCcw, ArrowRight, type LucideIcon,
+  MessageCircleQuestion, CircleArrowUp, PauseCircle, Inbox, RotateCcw, ArrowRight, ChevronDown, MoreHorizontal,
+  type LucideIcon,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { formatMoney, formatQty, formatDate, formatDateTimeIst, type Money as MoneyValue } from "@/lib/format";
+import { formatMoney, formatQty, formatDate, formatDateTimeIst, daysFromTodayIst, type Money as MoneyValue } from "@/lib/format";
+import { relativeDue, dueTone } from "@/lib/humanize";
 import { CERTAINTY_LABEL, ACTION_LABEL, TERM_TIPS, STATUS_LABEL, type Certainty, type Action } from "@/content/copy/vocabulary";
 
 /* ---------- money & dates ---------- */
@@ -185,16 +198,48 @@ export function PageHeader({
   );
 }
 
-/** Section head inside a page: 19px title + optional one-liner + action. */
-export function SectionHeader({ title, description, action, id }: { title: React.ReactNode; description?: React.ReactNode; action?: React.ReactNode; id?: string }) {
+/** Section head inside a page: 19px title + optional one-liner + a right-hand
+ *  action or a quiet "View all →" style `link`. */
+export function SectionHeader({
+  title,
+  description,
+  action,
+  link,
+  id,
+  className,
+}: {
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  action?: React.ReactNode;
+  /** Quiet text link on the right, e.g. { href: "/app/audit", label: "Activity log" }. */
+  link?: { href: string; label: string };
+  id?: string;
+  className?: string;
+}) {
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+    <div className={cn("mb-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2", className)}>
       <div className="min-w-0">
         <h2 id={id} className="type-section-title">{title}</h2>
         {description ? <p className="mt-1 text-[15px] leading-relaxed text-[var(--muted)]">{description}</p> : null}
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
+      {!action && link ? <TextLink href={link.href} className="shrink-0">{link.label}</TextLink> : null}
     </div>
+  );
+}
+
+/** Quiet accent text link with a trailing arrow ("View all →"). */
+export function TextLink({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-[4px] text-[15px] font-medium text-[var(--accent-strong)] transition-colors hover:underline hover:underline-offset-4 dark:text-[var(--accent)]",
+        className,
+      )}
+    >
+      {children} <ArrowRight size={15} aria-hidden="true" />
+    </Link>
   );
 }
 
@@ -222,12 +267,18 @@ export function Reveal({ children, className }: { children: React.ReactNode; cla
 
 /* ---------- cards ---------- */
 
+/** Surface for a group of related content: 1px line, 12px radius, 24px padding
+ *  (20px on phones). `as="section"` + `aria-labelledby` for landmark sections. */
 export function Card({
   children,
   className,
   pad = true,
   hover = false,
   glow: _glow = false,
+  as: Tag = "div",
+  id,
+  "aria-labelledby": labelledBy,
+  "aria-label": ariaLabel,
 }: {
   children: React.ReactNode;
   className?: string;
@@ -235,10 +286,17 @@ export function Card({
   hover?: boolean;
   /** Deprecated: kept for compatibility, renders flat. */
   glow?: boolean;
+  as?: "div" | "section" | "article" | "aside";
+  id?: string;
+  "aria-labelledby"?: string;
+  "aria-label"?: string;
 }) {
   void _glow;
   return (
-    <div
+    <Tag
+      id={id}
+      aria-labelledby={labelledBy}
+      aria-label={ariaLabel}
       className={cn(
         "rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-1)]",
         hover && "card-hover",
@@ -247,7 +305,7 @@ export function Card({
       )}
     >
       {children}
-    </div>
+    </Tag>
   );
 }
 
@@ -397,9 +455,9 @@ export function Chip({ active, children, className, ...props }: React.ButtonHTML
       type="button"
       aria-pressed={active}
       className={cn(
-        "inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-[14px] font-medium transition-colors",
+        "inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[14px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60",
         active
-          ? "border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)]"
+          ? "border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
           : "border-[var(--line-strong)] bg-[var(--surface)] text-[var(--ink-2)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
         className,
       )}
@@ -484,7 +542,9 @@ export function Sparkline({ points, className, color = "var(--accent)" }: { poin
   );
 }
 
-/** A key number with a plain explanation underneath. */
+/** KPI card: label (+ optional (i) tip), one big number, one short plain line,
+ *  and an optional "See why" drill-down (button via `onSeeWhy`, or link via
+ *  `seeWhyHref`). Keep KPI rows to 3–4 cards. Also exported as `KpiCard`. */
 export function StatCard({
   label,
   tip,
@@ -492,6 +552,7 @@ export function StatCard({
   delta,
   seeWhy,
   onSeeWhy,
+  seeWhyHref,
   spark,
   tone,
 }: {
@@ -499,16 +560,17 @@ export function StatCard({
   tip?: string;
   value: React.ReactNode;
   /** One plain line under the number, e.g. what it includes. */
-  delta?: string;
+  delta?: React.ReactNode;
   seeWhy?: string;
   onSeeWhy?: () => void;
+  seeWhyHref?: string;
   /** Normalised sparkline points 0..1 (display only). */
   spark?: number[];
-  tone?: "default" | "warn" | "good";
+  tone?: "default" | "warn" | "good" | "critical";
 }) {
-  const accent = tone === "warn" ? "var(--sev-high)" : tone === "good" ? "var(--confirmed)" : "var(--accent)";
+  const accent = tone === "warn" ? "var(--sev-high)" : tone === "critical" ? "var(--sev-critical)" : tone === "good" ? "var(--confirmed)" : "var(--accent)";
   return (
-    <article className="flex h-full flex-col rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)]">
+    <article className="flex h-full flex-col rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)] sm:p-6">
       <div className="flex items-start justify-between gap-2">
         <p className="flex items-center gap-1.5 text-[14px] font-medium text-[var(--ink-2)]">
           {label}
@@ -518,7 +580,14 @@ export function StatCard({
       </div>
       <p className="mt-2 text-[28px] font-semibold leading-9 tracking-[-0.02em] text-[var(--ink)] tnum">{value}</p>
       {delta ? <p className="mt-1.5 text-[14px] leading-snug text-[var(--muted)]">{delta}</p> : null}
-      {seeWhy ? (
+      {seeWhy && seeWhyHref ? (
+        <Link
+          href={seeWhyHref}
+          className="mt-auto inline-flex w-fit items-center gap-1 pt-3 text-[14px] font-medium text-[var(--accent-strong)] transition-colors hover:underline dark:text-[var(--accent)]"
+        >
+          {seeWhy} <ArrowRight size={14} aria-hidden="true" />
+        </Link>
+      ) : seeWhy ? (
         <button
           type="button"
           onClick={onSeeWhy}
@@ -530,6 +599,9 @@ export function StatCard({
     </article>
   );
 }
+
+/** Spec name for StatCard (UI_SPEC §3 "StatCard/KPI"). */
+export const KpiCard = StatCard;
 
 /* ---------- progress ---------- */
 
@@ -562,6 +634,8 @@ export function Progress({
 /* ---------- states ---------- */
 
 /** Empty states teach: what this place is for and the one thing to do next. */
+/** Empty states teach: icon, title, one line, and the one thing to do next.
+ *  `compact` drops the dashed frame — use it inside a table or card. */
 export function EmptyState({
   title,
   body,
@@ -570,7 +644,11 @@ export function EmptyState({
   actionHref,
   secondaryLabel,
   secondaryHref,
+  action,
+  compact = false,
+  tone = "neutral",
   icon: Icon = Inbox,
+  className,
 }: {
   title: string;
   body?: React.ReactNode;
@@ -579,20 +657,35 @@ export function EmptyState({
   actionHref?: string;
   secondaryLabel?: string;
   secondaryHref?: string;
+  /** Any custom action node (rendered after the standard buttons). */
+  action?: React.ReactNode;
+  compact?: boolean;
+  /** "ok" tints the icon green — for "all clear" states. */
+  tone?: "neutral" | "ok";
   icon?: LucideIcon;
+  className?: string;
 }) {
   return (
-    <div className="flex flex-col items-center rounded-[var(--radius-md)] border border-dashed border-[var(--line-strong)] bg-[var(--surface)] px-6 py-12 text-center">
-      <div className="grid h-12 w-12 place-items-center rounded-full bg-[var(--surface-2)]">
-        <Icon size={22} className="text-[var(--ink-2)]" aria-hidden="true" />
+    <div
+      className={cn(
+        "flex flex-col items-center text-center",
+        compact
+          ? "px-4 py-10"
+          : "rounded-[var(--radius-md)] border border-dashed border-[var(--line-strong)] bg-[var(--surface)] px-6 py-12",
+        className,
+      )}
+    >
+      <div className={cn("grid h-12 w-12 place-items-center rounded-full", tone === "ok" ? "bg-[var(--confirmed-soft)]" : "bg-[var(--surface-2)]")}>
+        <Icon size={22} className={tone === "ok" ? "text-[var(--confirmed)]" : "text-[var(--ink-2)]"} aria-hidden="true" />
       </div>
       <p className="mt-4 text-[17px] font-semibold text-[var(--ink)]">{title}</p>
       {body ? <p className="mt-1.5 max-w-lg text-[15px] leading-relaxed text-[var(--muted)]">{body}</p> : null}
-      {actionLabel || secondaryLabel ? (
+      {actionLabel || secondaryLabel || action ? (
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
           {actionLabel && actionHref ? <BtnLink href={actionHref}>{actionLabel}</BtnLink> : null}
           {actionLabel && !actionHref ? <Btn onClick={onAction}>{actionLabel}</Btn> : null}
           {secondaryLabel && secondaryHref ? <BtnLink href={secondaryHref} variant="secondary">{secondaryLabel}</BtnLink> : null}
+          {action}
         </div>
       ) : null}
     </div>
@@ -617,7 +710,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 
 export function StatCardSkeleton() {
   return (
-    <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5">
+    <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 sm:p-6" aria-hidden="true">
       <Skeleton className="h-4 w-28" />
       <Skeleton className="mt-3 h-8 w-36" />
       <Skeleton className="mt-3 h-4 w-40" />
@@ -637,6 +730,605 @@ export const tableShell =
 export const tableHeadRow = "border-b border-[var(--line)] bg-[var(--surface-2)]";
 export const tableTh =
   "px-4 py-3 text-left text-[13px] font-semibold text-[var(--muted)]";
-export const tableTd = "px-4 py-3.5 text-[15px] text-[var(--ink-2)]";
+/** Rows are ≥ 56px tall (UI_SPEC §2). */
+export const tableTd = "px-4 py-4 text-[15px] text-[var(--ink-2)] align-middle";
 export const tableRow =
-  "border-b border-[var(--line)] last:border-0 transition-colors hover:bg-[var(--surface-2)]/60";
+  "border-b border-[var(--line)] last:border-0 transition-colors hover:bg-[var(--surface-2)]";
+
+/* =====================================================================
+   Page kit (UI_SPEC §3): status, deadlines, tables, actions, filters,
+   explanations and matching skeletons.
+   ===================================================================== */
+
+export type StatusTone = "critical" | "warn" | "ok" | "info" | "neutral";
+
+const STATUS_CHIP: Record<StatusTone, { icon: LucideIcon; color: string; bg: string }> = {
+  critical: { icon: OctagonAlert, color: "var(--sev-critical)", bg: "var(--sev-critical-soft)" },
+  warn: { icon: CircleAlert, color: "var(--sev-medium)", bg: "var(--sev-medium-soft)" },
+  ok: { icon: CheckCircle2, color: "var(--confirmed)", bg: "var(--confirmed-soft)" },
+  info: { icon: Info, color: "var(--likely)", bg: "var(--likely-soft)" },
+  neutral: { icon: Circle, color: "var(--ink-2)", bg: "var(--surface-2)" },
+};
+
+/** Status as a small chip: icon + word, never colour alone. Tones:
+ *  critical (overdue / must act) · warn (soon / on hold) · ok (all clear) ·
+ *  info · neutral. Pass `icon` to override (e.g. PauseCircle for "On hold"). */
+export function StatusChip({
+  tone = "neutral",
+  icon,
+  children,
+  className,
+  title,
+}: {
+  tone?: StatusTone;
+  icon?: LucideIcon;
+  children: React.ReactNode;
+  className?: string;
+  /** Optional native tooltip with a longer explanation. */
+  title?: string;
+}) {
+  const style = STATUS_CHIP[tone];
+  const Icon = icon ?? style.icon;
+  return (
+    <span
+      title={title}
+      className={cn("inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-[5px] text-[13px] font-medium leading-none", className)}
+      style={{ color: style.color, background: style.bg, borderColor: `color-mix(in srgb, ${style.color} 24%, transparent)` }}
+    >
+      <Icon size={14} className="shrink-0" aria-hidden="true" />
+      <span className="truncate">{children}</span>
+    </span>
+  );
+}
+
+/** Deadline in words + date: "3 days overdue · 12 Nov 2026". Red only when
+ *  overdue, amber within 7 days, muted otherwise. Give `daysLeft` (preferred,
+ *  from the server) or just `date` (days are then counted in IST). */
+export function RelativeDue({
+  daysLeft,
+  date,
+  showDate = true,
+  layout = "stack",
+  className,
+}: {
+  daysLeft?: number | null;
+  date?: string | null;
+  showDate?: boolean;
+  /** "stack": words over date (tables) · "inline": "words · date". */
+  layout?: "stack" | "inline";
+  className?: string;
+}) {
+  const days = daysLeft ?? daysFromTodayIst(date ?? null);
+  if (days === null || days === undefined) return <span className={cn("text-[var(--muted)]", className)}>—</span>;
+  const tone = dueTone(days);
+  const color = tone === "critical" ? "var(--sev-critical)" : tone === "warn" ? "var(--sev-medium)" : "var(--ink-2)";
+  const words = relativeDue(days);
+  const wordsCap = words.charAt(0).toUpperCase() + words.slice(1);
+  if (layout === "inline") {
+    return (
+      <span className={cn("tnum", className)}>
+        <span className="font-medium" style={{ color }}>{wordsCap}</span>
+        {showDate && date ? <span className="text-[var(--muted)]"> · {formatDate(date)}</span> : null}
+      </span>
+    );
+  }
+  return (
+    <span className={cn("tnum inline-flex flex-col whitespace-nowrap leading-snug", className)}>
+      <span className="font-medium" style={{ color }}>{wordsCap}</span>
+      {showDate && date ? <span className="text-[13px] text-[var(--muted)]">{formatDate(date)}</span> : null}
+    </span>
+  );
+}
+
+/* ---------- row actions ---------- */
+
+export type RowAction = {
+  label: string;
+  onSelect?: () => void;
+  href?: string;
+  icon?: LucideIcon;
+  /** Destructive or irreversible — shown in red, after a separator. */
+  danger?: boolean;
+  disabled?: boolean;
+};
+
+const isRowAction = (x: unknown): x is RowAction =>
+  !!x && typeof x === "object" && "label" in (x as object) && !("$$typeof" in (x as object));
+
+/** One visible, contextual primary action + a "⋯" menu for the rest
+ *  (UI_SPEC §2). `primary` may be a RowAction or any node. `label` names the
+ *  row for screen readers ("More actions for INV-104"). */
+export function RowActions({
+  primary,
+  items = [],
+  label,
+  className,
+}: {
+  primary?: RowAction | React.ReactNode;
+  items?: RowAction[];
+  label: string;
+  className?: string;
+}) {
+  const safe = items.filter((i) => !i.danger);
+  const danger = items.filter((i) => i.danger);
+  // An item that opens a dialog must not have the menu hand focus back to
+  // its trigger on close — that focus move would dismiss the new dialog.
+  const pickedRef = useRef(false);
+  let primaryNode: React.ReactNode = null;
+  if (isRowAction(primary)) {
+    primaryNode = primary.href ? (
+      <BtnLink href={primary.href} size="sm" variant="secondary" icon={primary.icon}>
+        {primary.label}
+      </BtnLink>
+    ) : (
+      <Btn size="sm" variant="secondary" icon={primary.icon} onClick={primary.onSelect} disabled={primary.disabled}>
+        {primary.label}
+      </Btn>
+    );
+  } else if (primary) {
+    primaryNode = primary as React.ReactNode;
+  }
+  const renderItem = (item: RowAction) =>
+    item.href ? (
+      <DropdownMenuItem key={item.label} asChild disabled={item.disabled} className="min-h-10 cursor-pointer gap-2.5 px-3 text-[15px]">
+        <Link href={item.href}>
+          {item.icon ? <item.icon size={16} aria-hidden="true" /> : null}
+          {item.label}
+        </Link>
+      </DropdownMenuItem>
+    ) : (
+      <DropdownMenuItem
+        key={item.label}
+        disabled={item.disabled}
+        variant={item.danger ? "destructive" : "default"}
+        onSelect={() => {
+          pickedRef.current = true;
+          setTimeout(() => item.onSelect?.(), 0);
+        }}
+        className="min-h-10 cursor-pointer gap-2.5 px-3 text-[15px]"
+      >
+        {item.icon ? <item.icon size={16} aria-hidden="true" /> : null}
+        {item.label}
+      </DropdownMenuItem>
+    );
+  return (
+    <div className={cn("flex items-center justify-end gap-1.5", className)}>
+      {primaryNode}
+      {items.length ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label={`More actions for ${label}`}
+            className="grid h-9 w-8 shrink-0 place-items-center rounded-[var(--radius-sm)] text-[var(--muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60 data-[state=open]:bg-[var(--surface-2)]"
+          >
+            <MoreHorizontal size={18} aria-hidden="true" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="min-w-52 p-1.5"
+            onCloseAutoFocus={(e) => {
+              if (pickedRef.current) e.preventDefault();
+              pickedRef.current = false;
+            }}
+          >
+            {safe.map(renderItem)}
+            {danger.length && safe.length ? <DropdownMenuSeparator /> : null}
+            {danger.map(renderItem)}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+    </div>
+  );
+}
+
+/* ---------- filters ---------- */
+
+export type FilterOption<V extends string = string> = {
+  value: V;
+  label: string;
+  count?: number;
+  /** Tints the count when it matters (e.g. critical for "Overdue"). */
+  tone?: StatusTone;
+};
+
+/** Segmented filter chips with counts: "Overdue 7 · Due in 7 days 1 · …".
+ *  Zero-count options stay visible (counts teach the shape of the list). */
+export function FilterChips<V extends string>({
+  options,
+  value,
+  onChange,
+  label = "Filter",
+  className,
+}: {
+  options: FilterOption<V>[];
+  value: V;
+  onChange: (value: V) => void;
+  label?: string;
+  className?: string;
+}) {
+  return (
+    <div role="group" aria-label={label} className={cn("flex flex-wrap items-center gap-2", className)}>
+      {options.map((o) => {
+        const active = o.value === value;
+        const countColor = !active && o.count && o.tone === "critical" ? "var(--sev-critical)" : !active && o.count && o.tone === "warn" ? "var(--sev-medium)" : undefined;
+        return (
+          <Chip key={o.value} active={active} onClick={() => onChange(o.value)}>
+            {o.label}
+            {o.count !== undefined ? (
+              <span className={cn("tnum text-[13px] font-semibold", active ? "" : "text-[var(--muted)]")} style={countColor ? { color: countColor } : undefined}>
+                {o.count}
+              </span>
+            ) : null}
+          </Chip>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ---------- explanations ---------- */
+
+const infoKey = (key: string) => `satya.info.${key}`;
+
+/** Collapsible "How this check works" panel — explain a rule once, not on
+ *  every row. Open on the first visit, then remembers the reader's choice
+ *  (localStorage, guarded: private mode just falls back to open). */
+export function InfoPanel({
+  storageKey,
+  title = "How this check works",
+  summary,
+  children,
+  className,
+  icon: Icon = Info,
+}: {
+  /** Stable id, e.g. "compliance.msme". */
+  storageKey: string;
+  title?: React.ReactNode;
+  /** One line shown under the title while collapsed. */
+  summary?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+  icon?: LucideIcon;
+}) {
+  const [open, setOpen] = useState(false);
+  const bodyId = useId();
+  useEffect(() => {
+    let next = true;
+    try {
+      const saved = window.localStorage.getItem(infoKey(storageKey));
+      if (saved === "closed" || saved === "seen") next = false;
+      else if (saved !== "open") window.localStorage.setItem(infoKey(storageKey), "seen");
+    } catch {
+      /* storage unavailable: show it open */
+    }
+    setOpen(next);
+  }, [storageKey]);
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    try {
+      window.localStorage.setItem(infoKey(storageKey), next ? "open" : "closed");
+    } catch {
+      /* storage unavailable */
+    }
+  };
+  return (
+    <div className={cn("rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)]", className)}>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        aria-controls={bodyId}
+        className="flex w-full items-center gap-3 rounded-[var(--radius-md)] px-4 py-3.5 text-left transition-colors hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60 sm:px-5"
+      >
+        <Icon size={18} className="shrink-0 text-[var(--likely)]" aria-hidden="true" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold text-[var(--ink)]">{title}</span>
+          {summary && !open ? <span className="mt-0.5 block text-[14px] leading-snug text-[var(--muted)]">{summary}</span> : null}
+        </span>
+        <ChevronDown size={18} className={cn("shrink-0 text-[var(--muted)] transition-transform duration-200", open && "rotate-180")} aria-hidden="true" />
+      </button>
+      <div id={bodyId} hidden={!open} className="fade-in border-t border-[var(--line)] px-4 pb-5 pt-4 text-[15px] leading-relaxed text-[var(--ink-2)] sm:px-5">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** Label/value rows for an InfoPanel ("The rule", "If missed", "How Satya
+ *  checks", "Law") — two aligned columns on wide screens. */
+export function InfoList({ items }: { items: { label: string; value: React.ReactNode }[] }) {
+  return (
+    <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-[168px_1fr] sm:gap-y-3">
+      {items.map((item) => (
+        <div key={item.label} className="contents">
+          <dt className="pt-2 text-[14px] font-medium text-[var(--muted)] first:pt-0 sm:pt-0">{item.label}</dt>
+          <dd className="text-[15px] leading-relaxed text-[var(--ink-2)]">{item.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/* ---------- responsive table ---------- */
+
+export type Column<T> = {
+  key: string;
+  header: React.ReactNode;
+  cell: (row: T) => React.ReactNode;
+  /** Money and counts align right. */
+  align?: "left" | "right";
+  /** Tailwind width class for the desktop column, e.g. "w-[140px]". */
+  width?: string;
+  /** Label on the stacked phone card (defaults to `header` when it's text). */
+  mobileLabel?: string;
+  /** Becomes the card title on phones (use for the identifying column). */
+  primary?: boolean;
+  hideOnMobile?: boolean;
+  className?: string;
+};
+
+/** The action column stays in view when a wide table scrolls sideways. */
+const STICKY_ACTIONS = "sticky right-0 z-[1] w-px whitespace-nowrap shadow-[-10px_0_10px_-10px_rgb(0_0_0/0.18)]";
+
+const BREAKPOINT = {
+  md: { table: "md:block", cards: "md:hidden" },
+  lg: { table: "lg:block", cards: "lg:hidden" },
+  xl: { table: "xl:block", cards: "xl:hidden" },
+} as const;
+
+/** One list, two layouts: an aligned table on wide screens (fixed columns,
+ *  money right-aligned, status in one column, actions last, sticky header
+ *  for long lists) and stacked cards on phones with the same field order.
+ *  Rows never change layout based on status; `rowAccent` adds at most a 3px
+ *  left accent. Optional checkbox `selection` for bulk actions. */
+export function ResponsiveTable<T>({
+  columns,
+  rows,
+  rowKey,
+  actions,
+  actionsHeader = "Action",
+  selection,
+  empty,
+  caption,
+  rowAccent,
+  breakpoint = "lg",
+  className,
+}: {
+  columns: Column<T>[];
+  rows: T[];
+  rowKey: (row: T) => string;
+  actions?: (row: T) => React.ReactNode;
+  actionsHeader?: string;
+  selection?: {
+    selected: Set<string>;
+    onChange: (next: Set<string>) => void;
+    /** Rows that can't be selected show a disabled box. */
+    isSelectable?: (row: T) => boolean;
+    /** Accessible name for a row's checkbox, e.g. "Select INV-104". */
+    rowLabel: (row: T) => string;
+  };
+  /** Shown inside the table frame when there are no rows. */
+  empty?: React.ReactNode;
+  /** Screen-reader caption describing the table. */
+  caption?: string;
+  rowAccent?: (row: T) => StatusTone | null | undefined;
+  breakpoint?: keyof typeof BREAKPOINT;
+  className?: string;
+}) {
+  const bp = BREAKPOINT[breakpoint];
+  const selectable = selection ? rows.filter((r) => selection.isSelectable?.(r) ?? true) : [];
+  const allSelected = !!selection && selectable.length > 0 && selectable.every((r) => selection.selected.has(rowKey(r)));
+  const someSelected = !!selection && selectable.some((r) => selection.selected.has(rowKey(r)));
+  const toggleAll = () => {
+    if (!selection) return;
+    const next = new Set(selection.selected);
+    if (allSelected) selectable.forEach((r) => next.delete(rowKey(r)));
+    else selectable.forEach((r) => next.add(rowKey(r)));
+    selection.onChange(next);
+  };
+  const toggle = (row: T) => {
+    if (!selection) return;
+    const next = new Set(selection.selected);
+    const k = rowKey(row);
+    if (next.has(k)) next.delete(k);
+    else next.add(k);
+    selection.onChange(next);
+  };
+  const accentColor = (row: T) => {
+    const tone = rowAccent?.(row);
+    return tone === "critical" ? "var(--sev-critical)" : tone === "warn" ? "var(--sev-medium)" : tone === "ok" ? "var(--confirmed)" : tone === "info" ? "var(--likely)" : null;
+  };
+  const checkbox = (row: T) => {
+    if (!selection) return null;
+    const can = selection.isSelectable?.(row) ?? true;
+    return (
+      <input
+        type="checkbox"
+        className="h-[18px] w-[18px] cursor-pointer accent-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+        checked={selection.selected.has(rowKey(row))}
+        disabled={!can}
+        onChange={() => toggle(row)}
+        aria-label={selection.rowLabel(row)}
+      />
+    );
+  };
+  const long = rows.length > 12;
+  const colCount = columns.length + (actions ? 1 : 0) + (selection ? 1 : 0);
+  const primaryCol = columns.find((c) => c.primary) ?? columns[0];
+  const labelOf = (c: Column<T>) => c.mobileLabel ?? (typeof c.header === "string" ? c.header : c.key);
+  const emptyNode = empty ?? <EmptyState compact title="Nothing to show" />;
+
+  return (
+    <div className={className}>
+      {/* wide screens: aligned table */}
+      <div className={cn(tableShell, "hidden", bp.table)}>
+        <div className={cn("table-scroll", long && "max-h-[min(72vh,760px)] overflow-y-auto")}>
+          <table className="w-full border-collapse">
+            {caption ? <caption className="sr-only">{caption}</caption> : null}
+            <thead className={cn(long && "sticky top-0 z-10")}>
+              <tr className={tableHeadRow}>
+                {selection ? (
+                  <th scope="col" className={cn(tableTh, "w-12 pr-0")}>
+                    <input
+                      type="checkbox"
+                      className="h-[18px] w-[18px] cursor-pointer accent-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+                      checked={allSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = someSelected && !allSelected;
+                      }}
+                      onChange={toggleAll}
+                      disabled={!selectable.length}
+                      aria-label="Select all rows"
+                    />
+                  </th>
+                ) : null}
+                {columns.map((c) => (
+                  <th key={c.key} scope="col" className={cn(tableTh, "whitespace-nowrap px-3 first:pl-4", c.align === "right" && "text-right", c.width)}>
+                    {c.header}
+                  </th>
+                ))}
+                {actions ? (
+                  <th scope="col" className={cn(tableTh, STICKY_ACTIONS, "bg-[var(--surface-2)] pl-3 text-right")}>
+                    <span className="sr-only">{actionsHeader}</span>
+                  </th>
+                ) : null}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={colCount}>{emptyNode}</td>
+                </tr>
+              ) : (
+                rows.map((row) => {
+                  const accent = accentColor(row);
+                  return (
+                    <tr key={rowKey(row)} className={cn(tableRow, "group")}>
+                      {selection ? (
+                        <td className={cn(tableTd, "w-12 pr-0")} style={accent ? { boxShadow: `inset 3px 0 0 ${accent}` } : undefined}>
+                          {checkbox(row)}
+                        </td>
+                      ) : null}
+                      {columns.map((c, i) => (
+                        <td
+                          key={c.key}
+                          className={cn(tableTd, "px-3 first:pl-4", c.align === "right" && "text-right tnum", c.className)}
+                          style={!selection && i === 0 && accent ? { boxShadow: `inset 3px 0 0 ${accent}` } : undefined}
+                        >
+                          {c.cell(row)}
+                        </td>
+                      ))}
+                      {actions ? (
+                        <td className={cn(tableTd, STICKY_ACTIONS, "bg-[var(--surface)] py-3 pl-3 text-right transition-colors group-hover:bg-[var(--surface-2)]")}>{actions(row)}</td>
+                      ) : null}
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* phones and narrow windows: stacked cards, same field order */}
+      <div className={bp.cards}>
+        {rows.length === 0 ? (
+          <div className={tableShell}>{emptyNode}</div>
+        ) : (
+          <ul className="space-y-3" aria-label={caption}>
+            {rows.map((row) => {
+              const accent = accentColor(row);
+              return (
+                <li
+                  key={rowKey(row)}
+                  className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-1)]"
+                  style={accent ? { boxShadow: `inset 3px 0 0 ${accent}, var(--shadow-1)` } : undefined}
+                >
+                  <div className="flex items-start gap-3">
+                    {selection ? <div className="pt-0.5">{checkbox(row)}</div> : null}
+                    <div className="min-w-0 flex-1 text-[15px] font-medium text-[var(--ink)]">{primaryCol.cell(row)}</div>
+                  </div>
+                  <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+                    {columns
+                      .filter((c) => c !== primaryCol && !c.hideOnMobile)
+                      .map((c) => (
+                        <div key={c.key} className="min-w-0">
+                          <dt className="text-[13px] text-[var(--muted)]">{labelOf(c)}</dt>
+                          <dd className={cn("mt-0.5 min-w-0 break-words text-[15px] text-[var(--ink-2)]", c.align === "right" && "tnum [&>.items-end]:items-start")}>{c.cell(row)}</dd>
+                        </div>
+                      ))}
+                  </dl>
+                  {actions ? <div className="mt-4 flex justify-end border-t border-[var(--line)] pt-3">{actions(row)}</div> : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- skeletons that match the final layout ---------- */
+
+/** Table-shaped loading state (header + rows); stacks as cards on phones. */
+export function TableSkeleton({ rows = 5, columns = 5, className }: { rows?: number; columns?: number; className?: string }) {
+  return (
+    <div className={className} aria-busy="true" aria-label="Loading">
+      <div className={cn(tableShell, "hidden lg:block")}>
+        <div className={cn(tableHeadRow, "flex gap-6 px-4 py-3.5")}>
+          {Array.from({ length: columns }, (_, i) => <Skeleton key={i} className="h-3.5 flex-1" />)}
+        </div>
+        {Array.from({ length: rows }, (_, r) => (
+          <div key={r} className="flex h-14 items-center gap-6 border-b border-[var(--line)] px-4 last:border-0">
+            {Array.from({ length: columns }, (_, c) => <Skeleton key={c} className={cn("h-4 flex-1", c === 0 && "max-w-40")} />)}
+          </div>
+        ))}
+      </div>
+      <div className="space-y-3 lg:hidden">
+        {Array.from({ length: Math.min(rows, 3) }, (_, r) => (
+          <div key={r} className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
+            <Skeleton className="h-5 w-40" />
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-9 w-full" />)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** List-row loading state for cards like "Needs you today". */
+export function ListSkeleton({ rows = 3, className }: { rows?: number; className?: string }) {
+  return (
+    <div className={cn("divide-y divide-[var(--line)]", className)} aria-busy="true" aria-label="Loading">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex items-center gap-4 py-4">
+          <Skeleton className="h-5 w-5 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-3.5 w-1/3" />
+          </div>
+          <Skeleton className="h-9 w-28" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Grid of card placeholders (e.g. the six compliance checks). */
+export function CardGridSkeleton({ count = 3, className, height = "h-[176px]" }: { count?: number; className?: string; height?: string }) {
+  return (
+    <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3", className)} aria-busy="true" aria-label="Loading">
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className={cn("rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5", height)}>
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="mt-4 h-7 w-24" />
+          <Skeleton className="mt-3 h-4 w-40" />
+          <Skeleton className="mt-2 h-4 w-28" />
+        </div>
+      ))}
+    </div>
+  );
+}

@@ -10,6 +10,7 @@ import { money, toPaise, fromPaise, grandOf, taxOf, taxableOf, mulRate, toDecima
 import { settledPaiseFor } from "../../services/settlement.js";
 import { acceptanceDates, msmeCategoryOf, msmeCovered, msmeDeadline, MSME_MAX_DAYS } from "../../services/msme.js";
 import { scopeAllows } from "../../auth/rbac.js";
+import { computePayables } from "./assistant.js";
 import { fail, handle, assertPlainInput } from "./util.js";
 
 // Statutory SCREENING checks over recorded documents. These are worklists
@@ -19,6 +20,10 @@ export const SCREENING_NOTE = "Screening checks over your recorded documents —
 
 const router = express.Router();
 const today = () => todayIst();
+const addDaysIso = (iso, n) => {
+  const t = Date.parse(`${String(iso || "").slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(t) ? null : new Date(t + n * 86_400_000).toISOString().slice(0, 10);
+};
 const days = (a, b) => daysBetween(a, b);
 const actorOf = (req) => req.user.v2id || String(req.user._id);
 
@@ -71,6 +76,33 @@ const loadComplianceBase = async (req, { payments: wantPayments = true } = {}) =
   const settled = await settledPaiseFor(req.scope.groupId, books.map((d) => d.id));
   const paidFor = new Map([...settled.entries()].map(([k, v]) => [k, v]));
   return { f, invoices, books, suppliers, payments, paidFor, supplierOf: supplierIndex(suppliers) };
+};
+// Dispute status per invoice, from the same computation the assistant and
+// Home use (assistant.computePayables): an open finding that disputes the
+// AMOUNT owed puts that part of the bill on hold. A compliance row for a held
+// bill must point the reviewer at the dispute, never at "record payment".
+const disputeIndex = async (req) => {
+  try {
+    const entityIds = req.query.entityId ? [String(req.query.entityId)] : req.scope.entityIds;
+    const { items } = await computePayables({ groupId: req.scope.groupId, entityIds });
+    return new Map(items.map((p) => [p.documentId, p]));
+  } catch (error) {
+    console.warn("[compliance] dispute enrichment skipped:", error.message);
+    return new Map();
+  }
+};
+const disputeFields = (p, { withInterest = true } = {}) => {
+  if (!p) return { disputed: money("0.00"), payable: null, onHold: false, holdKind: null, caseId: null, findings: [], ...(withInterest ? { interestEstimate: null } : {}) };
+  const held = toPaise(p.disputed?.amount) > 0n;
+  return {
+    disputed: p.disputed,
+    payable: p.payable,
+    onHold: held,
+    holdKind: !held ? null : toPaise(p.payable?.amount) > 0n ? "partial" : "full",
+    caseId: p.caseId || (p.findings || []).find((x) => x.caseId)?.caseId || null,
+    findings: (p.findings || []).map((x) => ({ id: x.id, code: x.code, severity: x.severity, caseId: x.caseId || null })),
+    ...(withInterest ? { interestEstimate: p.msme?.interestEstimate ?? null } : {}),
+  };
 };
 const outstandingPaise = (d, paidFor) => { const o = toPaise(grandOf(d)) - (paidFor.get(d.id) || 0n); return o > 0n ? o : 0n; };
 
@@ -201,10 +233,14 @@ router.get("/summary", handle(async (req, res) => {
 // how close they are to the MSMED deadline (acceptance + agreed terms, max 45).
 router.get("/msme", handle(async (req, res) => {
   const base = await loadComplianceBase(req);
-  const items = await msmeRows(req, base);
+  const [rows, disputes] = await Promise.all([msmeRows(req, base), disputeIndex(req)]);
+  const items = rows.map((r) => ({ ...r, ...disputeFields(disputes.get(r.documentId)) }));
   res.json({
     items: items.slice(0, 150),
     summary: {
+      onHold: items.filter((r) => r.onHold).length,
+      disputed: money(fromPaise(items.reduce((s, r) => s + toPaise(r.disputed?.amount), 0n))),
+      interestEstimate: money(fromPaise(items.reduce((s, r) => s + toPaise(r.interestEstimate?.amount), 0n))),
       open: items.length,
       overdue: items.filter((r) => r.status === "overdue").length,
       dueThisWeek: items.filter((r) => r.status === "due_soon").length,
@@ -292,7 +328,7 @@ router.get("/gstr2b", handle(async (req, res) => {
 // GET /compliance/rule37 — invoices unpaid long enough that claimed ITC must
 // be reversed (180 days) or is about to be (150+ days).
 router.get("/rule37", handle(async (req, res) => {
-  const { books, paidFor, supplierOf } = await loadComplianceBase(req, { payments: false });
+  const [{ books, paidFor, supplierOf }, disputes] = await Promise.all([loadComplianceBase(req, { payments: false }), disputeIndex(req)]);
   const now = today();
   const items = books.map((d) => {
     const itc = toPaise(taxOf(d));
@@ -316,6 +352,8 @@ router.get("/rule37", handle(async (req, res) => {
       interestEstimate: !reversed && daysPast > 0 ? money(mulRate(fromPaise(itcOnUnpaid), (0.18 * daysPast / 365).toFixed(8))) : null,
       reversedAt: d.gst?.itcReversed?.at ?? null, reversedBy: d.gst?.itcReversed?.by ?? null,
       reversalNote: d.gst?.itcReversed?.note ?? null,
+      deadline: addDaysIso(d.date, 180),
+      ...disputeFields(disputes.get(d.id), { withInterest: false }),
     };
   }).filter(Boolean).sort((a, b) => b.daysWaiting - a.daysWaiting);
 
@@ -323,6 +361,7 @@ router.get("/rule37", handle(async (req, res) => {
     items,
     summary: {
       breached: items.filter((r) => r.state === "breached").length,
+      onHold: items.filter((r) => r.onHold && r.state !== "reversed").length,
       approaching: items.filter((r) => r.state === "approaching").length,
       reversed: items.filter((r) => r.state === "reversed").length,
       itcAtRisk: money(fromPaise(items.filter((r) => r.state !== "reversed").reduce((s, r) => s + toPaise(r.itcOnUnpaid), 0n))),
