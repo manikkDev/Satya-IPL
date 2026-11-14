@@ -256,7 +256,7 @@ function DemoBanner() {
     }
   };
   return (
-    <div className="flex h-9 items-center gap-3 border-b border-[var(--line)] bg-[var(--surface)] px-4 text-[13px] text-[var(--muted)] sm:px-6 lg:px-10">
+    <div className="flex h-9 items-center gap-3 border-b border-[var(--line)] bg-[var(--surface)] px-4 text-[13px] text-[var(--muted)] sm:px-6 lg:px-8">
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--saffron)]" aria-hidden="true" />
       <p className="min-w-0 flex-1 truncate">
         <span className="font-medium text-[var(--ink-2)]">Demo workspace</span>
@@ -432,7 +432,7 @@ function ShellInner({ children }: { children: ReactNode }) {
 
       <div className="flex min-h-screen">
         {/* Sidebar — desktop */}
-        <aside className="sticky top-0 hidden h-screen w-[264px] shrink-0 flex-col border-r border-[var(--sidebar-line)] bg-[var(--sidebar-bg)] md:flex">
+        <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-r border-[var(--sidebar-line)] bg-[var(--sidebar-bg)] md:flex">
           <div className="flex h-16 shrink-0 items-center px-5">
             <Link href="/app" aria-label="Satya home" className="inline-flex rounded-[var(--radius-sm)]">
               <Logo size={28} />
@@ -455,7 +455,7 @@ function ShellInner({ children }: { children: ReactNode }) {
         {/* Main column */}
         <div className="flex min-w-0 flex-1 flex-col">
           <DemoBanner />
-          <header className="sticky top-0 z-30 flex h-16 items-center gap-1.5 border-b border-[var(--line)] bg-[var(--topbar-bg)] px-4 backdrop-blur-md sm:gap-2 sm:px-6 lg:px-10">
+          <header className="sticky top-0 z-30 flex h-16 items-center gap-1.5 border-b border-[var(--line)] bg-[var(--topbar-bg)] px-4 backdrop-blur-md sm:gap-2 sm:px-6 lg:px-8">
             <Link href="/app" aria-label="Satya home" className="md:hidden">
               <LogoMark size={30} />
             </Link>
@@ -476,7 +476,7 @@ function ShellInner({ children }: { children: ReactNode }) {
             <UserMenu />
           </header>
 
-          <main id="app-content" tabIndex={-1} className="flex-1 px-4 py-6 pb-28 outline-none sm:px-6 sm:py-8 md:pb-14 lg:px-10">
+          <main id="app-content" tabIndex={-1} className="flex-1 px-4 py-6 pb-28 outline-none sm:px-6 sm:py-8 md:pb-14 lg:px-8">
             <div className="mx-auto w-full max-w-[var(--content-max)]">
               <HealthBanner />
               <MeErrorBanner />

@@ -14,7 +14,7 @@
 //   page-local variants so every list aligns the same way.
 
 import Link from "next/link";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   CheckCircle2, CircleDot, Circle, CircleHelp, CircleDashed, OctagonAlert, TriangleAlert, CircleAlert, Info, Check,
   MessageCircleQuestion, CircleArrowUp, PauseCircle, Inbox, RotateCcw, ArrowRight, ChevronDown, MoreHorizontal,
@@ -813,7 +813,7 @@ export function RelativeDue({
     );
   }
   return (
-    <span className={cn("tnum inline-flex flex-col leading-snug", className)}>
+    <span className={cn("tnum inline-flex flex-col whitespace-nowrap leading-snug", className)}>
       <span className="font-medium" style={{ color }}>{wordsCap}</span>
       {showDate && date ? <span className="text-[13px] text-[var(--muted)]">{formatDate(date)}</span> : null}
     </span>
@@ -851,6 +851,9 @@ export function RowActions({
 }) {
   const safe = items.filter((i) => !i.danger);
   const danger = items.filter((i) => i.danger);
+  // An item that opens a dialog must not have the menu hand focus back to
+  // its trigger on close — that focus move would dismiss the new dialog.
+  const pickedRef = useRef(false);
   let primaryNode: React.ReactNode = null;
   if (isRowAction(primary)) {
     primaryNode = primary.href ? (
@@ -878,7 +881,10 @@ export function RowActions({
         key={item.label}
         disabled={item.disabled}
         variant={item.danger ? "destructive" : "default"}
-        onSelect={() => item.onSelect?.()}
+        onSelect={() => {
+          pickedRef.current = true;
+          setTimeout(() => item.onSelect?.(), 0);
+        }}
         className="min-h-10 cursor-pointer gap-2.5 px-3 text-[15px]"
       >
         {item.icon ? <item.icon size={16} aria-hidden="true" /> : null}
@@ -892,11 +898,18 @@ export function RowActions({
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label={`More actions for ${label}`}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius-sm)] text-[var(--muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60 data-[state=open]:bg-[var(--surface-2)]"
+            className="grid h-9 w-8 shrink-0 place-items-center rounded-[var(--radius-sm)] text-[var(--muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60 data-[state=open]:bg-[var(--surface-2)]"
           >
             <MoreHorizontal size={18} aria-hidden="true" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-52 p-1.5">
+          <DropdownMenuContent
+            align="end"
+            className="min-w-52 p-1.5"
+            onCloseAutoFocus={(e) => {
+              if (pickedRef.current) e.preventDefault();
+              pickedRef.current = false;
+            }}
+          >
             {safe.map(renderItem)}
             {danger.length && safe.length ? <DropdownMenuSeparator /> : null}
             {danger.map(renderItem)}
@@ -1054,6 +1067,9 @@ export type Column<T> = {
   className?: string;
 };
 
+/** The action column stays in view when a wide table scrolls sideways. */
+const STICKY_ACTIONS = "sticky right-0 z-[1] w-px whitespace-nowrap shadow-[-10px_0_10px_-10px_rgb(0_0_0/0.18)]";
+
 const BREAKPOINT = {
   md: { table: "md:block", cards: "md:hidden" },
   lg: { table: "lg:block", cards: "lg:hidden" },
@@ -1167,12 +1183,12 @@ export function ResponsiveTable<T>({
                   </th>
                 ) : null}
                 {columns.map((c) => (
-                  <th key={c.key} scope="col" className={cn(tableTh, "whitespace-nowrap", c.align === "right" && "text-right", c.width)}>
+                  <th key={c.key} scope="col" className={cn(tableTh, "whitespace-nowrap px-3 first:pl-4", c.align === "right" && "text-right", c.width)}>
                     {c.header}
                   </th>
                 ))}
                 {actions ? (
-                  <th scope="col" className={cn(tableTh, "text-right")}>
+                  <th scope="col" className={cn(tableTh, STICKY_ACTIONS, "bg-[var(--surface-2)] pl-3 text-right")}>
                     <span className="sr-only">{actionsHeader}</span>
                   </th>
                 ) : null}
@@ -1187,7 +1203,7 @@ export function ResponsiveTable<T>({
                 rows.map((row) => {
                   const accent = accentColor(row);
                   return (
-                    <tr key={rowKey(row)} className={tableRow}>
+                    <tr key={rowKey(row)} className={cn(tableRow, "group")}>
                       {selection ? (
                         <td className={cn(tableTd, "w-12 pr-0")} style={accent ? { boxShadow: `inset 3px 0 0 ${accent}` } : undefined}>
                           {checkbox(row)}
@@ -1196,13 +1212,15 @@ export function ResponsiveTable<T>({
                       {columns.map((c, i) => (
                         <td
                           key={c.key}
-                          className={cn(tableTd, c.align === "right" && "text-right tnum", c.className)}
+                          className={cn(tableTd, "px-3 first:pl-4", c.align === "right" && "text-right tnum", c.className)}
                           style={!selection && i === 0 && accent ? { boxShadow: `inset 3px 0 0 ${accent}` } : undefined}
                         >
                           {c.cell(row)}
                         </td>
                       ))}
-                      {actions ? <td className={cn(tableTd, "py-3 text-right")}>{actions(row)}</td> : null}
+                      {actions ? (
+                        <td className={cn(tableTd, STICKY_ACTIONS, "bg-[var(--surface)] py-3 pl-3 text-right transition-colors group-hover:bg-[var(--surface-2)]")}>{actions(row)}</td>
+                      ) : null}
                     </tr>
                   );
                 })
