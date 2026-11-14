@@ -126,6 +126,29 @@ export function composeEvidenceAnswer(intent, { data = {}, missing = [], sources
   if (assign) return out(`${head(assign.assignee ? `Assign it to ${assign.assignee} (${assign.priority} priority).` : "I couldn't find a colleague to assign this to.")}${evidence()}`, ["Set a follow-up reminder"], "proposal");
   if (remind) return out(`${head(`Set a follow-up for ${dateText(remind.dueDate)}.`)}${evidence()}`, ["What is open on this case?"], "proposal");
 
+  const att = data.read_attachment;
+  if (intent === "attachment_review" && att) {
+    const checks = [...(data.match_attachment?.checks || []), ...(data.check_attachment_gst?.checks || [])];
+    const failed = checks.filter((c) => c.status === "fail");
+    const review = checks.filter((c) => c.status === "warn");
+    const what = att.typeLabel || "document";
+    const id = `${what}${att.number ? ` ${att.number}` : ""}`;
+    const verdict = failed.length
+      ? `Don't pay this ${what} yet — ${plural(count(failed), "check")} failed.`
+      : review.length
+        ? `This ${what} needs a quick look before you pay — ${plural(count(review), "check")} to review.`
+        : checks.length
+          ? `No problems found in this ${what} — all ${count(checks)} checks passed.`
+          : `I read this ${what} but couldn't check it against your books.`;
+    const mark = { pass: "✓", warn: "Review —", fail: "Problem —" };
+    const ordered = [...failed, ...review, ...checks.filter((c) => c.status === "pass")];
+    const stated = [att.date ? `dated ${dateText(att.date)}` : null, att.totals?.grand ? `for ${inr(att.totals.grand)}` : null].filter(Boolean).join(" ");
+    return out(`${head(verdict)}\n\nThe attached ${id}${stated ? ` is ${stated}` : ""}${cite(att.ref)}.${checks.length ? `\n\n**Checks**\n\n${bullets(ordered.slice(0, 9).map((c) => `${mark[c.status] || ""} **${c.label}:** ${c.detail}${cite(c.ref)}`))}` : ""}${att.extraction?.needsReview?.length ? `\n\n_Some fields were hard to read (${att.extraction.needsReview.slice(0, 4).join(", ")}) — check them against the paper copy._` : ""}\n\n_${att.inBooks ? "This document is already posted in your books." : "Read from your attachment and saved as a draft in Imports — it is not in your books until you confirm it there."} GST points are screening, not tax advice._${evidence()}`,
+    failed.length || review.length
+      ? ["Draft a query to the supplier about this invoice", "Show the purchase order it quotes", "What else is open with this supplier?"]
+      : ["What else is open with this supplier?", "Plan payments for this week"]);
+  }
+
   switch (intent) {
     case "briefing": {
       const lines = [];

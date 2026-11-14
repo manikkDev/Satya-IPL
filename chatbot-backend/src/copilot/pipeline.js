@@ -14,8 +14,9 @@
 // SSE events (send): status, tool, delta, reset, action, (answer is returned)
 
 import { ulid } from "ulid";
-import { classify, classifyWithLlm, planFor, NO_DATA_INTENTS } from "./router.js";
-import { createToolkit, viewJson } from "./tools/index.js";
+import { classify, classifyWithLlm, planFor, NO_DATA_INTENTS, ABOUT_ATTACHMENT } from "./router.js";
+import { createToolkit, viewJson, ATTACHMENT_TOOLS } from "./tools/index.js";
+import { normalizeOptions, policyFor, optionsPrompt, scopeLabel, planNeedsInput, PLAN_QUESTION, analyseExtras, workingSection, noteFromAnswer } from "./options.js";
 import { SourceRegistry, normalizeCitations } from "./sources.js";
 import { NumberBank, verifyAnswer, stripUngrounded, extractClaims } from "./grounding.js";
 import { composeEvidenceAnswer } from "./compose.js";
@@ -23,8 +24,6 @@ import { workingMemory, refreshSummary } from "./memory.js";
 import { prompt, fill } from "./promptLoader.js";
 
 const MAX_MESSAGE = 2000;
-const MAX_STEPS = 6;
-const AGENT_BUDGET_MS = 45_000;
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 const stripControl = (text) => String(text || "").replace(CONTROL_CHARS, " ").slice(0, MAX_MESSAGE);
 const todayIst = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
@@ -65,8 +64,24 @@ const FAMILY = {
   spend: ["spend_by_period", "compare_periods"],
   how_to: ["search_help"],
   hsn: ["hsn_lookup", "search_help"],
+  attachment_review: [...ATTACHMENT_TOOLS, "get_document", "get_case", "list_findings", "get_supplier_summary", "hsn_lookup", "draft_supplier_message", "propose_decision"],
 };
-const toolsFor = (intent) => (FAMILY[intent] ? [...new Set(["search_records", "calculate", ...FAMILY[intent]])] : null);
+/** Draft mode adds the writing tools to whatever the question needs. */
+const DRAFT_TOOLS = ["draft_supplier_message", "get_supplier_summary", "list_findings", "get_case", "explain_finding", "payment_history"];
+const toolsFor = (intent, opts) => {
+  if (policyFor(opts.mode).allTools && intent !== "calculation") return null; // Analyse: every tool
+  const base = FAMILY[intent];
+  if (!base) return null;
+  return [...new Set([
+    "search_records", "calculate", ...base,
+    ...(opts.mode === "draft" ? DRAFT_TOOLS : []),
+    ...(opts.mode === "plan" ? ["propose_payment_run", "list_payables", "msme_payments_due"] : []),
+    ...(opts.attachmentIds.length ? ATTACHMENT_TOOLS : []),
+  ])];
+};
+/** In Plan payments mode these questions become a payment-run proposal. */
+const PLAN_INTENTS = new Set(["payables_due", "ageing", "msme", "s43bh", "supplier_exposure", "briefing", "general", "supplier_balance", "payments"]);
+const DRAFT_NOTE = /\b(note|memo|summary|internal|cfo|ceo|boss|md|director|team|approval|board|management)\b/i;
 
 /**
  * @param {object} o
@@ -81,18 +96,22 @@ const toolsFor = (intent) => (FAMILY[intent] ? [...new Set(["search_records", "c
  * @param {Function} [o.send] SSE emitter
  * @param {AbortSignal} [o.signal]
  * @param {string} [o.today] YYYY-MM-DD override (tests/eval)
+ * @param {object} [o.options] agent options from the composer (options.js)
  */
-export async function runCopilot({ message, context = {}, auth, llm = null, call, rag = null, store = null, conversation = null, send = () => {}, signal, today = todayIst() }) {
+export async function runCopilot({ message, context = {}, auth, llm = null, call, rag = null, store = null, conversation = null, send = () => {}, signal, today = todayIst(), options = {} }) {
   const started = Date.now();
+  const opts = normalizeOptions(options);
+  const policy = policyFor(opts.mode);
   const sources = new SourceRegistry();
   const bank = new NumberBank();
   const text = stripControl(message).trim();
   bank.addUserText(text);
   const memory = workingMemory(conversation);
   const focus = memory.focusEntities || {};
-  const scope = { groupId: auth?.groupId || null, entityId: context.entityId || null, userId: auth?.userId || null };
-  const toolkit = createToolkit({ call, rag, scope, sources, bank, userMessage: text, today, onEvent: send });
+  const scope = { groupId: auth?.groupId || null, entityId: opts.scope.entityId || context.entityId || null, userId: auth?.userId || null };
+  const toolkit = createToolkit({ call, rag, scope, sources, bank, userMessage: text, today, onEvent: send, options: opts });
   const llmInfo = { provider: null, model: null };
+  let extras = [];
 
   if (!text) {
     return finish({ content: "**Ask me about your payables, suppliers, invoices or GST/MSME deadlines.**", answerType: "clarification", intent: "general", responseMode: "evidence_only" });
@@ -111,10 +130,41 @@ export async function runCopilot({ message, context = {}, auth, llm = null, call
     const c = composeEvidenceAnswer(route.intent, { data: {}, sources, route, message: text });
     return finish({ content: c.markdown, answerType: c.answerType, followUps: c.followUps, intent: route.intent, responseMode: "evidence_only" });
   }
+  // mode + attachment steer the route (refusals above are never overridden)
+  if (opts.attachmentIds.length && (ABOUT_ATTACHMENT.test(text) || route.intent === "general" || route.confidence < 0.8)) {
+    route = { ...route, intent: "attachment_review", confidence: 0.9, reason: "question about the attached document" };
+  } else if (opts.mode === "plan" && PLAN_INTENTS.has(route.intent)) {
+    route = { ...route, intent: "payment_run", confidence: 0.85, reason: "Plan payments mode" };
+  }
+  // Draft mode, internal note ("a note for our CFO on what is due") — answer
+  // the underlying question; the note is written from that verified answer
+  if (opts.mode === "draft" && route.intent === "draft_message" && DRAFT_NOTE.test(text)) {
+    const subject = text.replace(/^[\s\S]*?\b(?:on|about|regarding|covering|summari[sz]ing|explaining|of)\b\s+/i, "");
+    const inner = subject !== text && subject.length > 5 ? classify(subject, { memory: { ...focus, lastIntent: memory.lastIntent }, context, today }) : null;
+    if (inner && !["general", "draft_message", "smalltalk", "out_of_scope"].includes(inner.intent)) route = { ...inner, reason: `Draft mode note: ${inner.reason}` };
+  }
+  if (opts.mode === "plan" && route.intent === "payment_run" && memory.lastIntent !== "payment_run" && planNeedsInput(text, opts)) {
+    return finish({ content: PLAN_QUESTION.content, answerType: "clarification", options: PLAN_QUESTION.options, intent: route.intent, responseMode: "evidence_only" });
+  }
+  const scopeText = scopeLabel(opts.scope);
+  if (scopeText || opts.mode !== "ask") {
+    const modeName = { analyse: "Analyse", draft: "Draft", plan: "Plan payments" }[opts.mode];
+    send("status", { stage: "understanding", detail: [modeName ? `${modeName} mode` : null, scopeText ? `scoped to ${scopeText}` : null].filter(Boolean).join(" · ") });
+  }
 
   /* ---- 2. resolve named records -------------------------------------- */
   send("status", { stage: "retrieving", detail: "Finding the records you mentioned" });
   const resolved = await resolveEntities({ toolkit, route, context, focus, text });
+  resolved.attachmentIds = opts.attachmentIds;
+  // a scoped supplier is the default subject of supplier questions
+  if (opts.scope.supplierId && !resolved.supplierId) {
+    resolved.supplierId = opts.scope.supplierId;
+    if (/supplier/.test(resolved.needs || "")) delete resolved.needs;
+    delete resolved.clarify;
+  }
+  if (opts.mode === "draft" && resolved.supplierId && !DRAFT_NOTE.test(text) && ["supplier_balance", "payments", "findings", "explain_finding", "general"].includes(route.intent)) {
+    route = { ...route, intent: "draft_message", reason: "Draft mode" };
+  }
   if (resolved.clarify) {
     return finish({ content: resolved.clarify.content, answerType: "clarification", options: resolved.clarify.options, intent: route.intent, responseMode: "evidence_only" });
   }
@@ -132,7 +182,14 @@ export async function runCopilot({ message, context = {}, auth, llm = null, call
     resolved.caseId = r.data?.items?.find((f) => f.caseId)?.caseId || null;
     if (resolved.caseId) delete resolved.needs;
   }
-  const plan = planFor(route.intent, { entities: route.entities, resolved, message: text, today });
+  const basePlan = planFor(route.intent, { entities: route.entities, resolved, message: text, today });
+  extras = opts.mode === "analyse" ? analyseExtras(route.intent, { resolved }).filter((x) => !basePlan.some((b) => b.tool === x.tool)) : [];
+  const plan = [...basePlan, ...extras];
+  // attachment questions read the document first, and Analyse runs its whole
+  // investigation plan up front — the model starts from every result and can
+  // dig further, so depth never depends on the model choosing to look
+  const prefetch = route.intent === "attachment_review" || (opts.mode === "analyse" && plan.length > 0);
+  if (prefetch) await runPlan(plan);
 
   /* ---- 3. agent loop (LLM) or deterministic plan ---------------------- */
   let answerText = null;
@@ -142,10 +199,13 @@ export async function runCopilot({ message, context = {}, auth, llm = null, call
     send("status", { stage: "planning", detail: "Working out which records to check" });
     const system = fill(prompt("agent.v2"), {
       TODAY: today,
-      CONTEXT: contextBlock({ route, resolved, context, plan, memory }),
+      CONTEXT: contextBlock({ route, resolved, context, plan: prefetch ? [] : plan, memory, opts, scopeText }),
     });
-    const contents = [...historyContents(memory), { role: "user", parts: [{ text }] }];
-    const agent = await agentLoop({ llm, toolkit, system, contents, gate, send, signal, started, toolNames: toolsFor(route.intent) });
+    const ask = prefetch
+      ? `${text}\n\nRecords already retrieved for this question (tool results):\n${toolkit.results.map((r, i) => `Tool ${r.name} result: ${viewJson(toolViewOf(toolkit, i))}`).join("\n\n")}`
+      : text;
+    const contents = [...historyContents(memory), { role: "user", parts: [{ text: ask }] }];
+    const agent = await agentLoop({ llm, toolkit, system, contents, gate, send, signal, started, toolNames: toolsFor(route.intent, opts), policy });
     if (agent.ok) {
       llmInfo.provider = agent.provider;
       llmInfo.model = agent.model;
@@ -182,7 +242,7 @@ export async function runCopilot({ message, context = {}, auth, llm = null, call
     send("reset", { reason: "grounding" });
     gate.discard();
     send("status", { stage: "writing", detail: "Rewriting so every figure is backed by a record" });
-    const retry = await retryWrite({ llm, toolkit, answerText, violations: verdict.violations, gate, send, signal, today, route, resolved, context, memory, text });
+    const retry = await retryWrite({ llm, toolkit, answerText, violations: verdict.violations, gate, send, signal, today, route, resolved, context, memory, text, opts, scopeText });
     if (retry.ok) {
       const v2 = verifyAnswer(retry.text, { bank, sourceRefs: sources.refs(), identifiers });
       answerText = retry.text;
@@ -208,6 +268,35 @@ export async function runCopilot({ message, context = {}, auth, llm = null, call
     if (!verdict.ok && verdict.ungrounded.length) {
       answerText = stripUngrounded(answerText, verdict.ungrounded);
       verdict = verifyAnswer(answerText, { bank, sourceRefs: sources.refs(), identifiers });
+    }
+  }
+
+  /* ---- 5. option extras: analyse summary, draft note, working ------- */
+  const extraParts = [];
+  if (opts.mode === "analyse" && responseMode === "evidence_only") {
+    const also = toolkit.log.filter((l) => l.ok && extras.some((x) => x.tool === l.name) && l.summary).map((l) => `- ${toolkit.defs[l.name]?.label || l.name}: ${l.summary}`);
+    if (also.length) extraParts.push(`**Also checked**\n\n${also.join("\n")}`);
+  }
+  const answerKind = responseMode === "agent" ? "answer" : composed.answerType;
+  if (opts.mode === "draft" && !["clarification", "refusal", "partial"].includes(answerKind) && !toolkit.cards.some((c) => c.kind === "supplier_message") && !/^:::draft/m.test(answerText)) {
+    const note = noteFromAnswer(answerText, route.intent === "attachment_review" ? "Note on the attached document" : "Internal note");
+    if (note) extraParts.push(note);
+  }
+  if (opts.showWorking) {
+    const working = workingSection(answerText, bank.derivations);
+    extraParts.push(working || "**How we calculated**\n\nNo arithmetic was needed — every figure above is quoted directly from your records.");
+  }
+  if (extraParts.length) {
+    let extended = `${answerText.trim()}\n\n${extraParts.join("\n\n")}`;
+    let v = verifyAnswer(extended, { bank, sourceRefs: sources.refs(), identifiers });
+    if (!v.ok && v.ungrounded.length) {
+      extended = `${answerText.trim()}\n\n${stripUngrounded(extraParts.join("\n\n"), v.ungrounded)}`;
+      v = verifyAnswer(extended, { bank, sourceRefs: sources.refs(), identifiers });
+    }
+    if (v.ok || v.claims - v.grounded <= verdict.claims - verdict.grounded) {
+      if (gate.emitted) send("delta", { text: `\n\n${extended.slice(answerText.trim().length).trim()}` });
+      answerText = extended;
+      verdict = v;
     }
   }
 
@@ -250,6 +339,10 @@ export async function runCopilot({ message, context = {}, auth, llm = null, call
     const messageId = `msg_${ulid().toLowerCase()}`;
     const payload = {
       messageId,
+      agentOptions: {
+        mode: opts.mode, showWorking: opts.showWorking, includeScreening: opts.includeScreening, confirmedOnly: opts.confirmedOnly,
+        scope: Object.fromEntries(Object.entries(opts.scope).filter(([, v]) => v)), attachments: opts.attachmentIds.length,
+      },
       content: result.content,
       answerType: result.answerType || "answer",
       certainty: result.missing?.length ? "INSUFFICIENT_EVIDENCE" : verdict.ok ? "CONFIRMED" : "PROBABLE",
@@ -287,7 +380,7 @@ export async function runCopilot({ message, context = {}, auth, llm = null, call
   }
 
   async function persist(payload, result) {
-    if (!store || !auth?.userId) return;
+    if (!store || !auth?.userId || signal?.aborted) return; // a stopped answer is not saved
     try {
       let conv = conversation;
       if (!conv) conv = await store.create({ userId: auth.userId, groupId: auth.groupId, title: text });
@@ -297,6 +390,7 @@ export async function runCopilot({ message, context = {}, auth, llm = null, call
           role: "assistant", id: payload.messageId, content: payload.content, answerType: payload.answerType,
           citations: payload.citations, tables: payload.tables, actions: payload.actions, followUps: payload.followUps,
           grounding: payload.grounding, responseMode: payload.responseMode, intent: payload.intent, toolCalls: payload.toolCalls, at: payload.queriedAt,
+          agentOptions: payload.agentOptions, options: payload.options, certainty: payload.certainty, sources: payload.sources,
         },
       ]);
       const patch = { lastIntent: result.intent };
@@ -312,16 +406,16 @@ export async function runCopilot({ message, context = {}, auth, llm = null, call
 
 /* ======================================================= agent loop */
 
-async function agentLoop({ llm, toolkit, system, contents, gate, send, signal, started, toolNames = null }) {
+async function agentLoop({ llm, toolkit, system, contents, gate, send, signal, started, toolNames = null, policy = policyFor("ask") }) {
   let provider = null;
   let model = null;
-  for (let step = 0; step < MAX_STEPS; step++) {
-    if (signal?.aborted || Date.now() - started > AGENT_BUDGET_MS) break;
+  for (let step = 0; step < policy.maxSteps; step++) {
+    if (signal?.aborted || Date.now() - started > policy.budgetMs) break;
     const body = {
       systemInstruction: { parts: [{ text: system }] },
       contents,
       tools: [{ functionDeclarations: toolkit.declarations(toolNames) }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 1400, lowLatency: true },
+      generationConfig: { temperature: 0.1, maxOutputTokens: policy.maxTokens, lowLatency: true },
     };
     const out = typeof llm.stream === "function"
       ? await llm.stream("chat", body, { onText: (t) => gate.push(t), signal })
@@ -339,7 +433,7 @@ async function agentLoop({ llm, toolkit, system, contents, gate, send, signal, s
     // the model chose tools: anything streamed this round was preamble
     if (gate.emitted) send("reset", { reason: "tools" });
     gate.discard();
-    send("status", { stage: "retrieving", detail: calls.length > 1 ? `Checking ${calls.length} things at once` : "Checking your records" });
+    send("status", { stage: "retrieving", detail: calls.length > 1 ? `Checking ${calls.length} things at once` : step > 0 ? "Following up on what I found" : "Checking your records" });
     contents.push({ role: "model", parts });
     const results = await Promise.all(calls.map((c) => toolkit.run(c.functionCall.name, c.functionCall.args || {})));
     contents.push({
@@ -354,15 +448,16 @@ async function agentLoop({ llm, toolkit, system, contents, gate, send, signal, s
     });
   }
   // out of rounds: answer from what we have, no more tools
+  if (signal?.aborted) return { ok: false, reason: "aborted" };
   send("status", { stage: "writing", detail: "Writing the answer" });
   contents.push({ role: "user", parts: [{ text: "Answer now from the tool results above, in the required format. Do not call more tools." }] });
   const out = typeof llm.stream === "function"
-    ? await llm.stream("chat", { systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { temperature: 0.1, maxOutputTokens: 1200, lowLatency: true } }, { onText: (t) => gate.push(t), signal })
-    : await llm.generate("chat", { systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { temperature: 0.1, maxOutputTokens: 1200 } });
+    ? await llm.stream("chat", { systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { temperature: 0.1, maxOutputTokens: policy.maxTokens, lowLatency: true } }, { onText: (t) => gate.push(t), signal })
+    : await llm.generate("chat", { systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { temperature: 0.1, maxOutputTokens: policy.maxTokens } });
   if (!out.ok) return { ok: false, reason: out.reason };
   if (typeof llm.stream !== "function" && out.text) gate.push(out.text);
   gate.end();
-  return { ok: true, text: normalizeCitations(String(out.text || "").trim()), provider: out.provider || provider, model: out.model || model, steps: MAX_STEPS };
+  return { ok: true, text: normalizeCitations(String(out.text || "").trim()), provider: out.provider || provider, model: out.model || model, steps: policy.maxSteps };
 }
 
 /** After a deterministic retrieval, have the model write from the data. */
@@ -381,8 +476,8 @@ async function writeFromData({ llm, system, contents, toolkit, gate, send, signa
   return { ok: true, text: normalizeCitations(String(out.text || "").trim()) };
 }
 
-async function retryWrite({ llm, toolkit, answerText, violations, gate, signal, today, route, resolved, context, memory, text }) {
-  const system = fill(prompt("agent.v2"), { TODAY: today, CONTEXT: contextBlock({ route, resolved, context, plan: [], memory }) });
+async function retryWrite({ llm, toolkit, answerText, violations, gate, signal, today, route, resolved, context, memory, text, opts, scopeText }) {
+  const system = fill(prompt("agent.v2"), { TODAY: today, CONTEXT: contextBlock({ route, resolved, context, plan: [], memory, opts, scopeText }) });
   const views = toolkit.results.map((r, i) => `Tool ${r.name} result: ${viewJson(toolViewOf(toolkit, i))}`).join("\n\n");
   const body = {
     systemInstruction: { parts: [{ text: system }] },
@@ -552,8 +647,12 @@ async function resolveEntities({ toolkit, route, context, focus, text }) {
 
 /* ======================================================= context */
 
-function contextBlock({ route, resolved, context, plan, memory }) {
-  const ids = Object.entries(resolved).filter(([k, v]) => v && typeof v === "string" && k !== "needs").map(([k, v]) => `${k}=${v}`).join(", ");
+function contextBlock({ route, resolved, context, plan, memory, opts = normalizeOptions({}), scopeText = null }) {
+  const ids = Object.entries(resolved)
+    .filter(([k, v]) => v && typeof v === "string" && k !== "needs")
+    .map(([k, v]) => `${k}=${v}`)
+    .concat((resolved.attachmentIds || []).map((id) => `attachmentId=${id}`))
+    .join(", ");
   return [
     `Page: ${context.page || "/app/ask"}${context.entityId ? ` · entity ${context.entityId}` : ""}`,
     `Router guess: ${route.intent} (${route.reason})`,
@@ -561,6 +660,7 @@ function contextBlock({ route, resolved, context, plan, memory }) {
     resolved.needs ? `Missing: ${resolved.needs}` : "",
     plan.length ? `Suggested tools: ${plan.map((p) => `${p.tool}(${JSON.stringify(p.args)})`).join("; ")}` : "",
     memory.summary ? `Conversation so far (summary): ${memory.summary}` : "",
+    optionsPrompt(opts, { scopeLabel: scopeText }),
   ].filter(Boolean).join("\n");
 }
 

@@ -2,8 +2,13 @@
 // EventSource cannot send an Authorization header), conversations, the daily
 // briefing, feedback, and action-card execution.
 //
-// SSE events from POST /api/v2/copilot/chat:
-//   status {stage, detail} · tool {id,name,label,status,ok,ms,summary}
+// POST /api/v2/copilot/chat body: {message, conversationId?, context?,
+//   options?: {mode, showWorking, includeScreening, confirmedOnly,
+//              scope:{supplierId, from, to, entityId}, attachmentDocumentIds},
+//   requestId?}  — POST /chat/stop {requestId} stops a running answer.
+//
+// SSE events:
+//   meta {requestId, options} · status {stage, detail} · tool {id,name,label,status,ok,ms,summary}
 //   delta {text} (grounding-checked line) · reset {reason} · action {card}
 //   answer {...CopilotAnswer} · usage · error {code,message} · done {conversationId,messageId}
 //
@@ -11,7 +16,7 @@
 // card's server endpoint (execute.path) with the user's own token, then
 // records the outcome on the conversation.
 
-import { SERVER_URL_1 } from "../../utils/commonHelper.js";
+import { SERVER_URL, SERVER_URL_1 } from "../../utils/commonHelper.js";
 import { fetchJson, ApiError } from "./client";
 import { mocksEnabled } from "../flags";
 import { pushAiUsage } from "../ai-usage";
@@ -60,6 +65,18 @@ export type ActionCardData = {
   result?: { status: string; detail?: string; reference?: string; at?: string };
 };
 
+export type AgentMode = "ask" | "analyse" | "draft" | "plan";
+export type AgentScope = { supplierId?: string | null; supplierName?: string | null; from?: string | null; to?: string | null; entityId?: string | null };
+export type AgentOptions = {
+  mode: AgentMode;
+  showWorking: boolean;
+  includeScreening: boolean;
+  confirmedOnly: boolean;
+  scope: AgentScope;
+  attachmentDocumentIds?: string[];
+};
+export const DEFAULT_AGENT_OPTIONS: AgentOptions = { mode: "ask", showWorking: false, includeScreening: false, confirmedOnly: false, scope: {} };
+
 export type ToolStep = { id: string; name: string; label?: string; status: "start" | "done"; ok?: boolean; ms?: number; summary?: string };
 
 export type CopilotAnswer = {
@@ -84,9 +101,11 @@ export type CopilotAnswer = {
   toolCalls?: ToolStep[];
   graphRef?: { caseId?: string | null; documentId?: string | null; supplierId?: string | null };
   latencyMs?: number;
+  agentOptions?: { mode?: AgentMode; showWorking?: boolean; includeScreening?: boolean; confirmedOnly?: boolean; scope?: AgentScope; attachments?: number };
 };
 
 export type CopilotEvent =
+  | { type: "meta"; requestId?: string | null; options?: Partial<AgentOptions> }
   | { type: "status"; stage: string; detail?: string }
   | ({ type: "tool" } & ToolStep)
   | { type: "delta"; text: string }
@@ -298,16 +317,18 @@ export async function* streamCopilotChat(
   context: CopilotContext = {},
   conversationId?: string,
   signal?: AbortSignal,
+  options?: AgentOptions,
+  requestId?: string,
 ): AsyncGenerator<CopilotEvent> {
   if (mocksEnabled()) {
     yield* mockStream(message);
     return;
   }
-  const timeout = AbortSignal.timeout(120_000);
+  const timeout = AbortSignal.timeout(150_000);
   const response = await fetch(`${SERVER_URL_1}/api/v2/copilot/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...authHeader() },
-    body: JSON.stringify({ conversationId, message, context }),
+    body: JSON.stringify({ conversationId, message, context, options, requestId }),
     signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
   });
   if (!response.ok) {
@@ -320,6 +341,129 @@ export async function* streamCopilotChat(
     return;
   }
   yield* parseSse(response.body);
+}
+
+/** "Stop generating": tells the gateway too (the aborted fetch also stops it). */
+export function stopCopilotChat(requestId: string): Promise<void> {
+  if (mocksEnabled() || !requestId) return Promise.resolve();
+  return fetch(`${SERVER_URL_1}/api/v2/copilot/chat/stop`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeader() },
+    body: JSON.stringify({ requestId }),
+    keepalive: true,
+  }).then(() => undefined, () => undefined);
+}
+
+/* ------------------------------------------------------- attachments */
+
+export type AttachmentSummary = { type?: string | null; number?: string | null; total?: string | null; supplier?: string | null; date?: string | null };
+export type AttachmentResult = { fileId: string; draftId: string | null; status: string; summary: AttachmentSummary; message?: string };
+
+const fieldValue = (fields: Record<string, unknown> | undefined, name: string): unknown => {
+  const v = fields?.[name];
+  return v && typeof v === "object" && "value" in (v as Record<string, unknown>) ? (v as { value: unknown }).value : v;
+};
+
+/**
+ * Attach a document for the assistant: upload to the API's file store, then
+ * run extraction (the engine reads it into a draft in Imports — nothing is
+ * posted to the books). The gateway reads the draft with the user's token.
+ */
+export async function uploadAttachment(file: File, entityId: string | undefined, onPhase: (phase: "uploading" | "reading") => void): Promise<AttachmentResult> {
+  if (mocksEnabled()) {
+    onPhase("reading");
+    await new Promise((r) => setTimeout(r, 700));
+    return { fileId: "file_mock", draftId: "drf_mock", status: "needs_review", summary: { type: "INVOICE_IN", number: "KAV/26-27/4410", total: "207400.00", supplier: "Kaveri Pumps & Motors Ltd" } };
+  }
+  onPhase("uploading");
+  const form = new FormData();
+  form.append("file", file);
+  if (entityId) form.append("entityId", entityId);
+  const up = await fetch(`${SERVER_URL}/api/v2/files`, { method: "POST", headers: authHeader(), body: form, signal: AbortSignal.timeout(60_000) });
+  const upData = await up.json().catch(() => null);
+  if (!up.ok) throw new Error(upData?.error?.message || `Upload failed (${up.status})`);
+  const fileId: string | undefined = upData?.fileId ?? upData?.id;
+  if (!fileId) throw new Error("Upload finished but no file id came back");
+  onPhase("reading");
+  const ex = await fetch(`${SERVER_URL}/api/v2/ingest/files/${encodeURIComponent(fileId)}/extract`, {
+    method: "POST",
+    headers: { Accept: "application/json", ...authHeader() },
+    signal: AbortSignal.timeout(150_000),
+  });
+  const exData = await ex.json().catch(() => null);
+  const draft = exData?.draft as { fields?: Record<string, unknown>; detectedType?: string; issues?: { message?: string }[] } | undefined;
+  const seller = fieldValue(draft?.fields, "seller") as { name?: string } | undefined;
+  const totals = fieldValue(draft?.fields, "totals") as { grand?: unknown } | undefined;
+  const grand = totals?.grand && typeof totals.grand === "object" ? (totals.grand as { amount?: string }).amount : totals?.grand;
+  const summary: AttachmentSummary = {
+    type: draft?.detectedType ?? (fieldValue(draft?.fields, "type") as string | undefined) ?? null,
+    number: (fieldValue(draft?.fields, "number") as string | undefined) ?? null,
+    date: (fieldValue(draft?.fields, "date") as string | undefined) ?? null,
+    supplier: seller?.name ?? (fieldValue(draft?.fields, "sellerName") as string | undefined) ?? null,
+    total: grand != null ? String(grand) : null,
+  };
+  if (!exData?.draftId) throw new Error(exData?.error?.message || `Couldn't read the document (${ex.status})`);
+  return { fileId, draftId: exData.draftId, status: exData.status ?? (ex.ok ? "needs_review" : "failed"), summary, message: ex.ok ? undefined : draft?.issues?.[0]?.message };
+}
+
+/* ----------------------------------------------------- scope pickers */
+
+export type SupplierOption = { id: string; name: string; gstin?: string | null };
+
+export async function searchSuppliers(q: string): Promise<SupplierOption[]> {
+  if (mocksEnabled()) return [{ id: "sup_kaveri", name: "Kaveri Pumps & Motors Ltd", gstin: "27AAACK1234F1Z5" }].filter((s) => s.name.toLowerCase().includes(q.toLowerCase()));
+  const response = await fetch(`${SERVER_URL}/api/v2/suppliers${q ? `?q=${encodeURIComponent(q)}` : ""}`, { headers: { Accept: "application/json", ...authHeader() }, signal: AbortSignal.timeout(10_000) });
+  if (!response.ok) return [];
+  const data = await response.json().catch(() => null);
+  return ((data?.items ?? []) as { id: string; legalName?: string; tradeName?: string; name?: string; gstin?: string }[])
+    .slice(0, 8)
+    .map((x) => ({ id: x.id, name: x.legalName || x.tradeName || x.name || x.id, gstin: x.gstin ?? null }));
+}
+
+/* ------------------------------------------------- citation previews */
+
+export type CitationPreview = { title: string; kindLabel: string; number?: string | null; party?: string | null; amount?: string | null; date?: string | null; status?: string | null };
+
+const KIND_LABEL: Record<string, string> = {
+  PO: "Purchase order", INVOICE_IN: "Invoice", GRN: "Goods receipt", QC: "Quality check", PAYMENT_OUT: "Payment", ADVANCE_OUT: "Advance",
+  CREDIT_NOTE_IN: "Credit note", DEBIT_NOTE_IN: "Debit note", GSTR2B_ENTRY: "GSTR-2B row",
+};
+export const docKindLabel = (type?: string | null) => (type ? KIND_LABEL[type] ?? "Document" : "Document");
+
+const money = (v: unknown): string | null => {
+  if (v == null) return null;
+  if (typeof v === "object" && v && "amount" in v) return String((v as { amount: unknown }).amount);
+  return String(v);
+};
+
+/** Details for a citation's hover card, read with the user's own token. */
+export async function getCitationPreview(c: Citation): Promise<CitationPreview> {
+  const base: CitationPreview = { title: c.label, kindLabel: c.kind === "document" || c.kind === "payment" ? docKindLabel(c.type) : c.kind[0].toUpperCase() + c.kind.slice(1) };
+  if (mocksEnabled()) return base;
+  const get = async (path: string) => {
+    const r = await fetch(`${SERVER_URL}${path}`, { headers: { Accept: "application/json", ...authHeader() }, signal: AbortSignal.timeout(8_000) });
+    return r.ok ? r.json() : null;
+  };
+  try {
+    if ((c.kind === "document" || c.kind === "payment") && /^doc_/.test(c.id)) {
+      const data = await get(`/api/v2/documents/${encodeURIComponent(c.id)}`);
+      const d = data?.document ?? data;
+      if (d) return { ...base, kindLabel: docKindLabel(d.type), number: d.number ?? d.payment?.utr ?? null, party: d.seller?.name ?? null, amount: money(d.totals?.grand ?? d.payment?.amount), date: d.date ?? null, status: d.status ?? null };
+    }
+    if (c.kind === "document" && /^drf_/.test(c.id)) return { ...base, kindLabel: "Attached document", status: "Draft in Imports — not in your books" };
+    if (c.kind === "supplier") {
+      const d = await get(`/api/v2/suppliers/${encodeURIComponent(c.id)}`);
+      const sup = d?.supplier ?? d;
+      if (sup) return { ...base, kindLabel: "Supplier", party: sup.legalName ?? sup.name ?? c.label, number: sup.gstin ?? null, status: sup.udyam?.category ? `MSME · ${sup.udyam.category}` : null };
+    }
+    if (c.kind === "case") {
+      const d = await get(`/api/v2/cases/${encodeURIComponent(c.id)}`);
+      if (d) return { ...base, kindLabel: "Investigation", title: d.title ?? c.label, status: d.status ?? null };
+    }
+  } catch {
+    /* preview is best-effort */
+  }
+  return base;
 }
 
 /* ------------------------------------------------------------ helpers */

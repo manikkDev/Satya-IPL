@@ -1,41 +1,65 @@
 "use client";
 
-// Ask Satya — the assistant workspace: persisted conversations, a daily
-// briefing start screen, token streaming with a live tool trace, grounded
-// answers with citation chips, mini-tables, action cards (confirm runs the
-// real API with the user's session) and follow-up suggestions.
+// Ask Satya — the assistant workspace. A centred 760px conversation with a
+// collapsible history rail, sources in an on-demand right panel, and a large
+// composer with agent options docked at the bottom. Answers stream in with a
+// soft per-word fade; the agent's steps are shown live and fold away when
+// the answer arrives; actions are proposals the user confirms.
 
+import "./copilot.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageSquarePlus, PanelLeft, Trash2, MessagesSquare, Sparkles, X, Keyboard } from "lucide-react";
+import { ArrowDown, PanelLeft, SquarePen, X } from "lucide-react";
 import {
-  streamCopilotChat, stageText, listConversations, getConversation, deleteConversation, recordActionResult,
-  type ActionCardData, type CopilotAnswer, type CopilotConversation, type StoredMessage,
+  streamCopilotChat, stopCopilotChat, stageText, listConversations, getConversation, deleteConversation, recordActionResult, uploadAttachment,
+  DEFAULT_AGENT_OPTIONS,
+  type ActionCardData, type AgentOptions, type CopilotAnswer, type CopilotConversation, type StoredMessage,
 } from "@/lib/api/copilot";
 import { pushAiUsage } from "@/lib/ai-usage";
 import { useSession } from "@/components/v2/session";
-import { AiCapacityPill } from "@/components/AiCapacityPill";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { AnswerView, type Turn } from "./AnswerView";
 import { StartScreen } from "./StartScreen";
-import { Composer, type ComposerHandle } from "./Composer";
-import { relativeTime } from "./format";
-import { cn } from "@/lib/utils";
+import { Composer, type Attachment, type ComposerHandle } from "./Composer";
+import { HistoryRail } from "./HistoryRail";
+import { SourcesPanel } from "./SourcesPanel";
+import { greeting } from "./format";
 
-const newId = () => `t_${Math.random().toString(36).slice(2, 10)}`;
+const newId = (p = "t") => `${p}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
+const OPTIONS_KEY = "satya.ask.options.v1";
+const RAIL_KEY = "satya.ask.rail.v1";
+
+const store = {
+  get<T>(key: string, fallback: T): T {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
+    } catch {
+      return fallback;
+    }
+  },
+  set(key: string, value: unknown) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      /* private mode */
+    }
+  },
+};
 
 /** Stored messages → turns (assistant payload carries tables/actions). */
 function turnsFrom(messages: StoredMessage[] = []): Turn[] {
   const turns: Turn[] = [];
   for (const m of messages) {
-    if (m.role === "user") turns.push({ id: newId(), prompt: m.content, streaming: false, steps: [], draft: "", cards: [] });
+    if (m.role === "user") turns.push({ id: newId(), prompt: m.content, options: DEFAULT_AGENT_OPTIONS, streaming: false, steps: [], draft: "", cards: [] });
     else {
       const last = turns[turns.length - 1];
       if (!last || last.answer) continue;
       const { role, at, ...answer } = m;
       void role; void at;
       last.answer = { ...(answer as CopilotAnswer), messageId: m.id };
+      last.options = { ...DEFAULT_AGENT_OPTIONS, mode: m.agentOptions?.mode ?? "ask" };
       last.steps = (m.toolCalls ?? []).map((t) => ({ ...t, status: "done" as const }));
     }
   }
@@ -46,53 +70,100 @@ export function AskWorkspace() {
   const params = useSearchParams();
   const about = params.get("about");
   const caseId = params.get("case") ?? undefined;
-  const { activeEntity } = useSession();
+  const { activeEntity, entities, user } = useSession();
   const queryClient = useQueryClient();
 
   const [turns, setTurns] = useState<Turn[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [options, setOptionsState] = useState<AgentOptions>(DEFAULT_AGENT_OPTIONS);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [context, setContext] = useState<{ label: string; caseId?: string } | null>(about ? { label: about, caseId } : null);
+  const [railCollapsed, setRailCollapsed] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
-  const [showKeys, setShowKeys] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
+  const [sourcesFor, setSourcesFor] = useState<string | null>(null);
+  const [announce, setAnnounce] = useState("");
+  const [pinned, setPinned] = useState(true);
+  const [greetingText, setGreetingText] = useState("Ask Satya");
+  const abortRef = useRef<{ controller: AbortController; requestId: string; turnId: string } | null>(null);
   const composer = useRef<ComposerHandle>(null);
-  const bottom = useRef<HTMLDivElement>(null);
+  const thread = useRef<HTMLDivElement>(null);
   const autoSent = useRef(false);
+  const pinnedRef = useRef(true);
+
+  // per-viewer conveniences (mode + toggles, rail state)
+  useEffect(() => {
+    const saved = store.get<Partial<AgentOptions>>(OPTIONS_KEY, {});
+    setOptionsState({ ...DEFAULT_AGENT_OPTIONS, mode: saved.mode ?? "ask", showWorking: Boolean(saved.showWorking), includeScreening: Boolean(saved.includeScreening), confirmedOnly: Boolean(saved.confirmedOnly), scope: {} });
+    setRailCollapsed(store.get<{ collapsed: boolean }>(RAIL_KEY, { collapsed: false }).collapsed);
+    setGreetingText(greeting(user?.name));
+  }, [user?.name]);
+  const setOptions = useCallback((next: AgentOptions) => {
+    setOptionsState(next);
+    store.set(OPTIONS_KEY, { mode: next.mode, showWorking: next.showWorking, includeScreening: next.includeScreening, confirmedOnly: next.confirmedOnly });
+  }, []);
+  const toggleRail = useCallback((collapsed: boolean) => {
+    setRailCollapsed(collapsed);
+    store.set(RAIL_KEY, { collapsed });
+  }, []);
 
   const conversations = useQuery({ queryKey: ["copilot-conversations"], queryFn: listConversations, staleTime: 30_000 });
+  const items = useMemo(() => conversations.data?.items ?? [], [conversations.data]);
   const lastQuestion = turns.at(-1)?.prompt;
+  const activeTitle = items.find((c) => c.id === conversationId)?.title;
 
   const patchTurn = useCallback((id: string, patch: (t: Turn) => Partial<Turn>) => {
     setTurns((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch(t) } : t)));
   }, []);
 
-  const send = useCallback(async (raw: string) => {
-    const prompt = raw.trim();
+  /* ---------------------------------------------------------- sending */
+
+  const send = useCallback(async (raw: string, { replace, withOptions }: { replace?: Turn; withOptions?: AgentOptions } = {}) => {
+    const ready = attachments.filter((a) => a.phase === "ready" && a.draftId);
+    const prompt = raw.trim() || (ready.length && !replace ? "Is this document OK to pay?" : "");
     if (!prompt || busy) return;
-    const id = newId();
-    setInput("");
+    const snapshot: AgentOptions = replace
+      ? replace.options
+      : { ...(withOptions ?? options), attachmentDocumentIds: ready.map((a) => a.draftId as string) };
+    const id = replace?.id ?? newId();
+    const fresh: Turn = {
+      id, prompt, options: snapshot, attachments: replace ? replace.attachments : ready.map((a) => ({ name: a.summary?.number ? `${a.name}` : a.name })),
+      streaming: true, stage: "Reading your question", steps: [], draft: "", cards: [], startedAt: Date.now(), live: true,
+    };
+    if (!replace) setInput("");
     setBusy(true);
-    setTurns((prev) => [...prev, { id, prompt, streaming: true, stage: "Reading your question", steps: [], draft: "", cards: [] }]);
+    setSourcesFor(null);
+    setTurns((prev) => (replace ? prev.map((t) => (t.id === id ? fresh : t)) : [...prev, fresh]));
+    setAnnounce("Satya is working on your question.");
+    pinnedRef.current = true;
+    setPinned(true);
+    if (!replace) requestAnimationFrame(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
     const controller = new AbortController();
-    abortRef.current = controller;
+    const requestId = newId("req");
+    abortRef.current = { controller, requestId, turnId: id };
     let gotAnswer = false;
     try {
       const ctx = { page: "/app/ask", caseId: context?.caseId, entityId: activeEntity?.id };
-      for await (const ev of streamCopilotChat(prompt, ctx, conversationId ?? undefined, controller.signal)) {
+      for await (const ev of streamCopilotChat(prompt, ctx, conversationId ?? undefined, controller.signal, snapshot, requestId)) {
         switch (ev.type) {
-          case "status":
-            patchTurn(id, () => ({ stage: ev.detail || stageText(ev.stage) }));
+          case "status": {
+            const detail = ev.detail || stageText(ev.stage);
+            patchTurn(id, () => ({ stage: detail }));
+            setAnnounce(detail);
             break;
+          }
           case "tool":
             patchTurn(id, (t) => {
-              const steps = t.steps.some((s) => s.id === ev.id) ? t.steps.map((s) => (s.id === ev.id ? { ...s, ...ev } : s)) : [...t.steps, { id: ev.id, name: ev.name, label: ev.label, status: ev.status, ok: ev.ok, ms: ev.ms, summary: ev.summary }];
-              return { steps };
+              const known = t.steps.some((s) => s.id === ev.id);
+              const steps = known
+                ? t.steps.map((s) => (s.id === ev.id ? { ...s, ...ev } : s))
+                : [...t.steps, { id: ev.id, name: ev.name, label: ev.label, status: ev.status, ok: ev.ok, ms: ev.ms, summary: ev.summary, startedAt: Date.now() }];
+              return { steps, stage: ev.status === "start" && ev.label ? `${ev.label}…` : t.stage };
             });
             break;
           case "delta":
-            patchTurn(id, (t) => ({ draft: t.draft + ev.text }));
+            patchTurn(id, (t) => ({ draft: t.draft + ev.text, stage: "Writing the answer" }));
             break;
           case "reset":
             patchTurn(id, () => ({ draft: "" }));
@@ -104,13 +175,12 @@ export function AskWorkspace() {
             gotAnswer = true;
             const { type, ...answer } = ev;
             void type;
-            patchTurn(id, () => ({ answer, streaming: false }));
+            patchTurn(id, () => ({ answer, streaming: false, finishedAt: Date.now() }));
             if (answer.conversationId) setConversationId(answer.conversationId);
+            setAnnounce("Answer ready.");
             break;
           }
           case "usage": {
-            // the stream sends an abbreviated meter (no per-model rows); only a
-            // full usage object may reach the capacity pill
             const { type, ...usage } = ev;
             void type;
             const full = (usage.usage ?? usage) as Partial<Parameters<typeof pushAiUsage>[0]>;
@@ -123,39 +193,57 @@ export function AskWorkspace() {
           case "done":
             if (ev.conversationId) setConversationId(ev.conversationId);
             break;
+          default:
+            break;
         }
       }
     } catch (error) {
-      if (!gotAnswer) patchTurn(id, () => ({ error: controller.signal.aborted ? "Stopped. Ask again whenever you're ready." : error instanceof Error ? error.message : "The answer could not be loaded." }));
+      if (controller.signal.aborted) patchTurn(id, () => ({ stopped: true }));
+      else if (!gotAnswer) patchTurn(id, () => ({ error: error instanceof Error && !/abort/i.test(error.message) ? "The answer couldn't be loaded — check your connection and try again." : "The answer couldn't be loaded." }));
     } finally {
-      patchTurn(id, () => ({ streaming: false, stage: undefined }));
+      patchTurn(id, (t) => ({ streaming: false, stage: undefined, finishedAt: t.finishedAt ?? Date.now(), stopped: t.stopped || (controller.signal.aborted && !gotAnswer) }));
       setBusy(false);
       abortRef.current = null;
       queryClient.invalidateQueries({ queryKey: ["copilot-conversations"] });
     }
-  }, [busy, context, activeEntity?.id, conversationId, patchTurn, queryClient]);
+  }, [attachments, busy, options, context, activeEntity?.id, conversationId, patchTurn, queryClient]);
 
-  const stop = useCallback(() => abortRef.current?.abort(), []);
+  const stop = useCallback(() => {
+    const run = abortRef.current;
+    if (!run) return;
+    void stopCopilotChat(run.requestId);
+    run.controller.abort();
+    setAnnounce("Stopped.");
+  }, []);
+
+  const regenerate = useCallback((turn: Turn) => {
+    void send(turn.prompt, { replace: turn });
+  }, [send]);
 
   const newChat = useCallback(() => {
     stop();
     setTurns([]);
     setConversationId(null);
     setContext(null);
+    setAttachments([]);
+    setSourcesFor(null);
     setRailOpen(false);
+    window.scrollTo({ top: 0 });
     setTimeout(() => composer.current?.focus(), 0);
   }, [stop]);
 
   const openConversation = useCallback(async (conv: CopilotConversation) => {
     stop();
     setRailOpen(false);
+    setSourcesFor(null);
     setConversationId(conv.id);
     setTurns([]);
     try {
       const full = await getConversation(conv.id);
       setTurns(turnsFrom(full.messages));
+      requestAnimationFrame(() => window.scrollTo({ top: document.documentElement.scrollHeight }));
     } catch {
-      setTurns([{ id: newId(), prompt: conv.title || "Conversation", streaming: false, steps: [], draft: "", cards: [], error: "This conversation couldn't be loaded." }]);
+      setTurns([{ id: newId(), prompt: conv.title || "Conversation", options: DEFAULT_AGENT_OPTIONS, streaming: false, steps: [], draft: "", cards: [], error: "This conversation couldn't be loaded." }]);
     }
   }, [stop]);
 
@@ -174,7 +262,25 @@ export function AskWorkspace() {
     if (conversationId) void recordActionResult(conversationId, card.id, result);
   }, [conversationId]);
 
-  // "Explain this" deep links (?about=…&case=…) ask straight away
+  /* ------------------------------------------------------ attachments */
+
+  const attach = useCallback((files: File[]) => {
+    for (const file of files) {
+      const id = newId("att");
+      const okType = ["application/pdf", "image/png", "image/jpeg", "image/webp"].includes(file.type);
+      const tooBig = file.size > 10 * 1024 * 1024;
+      const entry: Attachment = { id, name: file.name, size: file.size, phase: okType && !tooBig ? "uploading" : "failed", error: !okType ? "Only PDF, PNG, JPEG or WebP" : tooBig ? "Larger than 10 MB" : undefined };
+      setAttachments((prev) => [...prev, entry].slice(-3));
+      if (!okType || tooBig) continue;
+      uploadAttachment(file, activeEntity?.id, (phase) => setAttachments((prev) => prev.map((a) => (a.id === id ? { ...a, phase } : a))))
+        .then((r) => setAttachments((prev) => prev.map((a) => (a.id === id ? { ...a, phase: r.draftId && r.status !== "failed" ? "ready" : "failed", draftId: r.draftId, summary: r.summary, error: r.message } : a))))
+        .catch((e: unknown) => setAttachments((prev) => prev.map((a) => (a.id === id ? { ...a, phase: "failed", error: e instanceof Error ? e.message : "Upload failed" } : a))));
+    }
+    setTimeout(() => composer.current?.focus(), 0);
+  }, [activeEntity?.id]);
+
+  /* ----------------------------------------------------- deep links */
+
   useEffect(() => {
     if (!about || autoSent.current) return;
     autoSent.current = true;
@@ -182,155 +288,204 @@ export function AskWorkspace() {
     void send(looksLikeQuestion ? about : `What's the status of ${about}, and is anything wrong with it?`);
   }, [about, send]);
 
-  // keep the newest content in view while streaming
-  const lastDraft = turns.at(-1)?.draft.length ?? 0;
-  useEffect(() => {
-    const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    bottom.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "end" });
-  }, [turns.length, lastDraft]);
+  /* ---------------------------------------------- pinned auto-scroll */
 
-  // shortcuts: "/" focus · Ctrl/⌘+Shift+O new chat · Esc stop · ? help
+  // Only the USER unpins (wheel/touch/keys upward); scrolling back to the
+  // bottom re-pins. Programmatic and scroll-anchoring scrolls never unpin.
   useEffect(() => {
+    const atBottom = () => window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 140;
+    const pin = (v: boolean) => {
+      if (pinnedRef.current === v) return;
+      pinnedRef.current = v;
+      setPinned(v);
+    };
+    const onScroll = () => {
+      if (atBottom()) pin(true);
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) pin(false);
+    };
+    let touchY = 0;
+    const onTouchStart = (e: TouchEvent) => {
+      touchY = e.touches[0]?.clientY ?? 0;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if ((e.touches[0]?.clientY ?? 0) > touchY + 8) pin(false);
+    };
     const onKey = (e: KeyboardEvent) => {
-      const typing = e.target instanceof HTMLElement && (e.target.closest("input, textarea, select, [contenteditable=true]") !== null);
-      if (e.key === "/" && !typing) {
+      const typing = e.target instanceof HTMLElement && e.target.closest("input, textarea, select") !== null;
+      if (!typing && ["PageUp", "ArrowUp", "Home"].includes(e.key)) pin(false);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
+  const hasTurns = turns.length > 0;
+  useEffect(() => {
+    const el = thread.current;
+    // follow growing answers only in a conversation (never on the start screen)
+    if (!hasTurns || !el || typeof ResizeObserver === "undefined") return;
+    let last = el.offsetHeight;
+    const ro = new ResizeObserver(() => {
+      const h = el.offsetHeight;
+      if (h > last && pinnedRef.current) window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "auto" });
+      last = h;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [hasTurns]);
+  const jumpToLatest = () => {
+    pinnedRef.current = true;
+    setPinned(true);
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: reduce ? "auto" : "smooth" });
+  };
+
+  /* -------------------------------------------------------- keyboard */
+
+  useEffect(() => {
+    // ⌘K / Ctrl+K = new chat on this page (captured before the global palette)
+    const onCapture = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        composer.current?.focus();
-      } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "o") {
-        e.preventDefault();
+        e.stopPropagation();
         newChat();
-      } else if (e.key === "Escape" && busy) {
-        stop();
-      } else if (e.key === "?" && !typing) {
-        setShowKeys((v) => !v);
       }
     };
+    const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && e.target.closest("input, textarea, select, [contenteditable=true]") !== null;
+      if (e.key === "Escape" && abortRef.current) {
+        e.preventDefault();
+        stop();
+      } else if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        composer.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onCapture, true);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [busy, newChat, stop]);
+    return () => {
+      window.removeEventListener("keydown", onCapture, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [newChat, stop]);
 
-  const items = useMemo(() => conversations.data?.items ?? [], [conversations.data]);
-  const activeTitle = items.find((c) => c.id === conversationId)?.title;
+  const sourcesTurn = turns.find((t) => t.id === sourcesFor) ?? null;
+  const placeholder = context ? `Ask about ${context.label}…` : undefined;
+  const entityOptions = (entities ?? []).map((e) => ({ id: e.id, name: (e as { name?: string }).name ?? e.id }));
 
-  const rail = (
-    <nav aria-label="Conversations" className="flex h-full flex-col">
-      <button type="button" onClick={newChat} className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--accent)]/45 px-3 py-2.5 text-sm font-medium text-[var(--accent-strong)] transition-colors hover:bg-[var(--accent-soft)]">
-        <MessageSquarePlus size={16} aria-hidden="true" /> New question
-        <kbd className="ml-auto hidden rounded border border-[var(--line)] px-1 text-[10px] font-normal text-[var(--muted)] xl:inline">⇧⌘O</kbd>
-      </button>
-      <p className="mt-5 px-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Recent</p>
-      <ul className="mt-1.5 flex-1 space-y-0.5 overflow-y-auto">
-        {conversations.isLoading && <li className="px-2 py-1 text-xs text-[var(--muted)]">Loading…</li>}
-        {!conversations.isLoading && !items.length && <li className="px-2 py-1 text-xs leading-relaxed text-[var(--muted)]">Your questions are saved here so you can pick up later.</li>}
-        {items.map((c) => (
-          <li key={c.id} className="group flex items-center">
-            <button
-              type="button"
-              onClick={() => openConversation(c)}
-              aria-current={c.id === conversationId ? "true" : undefined}
-              className={cn("min-w-0 flex-1 rounded-[var(--radius-sm)] px-2.5 py-2 text-left", c.id === conversationId ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]" : "text-[var(--ink-2)] hover:bg-[var(--surface-2)]")}
-            >
-              <span className="block truncate text-[13.5px] font-medium">{c.title || "Conversation"}</span>
-              <span className="block text-[11px] text-[var(--muted)]">{relativeTime(c.updatedAt)}{c.messageCount ? ` · ${Math.ceil(c.messageCount / 2)} question${c.messageCount > 2 ? "s" : ""}` : ""}</span>
-            </button>
-            <button type="button" aria-label={`Delete “${c.title || "conversation"}”`} onClick={() => removeConversation(c.id)} className="ml-0.5 shrink-0 rounded p-1.5 text-[var(--muted)] opacity-0 transition-opacity hover:text-[var(--sev-critical)] focus-visible:opacity-100 group-hover:opacity-100">
-              <Trash2 size={13} aria-hidden="true" />
-            </button>
-          </li>
-        ))}
-      </ul>
-    </nav>
+  const rail = (onCollapse?: () => void) => (
+    <HistoryRail items={items} loading={conversations.isLoading} activeId={conversationId} onNew={newChat} onOpen={openConversation} onDelete={removeConversation} onCollapse={onCollapse} />
   );
 
   return (
-    <div className="flex min-h-[calc(100dvh-8rem)] gap-6">
-      <aside className="sticky top-20 hidden h-[calc(100dvh-7rem)] w-60 shrink-0 lg:block">{rail}</aside>
-
+    <div className="flex gap-8">
+      {/* history — desktop rail */}
+      {!railCollapsed && (
+        <aside className="sx-fade sticky top-[5.5rem] hidden h-[calc(100dvh-7.5rem)] w-[248px] shrink-0 lg:block">{rail(() => toggleRail(true))}</aside>
+      )}
+      {/* history — phone/tablet drawer */}
       <Sheet open={railOpen} onOpenChange={setRailOpen}>
-        <SheetContent side="left" className="w-[86vw] max-w-xs bg-[var(--paper)] p-4">
-          <SheetTitle className="mb-3 text-sm">Conversations</SheetTitle>
-          {rail}
+        <SheetContent side="left" className="w-[86vw] max-w-[320px] bg-[var(--paper)] p-4 pt-12">
+          <SheetTitle className="sr-only">Conversations</SheetTitle>
+          {rail()}
         </SheetContent>
       </Sheet>
 
-      <div className="mx-auto flex min-w-0 max-w-[820px] flex-1 flex-col">
-        <header className="flex flex-wrap items-center gap-2 pb-4">
-          <button type="button" onClick={() => setRailOpen(true)} className="grid h-9 w-9 place-items-center rounded-[var(--radius-sm)] border border-[var(--line)] text-[var(--ink-2)] lg:hidden" aria-label="Show conversations">
-            <PanelLeft size={16} aria-hidden="true" />
-          </button>
-          <div className="min-w-0 flex-1">
-            <h1 className="flex items-center gap-2 whitespace-nowrap text-xl font-semibold tracking-tight text-[var(--ink)]">
-              <Sparkles size={18} className="text-[var(--accent)]" aria-hidden="true" /> Ask Satya
-            </h1>
-            <p className="truncate text-[13px] text-[var(--muted)]">{activeTitle ?? "Answers from your own records — every figure checked, every action needs your OK."}</p>
-          </div>
-          <button type="button" onClick={() => setShowKeys((v) => !v)} className="hidden h-8 items-center gap-1 rounded-[var(--radius-sm)] px-2 text-xs text-[var(--muted)] hover:bg-[var(--surface-2)] sm:inline-flex" aria-expanded={showKeys}>
-            <Keyboard size={13} aria-hidden="true" /> Shortcuts
-          </button>
-          <span className="hidden sm:inline-flex"><AiCapacityPill /></span>
-          {turns.length > 0 && (
-            <button type="button" onClick={newChat} className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-2.5 text-xs font-medium text-[var(--ink-2)] hover:bg-[var(--surface-2)] lg:hidden">
-              <MessageSquarePlus size={14} aria-hidden="true" /> New
+      <div className="min-w-0 flex-1">
+        <div className="mx-auto flex min-h-[calc(100dvh-10rem)] max-w-[760px] flex-col">
+          {/* slim header */}
+          <header className="flex h-10 items-center gap-1.5">
+            <button type="button" onClick={() => setRailOpen(true)} aria-label="Show conversations" className="grid h-9 w-9 place-items-center rounded-[10px] text-[var(--ink-2)] hover:bg-[var(--surface-2)] lg:hidden">
+              <PanelLeft size={18} aria-hidden="true" />
             </button>
+            {railCollapsed && (
+              <button type="button" onClick={() => toggleRail(false)} aria-label="Show conversations" title="Show conversations" className="hidden h-9 w-9 place-items-center rounded-[10px] text-[var(--ink-2)] hover:bg-[var(--surface-2)] lg:grid">
+                <PanelLeft size={18} aria-hidden="true" />
+              </button>
+            )}
+            <h1 className="min-w-0 flex-1 truncate text-[15px] font-medium text-[var(--ink-2)]">
+              {turns.length ? activeTitle || turns[0]?.prompt : <span className="sr-only">Ask Satya</span>}
+            </h1>
+            {turns.length > 0 && (
+              <button type="button" onClick={newChat} className="inline-flex h-9 items-center gap-1.5 rounded-[10px] px-2.5 text-[13.5px] font-medium text-[var(--ink-2)] hover:bg-[var(--surface-2)]" title="New chat (⌘K)">
+                <SquarePen size={15} aria-hidden="true" /> <span className="hidden sm:inline">New chat</span>
+              </button>
+            )}
+          </header>
+
+          {context && (
+            <p className="sx-fade mt-2 inline-flex max-w-full items-center gap-2 self-start rounded-full border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-3 py-1 text-[13px] font-medium text-[var(--accent-strong)]">
+              <span className="truncate">About: {context.label}</span>
+              <button type="button" onClick={() => setContext(null)} aria-label="Remove context" className="hover:opacity-70"><X size={13} aria-hidden="true" /></button>
+            </p>
           )}
-        </header>
 
-        {showKeys && (
-          <div className="mb-4 grid grid-cols-2 gap-x-6 gap-y-1 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-3 text-[13px] text-[var(--ink-2)] sm:grid-cols-3">
-            {[["/", "Focus the question box"], ["Enter", "Send"], ["Shift + Enter", "New line"], ["Esc", "Stop the answer"], ["↑", "Edit last question"], ["Ctrl/⌘ + Shift + O", "New conversation"]].map(([k, v]) => (
-              <p key={k}><kbd className="rounded border border-[var(--line-strong)] bg-[var(--surface-2)] px-1.5 font-code text-[11px]">{k}</kbd> {v}</p>
-            ))}
-          </div>
-        )}
-
-        {context && (
-          <p className="mb-3 inline-flex max-w-full items-center gap-2 self-start rounded-full border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium text-[var(--accent-strong)]">
-            <span className="truncate">About: {context.label}</span>
-            <button type="button" onClick={() => setContext(null)} aria-label="Remove context" className="hover:opacity-70"><X size={12} aria-hidden="true" /></button>
-          </p>
-        )}
-
-        <div className="flex-1 space-y-8 pb-6">
-          {turns.length === 0 ? (
-            <StartScreen entityId={activeEntity?.id} onAsk={send} disabled={busy} />
-          ) : (
-            turns.map((turn, i) => (
-              <div key={turn.id} className="space-y-3">
-                <div className="flex justify-end">
-                  <p className="max-w-[85%] whitespace-pre-wrap rounded-[var(--radius-lg)] rounded-br-[6px] bg-[var(--surface-2)] px-4 py-2.5 text-[15px] leading-relaxed text-[var(--ink)]">
-                    <span className="sr-only">You asked: </span>{turn.prompt}
-                  </p>
-                </div>
-                <div className="flex gap-3">
-                  <span className="mt-0.5 hidden h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-[var(--accent-strong)] sm:grid" aria-hidden="true">
-                    <MessagesSquare size={14} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <AnswerView turn={turn} onAsk={send} onActionResult={onActionResult} latest={i === turns.length - 1} />
-                  </div>
-                </div>
+          <div ref={thread} className="flex-1 pb-8 pt-4">
+            {turns.length === 0 ? (
+              <StartScreen entityId={activeEntity?.id} onAsk={(q) => send(q)} disabled={busy} name={user?.name} greetingText={greetingText} recent={items} onOpenConversation={openConversation} />
+            ) : (
+              <div className="space-y-12">
+                {turns.map((turn, i) => (
+                  <AnswerView
+                    key={turn.id}
+                    turn={turn}
+                    latest={i === turns.length - 1}
+                    busy={busy}
+                    onAsk={(q) => send(q)}
+                    onRegenerate={regenerate}
+                    onActionResult={onActionResult}
+                    onOpenSources={(t) => setSourcesFor((cur) => (cur === t.id ? null : t.id))}
+                  />
+                ))}
               </div>
-            ))
-          )}
-          <div ref={bottom} />
-        </div>
+            )}
+          </div>
 
-        <div className="sticky bottom-0 -mx-1 bg-gradient-to-t from-[var(--paper)] via-[var(--paper)] to-transparent px-1 pb-3 pt-4">
-          <Composer
-            ref={composer}
-            value={input}
-            onChange={setInput}
-            onSend={() => send(input)}
-            onStop={stop}
-            busy={busy}
-            lastQuestion={lastQuestion}
-            placeholder={context ? `Ask about ${context.label}…` : undefined}
-          />
-          <p className="mt-1.5 px-2 text-[11px] text-[var(--muted)]">
-            Satya can be wrong about context but never invents figures — each one is checked against your records. Nothing is sent or paid without your confirmation.
-          </p>
+          {/* composer */}
+          <div className="sticky bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-20 -mx-2 bg-gradient-to-t from-[var(--paper)] from-70% to-transparent px-2 pb-2 pt-6 md:bottom-0 md:pb-4">
+            {!pinned && turns.length > 0 && (
+              <button type="button" onClick={jumpToLatest} className="sx-rise absolute -top-3 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-[var(--line-strong)] bg-[var(--surface)] px-3 py-1.5 text-[13px] font-medium text-[var(--ink-2)] shadow-[var(--shadow-2)] hover:text-[var(--ink)]">
+                <ArrowDown size={14} aria-hidden="true" /> {busy ? "Follow the answer" : "Jump to latest"}
+              </button>
+            )}
+            <Composer
+              ref={composer}
+              value={input}
+              onChange={setInput}
+              onSend={(text, opts) => send(text ?? input, { withOptions: opts })}
+              onStop={stop}
+              busy={busy}
+              lastQuestion={lastQuestion}
+              placeholder={placeholder}
+              options={options}
+              onOptionsChange={setOptions}
+              attachments={attachments}
+              onAttach={attach}
+              onRemoveAttachment={(id) => setAttachments((prev) => prev.filter((a) => a.id !== id))}
+              entities={entityOptions}
+            />
+            <p className="mt-2 px-3 text-center text-[12px] text-[var(--muted)]">
+              Satya can be wrong about context but never invents figures. Nothing is sent or paid without your OK.
+              <span className="hidden lg:inline"> · <kbd className="font-code">/</kbd> commands · <kbd className="font-code">⇧↵</kbd> new line</span>
+            </p>
+          </div>
         </div>
       </div>
+
+      <SourcesPanel answer={sourcesTurn?.answer ?? null} onClose={() => setSourcesFor(null)} />
+
+      {/* screen-reader status for streaming */}
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announce}</p>
     </div>
   );
 }

@@ -1,0 +1,167 @@
+{
+ "note": "SYNTHETIC extraction drafts for attachment cases (no recorded API holds a user's attachment). Every other path these cases touch is a real recorded response in demo-api.json.",
+ "responses": {
+  "/api/v2/ingest/drafts/drf_golden_dup": {
+   "ok": true,
+   "status": 200,
+   "data": {
+    "id": "drf_golden_dup",
+    "status": "needs_review",
+    "method": "text_layer",
+    "detectedType": "INVOICE_IN",
+    "fileId": "file_drf_golden_dup",
+    "fields": {
+     "type": {
+      "value": "INVOICE_IN",
+      "confidence": 0.99
+     },
+     "number": {
+      "value": "DVI/26-27/0105",
+      "confidence": 0.98
+     },
+     "date": {
+      "value": "2026-08-22",
+      "confidence": 0.97
+     },
+     "seller": {
+      "value": {
+       "name": "Deccan Valve Industries",
+       "gstin": "27AAKFD3320R1Z3",
+       "stateCode": "27"
+      },
+      "confidence": 0.95
+     },
+     "buyer": {
+      "value": {
+       "name": "Satya Equipment Distribution Pvt Ltd",
+       "gstin": "27AAKCS4821M1ZW",
+       "stateCode": "27"
+      },
+      "confidence": 0.95
+     },
+     "externalRef": {
+      "value": "SATYAD/PO/26-27/000019",
+      "confidence": 0.9
+     },
+     "totals": {
+      "value": {
+       "taxable": "56000.00",
+       "cgst": "5040.00",
+       "sgst": "5040.00",
+       "igst": "0.00",
+       "cess": "0.00",
+       "roundOff": "0.00",
+       "grand": "66080.00"
+      },
+      "confidence": 0.95
+     },
+     "notes": {
+      "value": "Thank you for your business",
+      "confidence": 0.6
+     }
+    },
+    "lines": [
+     {
+      "lineNo": 1,
+      "description": "Non-return valve, wafer type, 80 mm, SS304",
+      "hsn": "84813000",
+      "qty": "10",
+      "uom": "NOS",
+      "rate": "5600",
+      "gstRate": "18",
+      "lineTotal": "66080.00"
+     }
+    ],
+    "suggestions": {
+     "supplierMatch": {
+      "supplierId": "sup_cur_deccan",
+      "score": 0.98
+     },
+     "poNumber": "SATYAD/PO/26-27/000019"
+    },
+    "issues": []
+   }
+  },
+  "/api/v2/ingest/drafts/drf_golden_new": {
+   "ok": true,
+   "status": 200,
+   "data": {
+    "id": "drf_golden_new",
+    "status": "needs_review",
+    "method": "text_layer",
+    "detectedType": "INVOICE_IN",
+    "fileId": "file_drf_golden_new",
+    "fields": {
+     "type": {
+      "value": "INVOICE_IN",
+      "confidence": 0.99
+     },
+     "number": {
+      "value": "DVI/26-27/0188",
+      "confidence": 0.98
+     },
+     "date": {
+      "value": "2026-11-12",
+      "confidence": 0.97
+     },
+     "seller": {
+      "value": {
+       "name": "Deccan Valve Industries",
+       "gstin": "27AAKFD3320R1Z3",
+       "stateCode": "27"
+      },
+      "confidence": 0.95
+     },
+     "buyer": {
+      "value": {
+       "name": "Satya Equipment Distribution Pvt Ltd",
+       "gstin": "27AAKCS4821M1ZW",
+       "stateCode": "27"
+      },
+      "confidence": 0.95
+     },
+     "externalRef": {
+      "value": "SATYAD/PO/26-27/000019",
+      "confidence": 0.9
+     },
+     "totals": {
+      "value": {
+       "taxable": "22400.00",
+       "cgst": "2016.00",
+       "sgst": "2016.00",
+       "igst": "0.00",
+       "cess": "0.00",
+       "roundOff": "0.00",
+       "grand": "26432.00"
+      },
+      "confidence": 0.95
+     },
+     "notes": {
+      "value": "Thank you for your business",
+      "confidence": 0.6
+     }
+    },
+    "lines": [
+     {
+      "lineNo": 1,
+      "description": "Non-return valve, wafer type, 80 mm, SS304",
+      "hsn": "84813000",
+      "qty": "4",
+      "uom": "NOS",
+      "rate": "5600",
+      "gstRate": "18",
+      "lineTotal": "26432.00"
+     }
+    ],
+    "suggestions": {
+     "supplierMatch": {
+      "supplierId": "sup_cur_deccan",
+      "score": 0.98
+     },
+     "poNumber": "SATYAD/PO/26-27/000019"
+    },
+    "issues": []
+   }
+  }
+ }
+}

@@ -1,6 +1,11 @@
 // routes/copilot.js — /api/v2/copilot/* (behind FEATURE_V2_COPILOT_V2).
 //
-// POST /chat            SSE stream:
+// POST /chat            body {message, conversationId?, context?, options?, requestId?}
+//   options {mode: ask|analyse|draft|plan, showWorking, includeScreening,
+//            confirmedOnly, scope:{supplierId, from, to, entityId},
+//            attachmentDocumentIds:[extraction draft or document ids]}
+//   SSE stream:
+//   meta    {requestId, options}       the options as applied
 //   status  {stage, detail}            understanding|planning|retrieving|checking|writing
 //   tool    {id, name, label, args, status:"start"|"done", ok?, ms?, summary?}
 //   delta   {text}                     answer tokens (each line grounding-checked)
@@ -13,6 +18,7 @@
 // GET  /briefing                       daily briefing (tools only, no LLM)
 // GET  /conversations, GET|DELETE /conversations/:id
 // POST /conversations/:id/actions/:actionId   record confirm/cancel outcome
+// POST /chat/stop {requestId}          stop a running answer (it also stops on disconnect)
 // POST /feedback
 
 import express from "express";
@@ -25,11 +31,13 @@ import { buildBriefing } from "../copilot/briefing.js";
 import { createServerCall } from "../copilot/tools/serverCall.js";
 import { ConversationStore } from "../copilot/memory.js";
 import { getRag } from "../rag/index.js";
+import { normalizeOptions } from "../copilot/options.js";
 
 const router = express.Router();
 let convStore = null;
 const briefingCache = new Map(); // `${userId}|${groupId}|${entityId}` -> {at, data}
 const BRIEFING_TTL_MS = 3 * 60_000;
+const running = new Map(); // requestId -> {controller, userId}
 
 router.use((req, res, next) => {
   if (!featureOn("COPILOT_V2")) {
@@ -53,14 +61,20 @@ router.post(
   requireJwt,
   rateLimit({ max: 30, keyFn: userKey, message: "Copilot is busy — retry in a moment" }),
   async (req, res) => {
-    const { message, conversationId, context = {} } = req.body || {};
+    const { message, conversationId, context = {}, options = {}, requestId: rawRequestId } = req.body || {};
     if (typeof message !== "string" || !message.trim() || message.length > 2000) {
       return res.status(422).json({
         error: { code: "VALIDATION_FAILED", message: "A question of up to 2000 characters is required", details: { fields: ["message"] }, requestId: req.id },
       });
     }
     const controller = new AbortController();
-    res.on("close", () => controller.abort());
+    const requestId = typeof rawRequestId === "string" && /^[\w-]{6,64}$/.test(rawRequestId) ? rawRequestId : null;
+    if (requestId) running.set(requestId, { controller, userId: req.auth.userId });
+    res.on("close", () => {
+      controller.abort();
+      if (requestId) running.delete(requestId);
+    });
+    const opts = normalizeOptions(options);
     res.writeHead(200, {
       "content-type": "text/event-stream",
       "cache-control": "no-cache, no-transform",
@@ -74,6 +88,7 @@ router.post(
       if (!controller.signal.aborted) res.write(": heartbeat\n\n");
     }, 8000);
     try {
+      send("meta", { requestId, options: { ...opts, attachmentDocumentIds: opts.attachmentIds } });
       send("status", { stage: "understanding", detail: "Reading your question" });
       const call = createServerCall({ userToken: userToken(req) });
       const [llm, convs, rag] = await Promise.all([getGateway().catch(() => null), store(), getRag().catch(() => null)]);
@@ -84,8 +99,9 @@ router.post(
       }
       const safeContext = pickContext(context);
       const result = await runCopilot({
-        message, context: safeContext, auth: req.auth, llm, call, rag, store: convs, conversation, send, signal: controller.signal,
+        message, context: safeContext, auth: req.auth, llm, call, rag, store: convs, conversation, send, signal: controller.signal, options: opts,
       });
+      if (controller.signal.aborted) return;
       send("answer", result);
       try {
         send("usage", (await getMeter()).abbreviated());
@@ -98,10 +114,25 @@ router.post(
       console.warn(`[copilot] ${error.stack || error.message}`);
     } finally {
       clearInterval(heartbeat);
+      if (requestId) running.delete(requestId);
       res.end();
     }
   },
 );
+
+// "Stop generating": the client aborts its fetch (which closes the stream and
+// aborts the run); this endpoint also stops it when a proxy keeps the
+// connection open. Only the user who started a run can stop it.
+router.post("/chat/stop", requireJwt, (req, res) => {
+  const id = String(req.body?.requestId || "");
+  const run = running.get(id);
+  if (run && run.userId === req.auth.userId) {
+    run.controller.abort();
+    running.delete(id);
+    return res.json({ ok: true, stopped: true });
+  }
+  return res.json({ ok: true, stopped: false });
+});
 
 router.get("/briefing", requireJwt, rateLimit({ max: 20, keyFn: userKey }), async (req, res) => {
   const entityId = typeof req.query.entityId === "string" ? req.query.entityId.slice(0, 64) : null;

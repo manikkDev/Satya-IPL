@@ -31198,6 +31198,475 @@
     "nextCursor": null,
     "total": 0
    }
+  },
+  "/api/v2/documents?q=SATYAD%2FPO%2F26-27%2F000019&type=PO&limit=5": {
+   "ok": true,
+   "status": 200,
+   "data": {
+    "items": [
+     {
+      "id": "doc_cur_s04_po",
+      "groupId": "grp_01m63mw9ezb75ac11tdadz6wfn",
+      "entityId": "ent_01m63mw9f2awyshw2ag1exgaa2",
+      "type": "PO",
+      "number": "SATYAD/PO/26-27/000019",
+      "date": "2026-08-11",
+      "fy": "2026-27",
+      "revision": 3,
+      "currency": "INR",
+      "charges": [],
+      "source": {
+       "channel": "created_in_satya"
+      },
+      "provenance": "CONSTRUCTED_DEMO",
+      "observedAt": "2026-08-11T10:15:00+05:30",
+      "createdAt": "2026-08-11T04:45:00.000Z",
+      "updatedAt": "2026-08-11T04:45:00.000Z",
+      "createdBy": "usr_01m63mwa3cr2fk2eahr394qk20",
+      "caseId": "case_cur_s04",
+      "status": "partially_fulfilled",
+      "seller": {
+       "name": "Deccan Valve Industries",
+       "gstin": "27AAKFD3320R1Z3",
+       "pan": "AAKFD3320R",
+       "stateCode": "27",
+       "supplierId": "sup_cur_deccan",
+       "udyam": {
+        "number": "UDYAM-MH-31-0044559",
+        "category": "small"
+       }
+      },
+      "buyer": {
+       "name": "Satya Equipment Distribution Pvt Ltd",
+       "gstin": "27AAKCS4821M1ZW",
+       "pan": "AAKCS4821M",
+       "stateCode": "27"
+      },
+      "supplierId": "sup_cur_deccan",
+      "shipTo": {
+       "label": "Chakan works — stores gate 2",
+       "line1": "Gat No. 214, Pune–Nashik Highway, Chakan MIDC Phase II",
+       "city": "Pune",
+       "state": "Maharashtra",
+       "stateCode": "27",
+       "pin": "410501",
+       "pincode": "410501",
+       "country": "IN",
+       "contact": "Stores desk · +91 98220 41105"
+      },
+      "placeOfSupply": "27",
+      "lines": [
+       {
+        "lineNo": 1,
+        "itemId": "itm_cur_vlv_nrv_80",
+        "sku": "VLV-NRV-80",
+        "description": "Non-return valve, wafer type, 80 mm, SS304",
+        "hsn": "84813000",
+        "uom": "EA",
+        "qty": "10",
+        "rate": "5600",
+        "gstRate": "18",
+        "scheduleDate": "2026-08-19",
+        "refs": {
+         "poId": "doc_cur_s04_po",
+         "poLineNo": 1
+        },
+        "taxableValue": "56000.00",
+        "cgst": "5040.00",
+        "sgst": "5040.00",
+        "igst": "0.00",
+        "cess": "0.00",
+        "lineTotal": "66080.00"
+       }
+      ],
+      "totals": {
+       "taxable": "56000.00",
+       "cgst": "5040.00",
+       "sgst": "5040.00",
+       "igst": "0.00",
+       "cess": "0.00",
+       "roundOff": "0.00",
+       "grand": "66080.00"
+      },
+      "terms": {
+       "paymentTerms": "30 days from acceptance (MSME — MSMED Act s.15 applies)",
+       "creditDays": 30,
+       "deliveryTerms": "FOR Chakan works, freight and transit insurance included",
+       "inspection": "Visual, dimensional and functional check at receipt; acceptance subject to QC",
+       "warranty": "12 months from commissioning or 18 months from supply, whichever is earlier"
+      },
+      "approvals": [
+       {
+        "actor": "usr_01m63mwa3cr2fk2eahr394qk20",
+        "action": "submit",
+        "role": "buyer",
+        "comment": "Submitted for approval",
+        "at": "2026-08-11T09:20:00+05:30"
+       },
+       {
+        "actor": "usr_01m63mw9f479r4bscmtkcvyhy1",
+        "action": "approve",
+        "role": "ap_manager",
+        "comment": "Rates checked against last purchase — within band",
+        "at": "2026-08-11T09:55:00+05:30"
+       },
+       {
+        "actor": "usr_01m63mw9f479r4bscmtkcvyhy1",
+        "action": "issue",
+        "role": "ap_manager",
+        "at": "2026-08-11T10:15:00+05:30"
+       }
+      ],
+      "requiredApprovers": [
+       "ap_manager",
+       "entity_admin"
+      ],
+      "issuedAt": "2026-08-11T10:15:00+05:30",
+      "contentHash": "5352f9ec81e83e131b57defe184c29b053e2d8c33473ff0f717f242261a4b5df"
+     }
+    ],
+    "nextCursor": null,
+    "total": 1
+   }
+  },
+  "/api/v2/hsn/search?q=84813000": {
+   "ok": true,
+   "status": 200,
+   "data": {
+    "items": [
+     {
+      "code": "84813000",
+      "description": "CHECK (NON-RETURN) VALVES",
+      "chapter": "84",
+      "rate": "18",
+      "cessRate": null,
+      "effectiveFrom": "2025-09-22",
+      "notificationRef": "Notification 9/2025-CT(Rate)",
+      "conditional": false,
+      "matchedPrefix": "8481"
+     }
+    ]
+   }
+  },
+  "/api/v2/documents/doc_cur_s04_po": {
+   "ok": true,
+   "status": 200,
+   "data": {
+    "taxSummary": [],
+    "taxWarnings": [],
+    "id": "doc_cur_s04_po",
+    "groupId": "grp_01m63mw9ezb75ac11tdadz6wfn",
+    "entityId": "ent_01m63mw9f2awyshw2ag1exgaa2",
+    "type": "PO",
+    "number": "SATYAD/PO/26-27/000019",
+    "date": "2026-08-11",
+    "fy": "2026-27",
+    "revision": 3,
+    "currency": "INR",
+    "charges": [],
+    "source": {
+     "channel": "created_in_satya"
+    },
+    "provenance": "CONSTRUCTED_DEMO",
+    "observedAt": "2026-08-11T10:15:00+05:30",
+    "createdAt": "2026-08-11T04:45:00.000Z",
+    "updatedAt": "2026-08-11T04:45:00.000Z",
+    "createdBy": "usr_01m63mwa3cr2fk2eahr394qk20",
+    "caseId": "case_cur_s04",
+    "status": "partially_fulfilled",
+    "seller": {
+     "name": "Deccan Valve Industries",
+     "gstin": "27AAKFD3320R1Z3",
+     "pan": "AAKFD3320R",
+     "stateCode": "27",
+     "supplierId": "sup_cur_deccan",
+     "udyam": {
+      "number": "UDYAM-MH-31-0044559",
+      "category": "small"
+     }
+    },
+    "buyer": {
+     "name": "Satya Equipment Distribution Pvt Ltd",
+     "gstin": "27AAKCS4821M1ZW",
+     "pan": "AAKCS4821M",
+     "stateCode": "27"
+    },
+    "supplierId": "sup_cur_deccan",
+    "shipTo": {
+     "label": "Chakan works — stores gate 2",
+     "line1": "Gat No. 214, Pune–Nashik Highway, Chakan MIDC Phase II",
+     "city": "Pune",
+     "state": "Maharashtra",
+     "stateCode": "27",
+     "pin": "410501",
+     "pincode": "410501",
+     "country": "IN",
+     "contact": "Stores desk · +91 98220 41105"
+    },
+    "placeOfSupply": "27",
+    "lines": [
+     {
+      "lineNo": 1,
+      "itemId": "itm_cur_vlv_nrv_80",
+      "sku": "VLV-NRV-80",
+      "description": "Non-return valve, wafer type, 80 mm, SS304",
+      "hsn": "84813000",
+      "uom": "EA",
+      "qty": "10",
+      "rate": "5600",
+      "gstRate": "18",
+      "scheduleDate": "2026-08-19",
+      "refs": {
+       "poId": "doc_cur_s04_po",
+       "poLineNo": 1
+      },
+      "taxableValue": "56000.00",
+      "cgst": "5040.00",
+      "sgst": "5040.00",
+      "igst": "0.00",
+      "cess": "0.00",
+      "lineTotal": "66080.00"
+     }
+    ],
+    "totals": {
+     "taxable": "56000.00",
+     "cgst": "5040.00",
+     "sgst": "5040.00",
+     "igst": "0.00",
+     "cess": "0.00",
+     "roundOff": "0.00",
+     "grand": "66080.00"
+    },
+    "terms": {
+     "paymentTerms": "30 days from acceptance (MSME — MSMED Act s.15 applies)",
+     "creditDays": 30,
+     "deliveryTerms": "FOR Chakan works, freight and transit insurance included",
+     "inspection": "Visual, dimensional and functional check at receipt; acceptance subject to QC",
+     "warranty": "12 months from commissioning or 18 months from supply, whichever is earlier"
+    },
+    "approvals": [
+     {
+      "actor": "usr_01m63mwa3cr2fk2eahr394qk20",
+      "action": "submit",
+      "role": "buyer",
+      "comment": "Submitted for approval",
+      "at": "2026-08-11T09:20:00+05:30"
+     },
+     {
+      "actor": "usr_01m63mw9f479r4bscmtkcvyhy1",
+      "action": "approve",
+      "role": "ap_manager",
+      "comment": "Rates checked against last purchase — within band",
+      "at": "2026-08-11T09:55:00+05:30"
+     },
+     {
+      "actor": "usr_01m63mw9f479r4bscmtkcvyhy1",
+      "action": "issue",
+      "role": "ap_manager",
+      "at": "2026-08-11T10:15:00+05:30"
+     }
+    ],
+    "requiredApprovers": [
+     "ap_manager",
+     "entity_admin"
+    ],
+    "issuedAt": "2026-08-11T10:15:00+05:30",
+    "contentHash": "5352f9ec81e83e131b57defe184c29b053e2d8c33473ff0f717f242261a4b5df",
+    "links": [
+     {
+      "_id": "6af8837f9478bb459974d64f",
+      "id": "lnk_doc_cur_s04_grn1_RECEIVES_doc_cur_s04_po",
+      "groupId": "grp_01m63mw9ezb75ac11tdadz6wfn",
+      "fromId": "doc_cur_s04_grn1",
+      "toId": "doc_cur_s04_po",
+      "kind": "RECEIVES",
+      "certainty": "CONFIRMED",
+      "basis": "reference",
+      "createdBy": "satya:seed",
+      "lineRefs": [
+       {
+        "fromLineNo": 1,
+        "toLineNo": 1
+       }
+      ],
+      "qty": "8",
+      "createdAt": "2026-08-21T10:00:00.000Z",
+      "updatedAt": "2026-08-21T10:00:00.000Z"
+     },
+     {
+      "_id": "6af8837f9478bb459974d650",
+      "id": "lnk_doc_cur_s04_qc_INSPECTS_doc_cur_s04_po",
+      "groupId": "grp_01m63mw9ezb75ac11tdadz6wfn",
+      "fromId": "doc_cur_s04_qc",
+      "toId": "doc_cur_s04_po",
+      "kind": "INSPECTS",
+      "certainty": "CONFIRMED",
+      "basis": "reference",
+      "createdBy": "satya:seed",
+      "lineRefs": [],
+      "createdAt": "2026-08-22T06:30:00.000Z",
+      "updatedAt": "2026-08-22T06:30:00.000Z"
+     },
+     {
+      "_id": "6af8837f9478bb459974d652",
+      "id": "lnk_doc_cur_s04_i1_BILLS_doc_cur_s04_po",
+      "groupId": "grp_01m63mw9ezb75ac11tdadz6wfn",
+      "fromId": "doc_cur_s04_i1",
+      "toId": "doc_cur_s04_po",
+      "kind": "BILLS",
+      "certainty": "CONFIRMED",
+      "basis": "reference",
+      "createdBy": "satya:seed",
+      "lineRefs": [
+       {
+        "fromLineNo": 1,
+        "toLineNo": 1
+       }
+      ],
+      "createdAt": "2026-08-22T11:40:00.000Z",
+      "updatedAt": "2026-08-22T11:40:00.000Z"
+     }
+    ],
+    "lifecycle": {
+     "lines": [
+      {
+       "lineNo": 1,
+       "ordered": 10,
+       "received": 8,
+       "accepted": 8,
+       "rejected": 0,
+       "invoiced": 10,
+       "invoicedValue": "66080.00",
+       "paid": 0,
+       "open": 2,
+       "acceptedBasis": "qc",
+       "paidValue": "52864.00"
+      }
+     ],
+     "approximate": true,
+     "advancePaid": "0.00",
+     "paidUnitsBasis": "fully_settled_invoices"
+    }
+   }
+  },
+  "/api/v2/documents?q=DVI%2F26-27%2F0105&type=INVOICE_IN&limit=10": {
+   "ok": true,
+   "status": 200,
+   "data": {
+    "items": [
+     {
+      "id": "doc_cur_s04_i1",
+      "groupId": "grp_01m63mw9ezb75ac11tdadz6wfn",
+      "entityId": "ent_01m63mw9f2awyshw2ag1exgaa2",
+      "type": "INVOICE_IN",
+      "number": "DVI/26-27/0105",
+      "date": "2026-08-22",
+      "fy": "2026-27",
+      "revision": 0,
+      "currency": "INR",
+      "charges": [],
+      "source": {
+       "channel": "upload_pdf"
+      },
+      "provenance": "CONSTRUCTED_DEMO",
+      "observedAt": "2026-08-22T17:10:00+05:30",
+      "createdAt": "2026-08-22T11:40:00.000Z",
+      "updatedAt": "2026-08-22T11:40:00.000Z",
+      "createdBy": "usr_01m63mwa3cr2fk2eahr394qk20",
+      "caseId": "case_cur_s04",
+      "status": "posted",
+      "seller": {
+       "name": "Deccan Valve Industries",
+       "gstin": "27AAKFD3320R1Z3",
+       "pan": "AAKFD3320R",
+       "stateCode": "27",
+       "supplierId": "sup_cur_deccan",
+       "udyam": {
+        "number": "UDYAM-MH-31-0044559",
+        "category": "small"
+       }
+      },
+      "buyer": {
+       "name": "Satya Equipment Distribution Pvt Ltd",
+       "gstin": "27AAKCS4821M1ZW",
+       "pan": "AAKCS4821M",
+       "stateCode": "27"
+      },
+      "supplierId": "sup_cur_deccan",
+      "placeOfSupply": "27",
+      "shipTo": {
+       "label": "Chakan works — stores gate 2",
+       "line1": "Gat No. 214, Pune–Nashik Highway, Chakan MIDC Phase II",
+       "city": "Pune",
+       "state": "Maharashtra",
+       "stateCode": "27",
+       "pin": "410501",
+       "pincode": "410501",
+       "country": "IN",
+       "contact": "Stores desk · +91 98220 41105"
+      },
+      "lines": [
+       {
+        "lineNo": 1,
+        "itemId": "itm_cur_vlv_nrv_80",
+        "sku": "VLV-NRV-80",
+        "description": "Non-return valve, wafer type, 80 mm, SS304",
+        "hsn": "84813000",
+        "uom": "EA",
+        "qty": "10",
+        "rate": "5600",
+        "gstRate": "18",
+        "refs": {
+         "poId": "doc_cur_s04_po",
+         "poLineNo": 1
+        },
+        "taxableValue": "56000.00",
+        "cgst": "5040.00",
+        "sgst": "5040.00",
+        "igst": "0.00",
+        "cess": "0.00",
+        "lineTotal": "66080.00"
+       }
+      ],
+      "totals": {
+       "taxable": "56000.00",
+       "cgst": "5040.00",
+       "sgst": "5040.00",
+       "igst": "0.00",
+       "cess": "0.00",
+       "roundOff": "0.00",
+       "grand": "66080.00"
+      },
+      "terms": {
+       "paymentTerms": "30 days",
+       "creditDays": 30
+      },
+      "gst": {
+       "ewayBillNo": "295230935300",
+       "reverseCharge": false,
+       "supplyType": "B2B"
+      }
+     }
+    ],
+    "nextCursor": null,
+    "total": 1
+   }
+  },
+  "/api/v2/documents?q=DVI%2F26-27%2F0188&type=INVOICE_IN&limit=10": {
+   "ok": true,
+   "status": 200,
+   "data": {
+    "items": [],
+    "nextCursor": null,
+    "total": 0
+   }
   }
- }
+ },
+ "supplemented": [
+  {
+   "at": "2026-11-14T19:52:09.466Z",
+   "paths": 5,
+   "note": "paths first used by new golden cases, fetched from the same local demo stack"
+  }
+ ]
 }

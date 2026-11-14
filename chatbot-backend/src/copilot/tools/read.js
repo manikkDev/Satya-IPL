@@ -77,6 +77,33 @@ const flattenFinding = (f) => {
   };
 };
 
+/** SCREEN_* findings are statistical signals; shown only when asked for. */
+const screeningFilter = (findings, ctx) => (ctx.options?.includeScreening ? findings : findings.filter((f) => !String(f?.code || "").startsWith("SCREEN_")));
+
+/**
+ * Document links with their basis in plain words. "Use only confirmed
+ * links" drops links a model suggested (basis=model, never CONFIRMED until a
+ * reviewer accepts them).
+ */
+const linkView = (links, ctx) => {
+  const all = Array.isArray(links) ? links : [];
+  const isModel = (l) => l?.basis === "model" || (l?.certainty && l.certainty !== "CONFIRMED" && String(l.createdBy || "").startsWith("model"));
+  const kept = ctx.options?.confirmedOnly ? all.filter((l) => !isModel(l)) : all;
+  return {
+    hidden: all.length - kept.length,
+    links: kept.slice(0, 20).map((l) => ({ kind: l.kind, from_id: l.fromId, to_id: l.toId, basis: isModel(l) ? "suggested by a model (not yet confirmed)" : l.basis === "reviewer" ? "confirmed by a reviewer" : "document reference" })),
+  };
+};
+
+/** Documents reachable ONLY through model-suggested links (confirmedOnly). */
+const modelOnlyDocs = (links, docIds) => {
+  const all = Array.isArray(links) ? links : [];
+  const isModel = (l) => l?.basis === "model";
+  const confirmedTouch = new Set(all.filter((l) => !isModel(l)).flatMap((l) => [l.fromId, l.toId]));
+  const modelTouch = new Set(all.filter(isModel).flatMap((l) => [l.fromId, l.toId]));
+  return docIds.filter((id) => modelTouch.has(id) && !confirmedTouch.has(id));
+};
+
 /* ------------------------------------------------------------ the tools */
 
 export function readTools() {
@@ -437,7 +464,9 @@ export function readTools() {
       const limit = clamp(args.limit, 1, 100, 25);
       const r = await ctx.call(`/api/v2/findings${qs({ code: args.code, severity: args.severity, caseId: args.caseId, status: args.status, limit: 100, entityId: ctx.scope.entityId })}`);
       if (!r.ok) return { missing: `issues (${r.error})` };
-      const all = (r.data?.items || []).map(flattenFinding);
+      const every = (r.data?.items || []).map(flattenFinding);
+      const all = screeningFilter(every, ctx);
+      const screeningHidden = every.length - all.length;
       const SEV = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
       all.sort((a, b) => {
         const bySev = (SEV[a.severity] ?? 9) - (SEV[b.severity] ?? 9);
@@ -463,7 +492,12 @@ export function readTools() {
         id: f.id, code: f.code, meaning: findingText(f.code), severity: f.severity, certainty: f.certainty, exposure: f.amount, caseId: f.caseId,
         detail: f.message, documentIds: f.documentIds,
       }));
-      const view = { total: r.data?.total ?? all.length, byType: [...byType.values()].sort((a, b) => b.count - a.count), items };
+      const view = {
+        total: screeningHidden ? all.length : r.data?.total ?? all.length,
+        byType: [...byType.values()].sort((a, b) => b.count - a.count),
+        items,
+        ...(screeningHidden ? { screeningSignalsHidden: screeningHidden, screeningNote: "statistical screening signals are hidden (the user can turn on 'Include screening signals')" } : {}),
+      };
       return {
         data: view,
         view,
@@ -521,8 +555,10 @@ export function readTools() {
       const snap = c.snapshot || {};
       const ledger = snap.ledger || {};
       const balances = snap.balances || ledger.balances || {};
-      const findings = (c.findings || []).filter((f) => f.status === "open").map(flattenFinding);
-      const documents = (c.documents || []).map((d) => ({
+      const findings = screeningFilter((c.findings || []).filter((f) => f.status === "open").map(flattenFinding), ctx);
+      const { links, hidden: modelLinksHidden } = linkView(c.links, ctx);
+      const hiddenDocs = new Set(ctx.options?.confirmedOnly ? modelOnlyDocs(c.links, (c.documents || []).map((d) => d.id)) : []);
+      const documents = (c.documents || []).filter((d) => !hiddenDocs.has(d.id)).map((d) => ({
         ref: ctx.sources.add({ kind: "document", id: d.id, type: d.type, caseId: c.id, number: d.number, label: `${docLabel(d.type)} ${d.number || d.id}` }),
         id: d.id, type: d.type, number: d.number || d.externalRef || d.id, date: d.date, status: d.status,
         total: amt(d.totals?.grand) ?? amt(d.payment?.amount), supplier: d.seller?.name || null,
@@ -539,6 +575,8 @@ export function readTools() {
         openFindings: findings.map((f) => ({ ref: ctx.sources.add({ kind: "finding", id: f.id, caseId: c.id, label: plainCode(f.code) }), id: f.id, code: f.code, meaning: findingText(f.code), severity: f.severity, exposure: f.amount, detail: f.message })),
         decisions: (c.decisions || []).slice(0, 5).map((d) => ({ action: d.action, at: d.createdAt, reason: d.reason ? untrusted(d.reason, 200) : null })),
         documents,
+        links,
+        ...(modelLinksHidden ? { modelSuggestedLinksLeftOut: modelLinksHidden, documentsLeftOut: hiddenDocs.size } : {}),
       };
       return { data: view, view, summary: `${c.title || c.id}: ${findings.length} open issue(s)` };
     },
@@ -566,6 +604,10 @@ export function readTools() {
         lines: (d.lines || []).slice(0, 20).map((l) => ({ lineNo: l.lineNo, sku: l.sku || null, item: untrusted(l.description, 120), hsn: l.hsn || null, qty: l.qty, uom: l.uom, rate: l.rate, gstRate: l.gstRate, lineTotal: amt(l.lineTotal) })),
         lifecycle: d.lifecycle?.lines ? d.lifecycle.lines.map((x) => ({ lineNo: x.lineNo, ordered: x.ordered, received: x.received, accepted: x.accepted, rejected: x.rejected, invoiced: x.invoiced, paid: x.paid, open: x.open })) : null,
         notes: d.notes ? untrusted(d.notes, 300) : undefined,
+        ...(() => {
+          const { links, hidden } = linkView(r.data?.links, ctx);
+          return { links, ...(hidden ? { modelSuggestedLinksLeftOut: hidden } : {}) };
+        })(),
       };
       return { data: view, view, summary: `${docLabel(d.type)} ${d.number || d.id}` };
     },
@@ -668,8 +710,8 @@ export function readTools() {
       const A = tot(a);
       const B = tot(b);
       const change = (later, earlier) => {
-        const diff = ctx.expr(`${later} - ${earlier}`).rounded;
-        const pct = parseExact(earlier) ? ctx.expr(`(${later} - ${earlier}) / ${earlier} * 100`).rounded : null;
+        const diff = ctx.expr(`${later} - ${earlier}`, "change").rounded;
+        const pct = parseExact(earlier) ? ctx.expr(`(${later} - ${earlier}) / ${earlier} * 100`, "change in %").rounded : null;
         return { diff, pct };
       };
       const view = { ref: ctx.sources.add({ kind: "report", id: "/app/reports", label: "Period comparison" }),
@@ -706,7 +748,7 @@ export function readTools() {
         moneyAtRisk: amt(d.moneyAtRisk), onHold: { count: d.holds?.count ?? null, amount: amt(d.holds?.amount) }, approvalsWaiting: d.approvalsWaiting ?? null,
         itcAtRisk: amt(d.itcAtRisk), supportedOutstanding: amt(d.supportedOutstanding), paymentsDueWeek: amt(d.paymentsDueWeek), openCases: d.openCaseCount ?? null,
         deadlines: (d.deadlines || []).map((x) => ({ kind: x.kind, supplier: x.supplier, dueDate: x.dueDate, daysLeft: x.daysLeft, amount: amt(x.amount), ref: ctx.sources.add({ kind: "document", id: x.documentId, type: "INVOICE_IN", label: `Invoice (${x.supplier})` }) })),
-        topIssues: (d.topFindings || []).slice(0, 5).map(flattenFinding).map((f) => ({ ref: ctx.sources.add({ kind: "finding", id: f.id, caseId: f.caseId, label: plainCode(f.code) }), code: f.code, meaning: findingText(f.code), severity: f.severity, exposure: f.amount, detail: f.message })),
+        topIssues: screeningFilter((d.topFindings || []).map(flattenFinding), ctx).slice(0, 5).map((f) => ({ ref: ctx.sources.add({ kind: "finding", id: f.id, caseId: f.caseId, label: plainCode(f.code) }), code: f.code, meaning: findingText(f.code), severity: f.severity, exposure: f.amount, detail: f.message })),
       };
       return { data: view, view, summary: "today's overview" };
     },
@@ -770,7 +812,7 @@ export function readTools() {
     },
     async run({ expression, label }, ctx) {
       try {
-        const out = ctx.expr(expression);
+        const out = ctx.expr(expression, label || "your calculation", { agent: true });
         return { data: { expression: s(expression).slice(0, 300), label: s(label).slice(0, 120), result: out.value, rounded: out.rounded }, view: { label, expression, result: out.value, rounded: out.rounded }, summary: `${s(label) || "result"} = ${out.rounded}` };
       } catch (error) {
         return { data: null, view: { error: error.message }, missing: `calculation (${error.message})` };
