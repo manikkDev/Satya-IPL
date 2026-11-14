@@ -12,9 +12,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Building2, MapPin, BadgeCheck, ShieldCheck, UserRound, Hash, Stamp, Sparkles, RotateCcw, ArrowUpRight, Users, Package, Info } from "lucide-react";
 import { toast } from "sonner";
 import { v2 } from "@/lib/api/v2";
-import { accountApi, policyApi, readLocal, writeLocal, AI_NOTICE_KEY, todayIst, type EntityRecord } from "@/lib/api/v2-pages";
+import { accountApi, policyApi, readLocal, writeLocal, AI_NOTICE_KEY, todayIst, fyOfDate, type EntityRecord } from "@/lib/api/v2-pages";
 import { mocksEnabled } from "@/lib/flags";
-import { fyOf } from "@/lib/format";
 import { useSession } from "@/components/v2/session";
 import { Money, DateText, ErrorState, EmptyState, Card, CardTitle, Btn } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -204,7 +203,7 @@ export function NumberingPanel() {
   if (q.error) return <ErrorState message={errMsg(q.error, "Could not load numbering.")} onRetry={() => q.refetch()} />;
   if (q.isLoading || !q.data) return <PanelSkeleton />;
 
-  const currentFy = fyOf(`${todayIst()}T00:00:00+05:30`);
+  const currentFy = fyOfDate(todayIst());
   const code = activeEntity?.code ?? "ENT";
   // one row per document type: the current-FY series if it exists, else the template
   const byType = new Map<string, { docType: string; pattern: string; nextSeq?: number; fy?: string }>();

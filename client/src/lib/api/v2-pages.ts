@@ -67,6 +67,14 @@ export function daysBetween(fromIso: string, toIso: string = todayIst()): number
   return Math.round((b - a) / 86_400_000);
 }
 
+/** Indian FY of a YYYY-MM-DD business date (April start): "2026-04-01" → "2026-27". */
+export function fyOfDate(dateIso: string): string {
+  const year = Number(dateIso.slice(0, 4));
+  const month = Number(dateIso.slice(5, 7));
+  const start = month >= 4 ? year : year - 1;
+  return `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
+}
+
 /** ISO instant → YYYY-MM-DD in IST (for CSV exports). */
 export function isoDateIst(value: string | null | undefined): string {
   if (!value) return "";
@@ -360,6 +368,20 @@ export async function resolveDocumentHref(id: string): Promise<string> {
   }
   return `/app/documents/${doc.id}`;
 }
+
+/* ---------- findings (raw, for reports) ---------- */
+
+export type FindingRaw = {
+  id: string; code?: string; severity?: string; certainty?: string; status?: string; caseId?: string; createdAt?: string;
+  title?: string; data?: { message?: string; amount?: string | number | null };
+  exposure?: { amount?: string } | null;
+};
+
+export const findingsApi = {
+  open: (entityId?: string, limit = 3000): Promise<{ items: FindingRaw[]; total: number }> =>
+    fetchJson<{ items: FindingRaw[]; total?: number }>(`/api/v2/findings${qs({ entityId, limit: String(limit) })}`, { timeoutMs: 45_000 })
+      .then((d) => ({ items: d.items ?? [], total: d.total ?? (d.items ?? []).length })),
+};
 
 /* ---------- payments ---------- */
 
