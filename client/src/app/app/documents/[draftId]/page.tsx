@@ -13,12 +13,17 @@ import {
   ArrowLeft, ArrowUpRight, CircleAlert, Download, FileText, Loader2, PenLine,
   RefreshCw, ShieldCheck, TriangleAlert,
 } from "lucide-react";
+import { toast } from "sonner";
 import { v2 } from "@/lib/api/v2";
+import { ingestApi, resolveDocumentHref, parsePaise, paiseOf, paiseToDecimal, sumPaise, ZERO } from "@/lib/api/v2-pages";
+import { DocumentView } from "@/components/pages/documents/document-view";
+import { DOC_TYPE_LABEL } from "@/components/pages/documents/labels";
 import type { DraftDetail } from "@/lib/mocks/data";
 import { mocksEnabled } from "@/lib/flags";
-import { DateText, ErrorState, FadeIn, Card, StatusBadge } from "@/components/ui/v2";
+import { DateText, ErrorState, FadeIn, Card, StatusBadge, Money } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMoney } from "@/lib/format";
+import { LinkBtn } from "@/components/pages/shared/link-btn";
 import { cn } from "@/lib/utils";
 
 const CONFIDENCE = {
@@ -34,13 +39,6 @@ const METHOD_LABEL: Record<string, string> = {
   csv: "CSV import",
   json: "JSON import",
   failed: "—",
-};
-
-const TYPE_LABEL: Record<string, string> = {
-  INVOICE_IN: "Purchase invoice", INVOICE_OUT: "Sales invoice", PO: "Purchase order",
-  PI_IN: "Proforma invoice", PI_OUT: "Proforma invoice", GRN: "Goods receipt",
-  DELIVERY_CHALLAN: "Delivery challan", QC: "Quality check", PAYMENT_OUT: "Payment",
-  BANK_LINE: "Bank statement", CREDIT_NOTE_IN: "Credit note", EWAY_BILL: "E-way bill",
 };
 
 /* Issue codes → what went wrong, why it matters, what to do. */
@@ -179,8 +177,14 @@ function FilePreview({ fileId, fallbackName }: { fileId?: string; fallbackName: 
 
 /* ---------- page ---------- */
 
-export default function DraftReviewPage() {
+export default function DocumentRoutePage() {
   const { draftId } = useParams<{ draftId: string }>();
+  // /app/documents/doc_… is a posted document; anything else is an upload draft.
+  if (draftId?.startsWith("doc_")) return <DocumentView id={draftId} />;
+  return <DraftReview draftId={draftId} />;
+}
+
+function DraftReview({ draftId }: { draftId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery({
@@ -205,6 +209,19 @@ export default function DraftReviewPage() {
     setSaveError(null);
   }, [draftId]);
 
+  const fileId = data?.draft.fileId;
+  const fileMetaQ = useQuery({
+    queryKey: ["file-meta", fileId],
+    queryFn: () => v2.fileMeta(fileId!),
+    enabled: Boolean(fileId),
+  });
+  const savedId = confirmed ?? data?.draft.confirmedDocumentId ?? null;
+  const hrefQ = useQuery({
+    queryKey: ["document-href", savedId],
+    queryFn: () => resolveDocumentHref(savedId!),
+    enabled: Boolean(savedId) && !savedId?.startsWith("doc_mock"),
+  });
+
   const allItems = useMemo(() => (data?.fields ?? []).flatMap((g) => g.items), [data]);
   const hasFields = allItems.length > 0;
   const checkFields = useMemo(() => allItems.filter((item) => item.confidence !== "high"), [allItems]);
@@ -217,13 +234,14 @@ export default function DraftReviewPage() {
   // lines-vs-total cross-check — catches extraction mistakes the reviewer would miss
   const totalCheck = useMemo(() => {
     if (!data?.lines?.length) return null;
-    const linesSum = data.lines.reduce((s, l) => s + Number(l.amount || 0), 0);
-    if (!linesSum) return null;
-    const grandItem = allItems.find((i) => /grand|total/i.test(i.name) && Number(i.value));
+    const linesSum = sumPaise(data.lines.map((l) => paiseOf(l.amount)));
+    if (linesSum === ZERO) return null;
+    const grandItem = allItems.find((i) => /grand|total/i.test(i.name) && (parsePaise(i.value) ?? ZERO) !== ZERO);
     if (!grandItem) return null;
-    const grand = Number(grandItem.value);
-    const diff = Math.abs(linesSum - grand);
-    return { linesSum, grand, matches: diff < 1, diff };
+    const grand = parsePaise(grandItem.value) ?? ZERO;
+    const diff = linesSum > grand ? linesSum - grand : grand - linesSum;
+    // within ₹1 counts as a match (round-off)
+    return { linesSum: paiseToDecimal(linesSum), grand: paiseToDecimal(grand), matches: diff < BigInt(100), diff: paiseToDecimal(diff) };
   }, [data, allItems]);
 
   const saveAsEvidence = async () => {
@@ -250,6 +268,8 @@ export default function DraftReviewPage() {
       if (Object.keys(fieldsPayload).length) await v2.patchIngestDraft(draftId, { fields: fieldsPayload });
       const result = await v2.confirmIngestDraft(draftId);
       setConfirmed(result.documentId);
+      toast.success("Saved as evidence");
+      queryClient.invalidateQueries({ queryKey: ["ingest-drafts"] });
       queryClient.invalidateQueries({ queryKey: ["drafts"] });
       queryClient.invalidateQueries({ queryKey: ["documents"] });
     } catch (err) {
@@ -264,11 +284,13 @@ export default function DraftReviewPage() {
     if (!fileId || mocksEnabled()) return;
     setRetrying(true);
     try {
-      const result = await v2.extractFile(fileId);
+      const result = await ingestApi.extract(fileId);
+      queryClient.invalidateQueries({ queryKey: ["ingest-drafts"] });
+      if (result.status === "failed") toast.error("Still couldn’t read it — type the fields in, or upload a clearer file.");
       if (result.draftId && result.draftId !== draftId) router.push(`/app/documents/${result.draftId}`);
       else refetch();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Retry failed");
+      toast.error(err instanceof Error ? err.message : "Retry failed");
     } finally {
       setRetrying(false);
     }
@@ -278,10 +300,11 @@ export default function DraftReviewPage() {
   if (isLoading || !data) return <div className="space-y-4"><Skeleton className="h-16 w-full" /><Skeleton className="h-96 w-full" /></div>;
 
   const { draft, fields, lines, issues, suggestions } = data;
-  const typeLabel = (draft.detectedType && (TYPE_LABEL[draft.detectedType] ?? draft.detectedType.replaceAll("_", " ").toLowerCase())) ?? "document";
+  const typeLabel = (draft.detectedType && (DOC_TYPE_LABEL[draft.detectedType] ?? draft.detectedType.replaceAll("_", " ").toLowerCase())) ?? "document";
   const methodLabel = draft.method ? METHOD_LABEL[draft.method] ?? draft.method.replaceAll("_", " ") : "extraction";
   const canRetry = Boolean(draft.fileId) && !mocksEnabled() && (draft.status === "failed" || issues.some((i) => i.code === "LLM_UNAVAILABLE"));
-  const confirmedDocId = confirmed ?? draft.confirmedDocumentId ?? null;
+  const confirmedDocId = savedId;
+  const displayName = fileMetaQ.data?.filename ?? draft.filename;
 
   /* ---------- still reading ---------- */
   if (["queued", "parsing", "extracting"].includes(draft.status)) {
@@ -295,7 +318,7 @@ export default function DraftReviewPage() {
             {draft.status === "extracting" ? "AI is reading the document…" : "Reading this file…"}
           </p>
           <p className="mt-1 max-w-sm text-xs leading-relaxed text-[var(--muted)]">
-            Satya is pulling text and fields out of {draft.filename}. This page updates on its own when it finishes.
+            Satya is pulling text and fields out of {displayName}. This page updates on its own when it finishes.
           </p>
         </div>
       </FadeIn>
@@ -306,25 +329,28 @@ export default function DraftReviewPage() {
   if (draft.status === "confirmed" || confirmedDocId) {
     return (
       <FadeIn className="space-y-5">
-        <button type="button" onClick={() => router.push("/app/documents")} className="inline-flex items-center gap-1 text-sm text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
-          <ArrowLeft size={15} /> Back to documents
-        </button>
+        <Link href="/app/documents" className="inline-flex items-center gap-1 text-sm text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
+          <ArrowLeft size={15} aria-hidden="true" /> Back to documents
+        </Link>
         <Card className="flex flex-col items-center py-14 text-center">
           <div className="grid h-12 w-12 place-items-center rounded-full bg-[var(--confirmed-soft)]">
             <ShieldCheck size={22} className="text-[var(--confirmed)]" />
           </div>
           <p className="mt-4 text-[15px] font-medium text-[var(--ink)]">Saved as evidence</p>
           <p className="mt-1.5 max-w-md text-sm leading-relaxed text-[var(--muted)]">
-            {draft.filename} is now a posted {typeLabel}. It feeds orders, payments, findings and compliance like any
+            {displayName} is now a posted {typeLabel}. It feeds orders, payments, findings and compliance like any
             other document — with this file kept as its source.
           </p>
           {confirmedDocId && !confirmedDocId.startsWith("doc_mock") ? (
-            <Link
-              href={`/app/orders/${confirmedDocId}`}
-              className="mt-5 inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-strong)]"
-            >
-              Open the document <ArrowUpRight size={14} />
-            </Link>
+            hrefQ.data ? (
+              <LinkBtn href={hrefQ.data} variant="primary" size="md" icon={ArrowUpRight} className="mt-5">
+                {hrefQ.data.startsWith("/app/orders/") ? "Open the order it belongs to" : hrefQ.data === "/app/payments" ? "Open payments" : "Open the document"}
+              </LinkBtn>
+            ) : hrefQ.isError ? (
+              <LinkBtn href={`/app/documents/${confirmedDocId}`} variant="primary" size="md" icon={ArrowUpRight} className="mt-5">Open the document</LinkBtn>
+            ) : (
+              <span className="mt-5 inline-flex h-9 items-center gap-2 text-sm text-[var(--muted)]"><Loader2 size={14} className="animate-spin" aria-hidden="true" /> Finding where it belongs…</span>
+            )
           ) : null}
         </Card>
       </FadeIn>
@@ -335,9 +361,9 @@ export default function DraftReviewPage() {
   if (draft.status === "failed") {
     return (
       <FadeIn className="space-y-5">
-        <button type="button" onClick={() => router.push("/app/documents")} className="inline-flex items-center gap-1 text-sm text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
-          <ArrowLeft size={15} /> Back to documents
-        </button>
+        <Link href="/app/documents" className="inline-flex items-center gap-1 text-sm text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
+          <ArrowLeft size={15} aria-hidden="true" /> Back to documents
+        </Link>
         <Card className="flex flex-col items-center py-14 text-center">
           <div className="grid h-12 w-12 place-items-center rounded-full bg-[var(--sev-critical-soft)]">
             <CircleAlert size={22} className="text-[var(--sev-critical)]" />
@@ -366,12 +392,12 @@ export default function DraftReviewPage() {
     <FadeIn className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
-            <ArrowLeft size={15} /> Back
-          </button>
+          <Link href="/app/documents" className="inline-flex items-center gap-1 text-sm text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
+            <ArrowLeft size={15} aria-hidden="true" /> Documents
+          </Link>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-semibold text-[var(--ink)]">{draft.filename}</h1>
+              <h1 className="text-lg font-semibold text-[var(--ink)]">{displayName}</h1>
               <StatusBadge status={draft.status} />
             </div>
             <p className="text-xs text-[var(--muted)]">
@@ -432,7 +458,7 @@ export default function DraftReviewPage() {
         <Card pad={false} className="p-4">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Document preview</h2>
           <div className="mt-3 min-h-[480px] rounded-[var(--radius-sm)] bg-[var(--surface-2)] p-1">
-            <FilePreview fileId={draft.fileId} fallbackName={draft.filename} />
+            <FilePreview fileId={draft.fileId} fallbackName={displayName} />
           </div>
           {highlight ? (
             <p className="mt-3 rounded-[var(--radius-sm)] bg-[var(--accent-soft)] px-3 py-2 text-xs text-[var(--accent-strong)]">
@@ -458,7 +484,7 @@ export default function DraftReviewPage() {
                             type="button"
                             title={item.quote ? "Show where this was found" : item.source}
                             onClick={() => item.quote && setHighlight(item.quote)}
-                            className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", conf.classes)}
+                            className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", conf.classes)}
                           >
                             {conf.label}
                           </button>
@@ -473,7 +499,7 @@ export default function DraftReviewPage() {
                             item.confidence === "high" ? "border-[var(--line)] focus:border-[var(--accent)]" : "border-[var(--possible)] focus:border-[var(--accent)]",
                           )}
                         />
-                        <p className="mt-0.5 text-[10px] text-[var(--muted)]">{item.source}</p>
+                        <p className="mt-0.5 text-[11px] text-[var(--muted)]">{item.source}</p>
                       </div>
                     );
                   })}
@@ -512,24 +538,30 @@ export default function DraftReviewPage() {
           {lines.length > 0 && (
             <section className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
               <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Lines</h2>
-              <table className="mt-2 w-full text-xs">
-                <thead>
-                  <tr className="text-left text-[var(--muted)]">
-                    <th className="py-1">#</th><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((line) => (
-                    <tr key={line.lineNo} className="border-t border-[var(--line)] text-[var(--ink-2)]">
-                      <td className="py-1.5">{line.lineNo}</td>
-                      <td>{line.description}</td>
-                      <td className="tnum">{line.qty}</td>
-                      <td className="tnum">{line.rate}</td>
-                      <td className="tnum">{line.amount}</td>
+              <div className="table-scroll mt-2">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-[var(--muted)]">
+                      <th scope="col" className="py-1.5 pr-2">#</th>
+                      <th scope="col" className="py-1.5 pr-2">Description</th>
+                      <th scope="col" className="py-1.5 pr-2 text-right">Qty</th>
+                      <th scope="col" className="py-1.5 pr-2 text-right">Rate</th>
+                      <th scope="col" className="py-1.5 text-right">Amount</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {lines.map((line) => (
+                      <tr key={line.lineNo} className="border-t border-[var(--line)] text-[var(--ink-2)]">
+                        <td className="tnum py-1.5 pr-2">{line.lineNo}</td>
+                        <td className="py-1.5 pr-2">{line.description}</td>
+                        <td className="tnum py-1.5 pr-2 text-right">{line.qty || "—"}</td>
+                        <td className="py-1.5 pr-2 text-right">{parsePaise(line.rate) !== null ? <Money value={paiseToDecimal(parsePaise(line.rate)!)} /> : line.rate || "—"}</td>
+                        <td className="py-1.5 text-right">{parsePaise(line.amount) !== null ? <Money value={paiseToDecimal(parsePaise(line.amount)!)} /> : line.amount || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </section>
           )}
 
@@ -544,9 +576,9 @@ export default function DraftReviewPage() {
                 {totalCheck.matches ? "The maths checks out" : "The lines don\u2019t add up to the total"}
               </p>
               <p className="mt-1 text-xs leading-relaxed text-[var(--ink-2)]">
-                Lines add to {formatMoney(String(totalCheck.linesSum.toFixed(2)))} — the stated total is{" "}
-                {formatMoney(String(totalCheck.grand.toFixed(2)))}
-                {totalCheck.matches ? "." : ` (off by ${formatMoney(String(totalCheck.diff.toFixed(2)))}). Check the values above.`}
+                Lines add to <span className="tnum">{formatMoney(totalCheck.linesSum)}</span> — the stated total is{" "}
+                <span className="tnum">{formatMoney(totalCheck.grand)}</span>
+                {totalCheck.matches ? "." : <> (off by <span className="tnum">{formatMoney(totalCheck.diff)}</span>). Check the values above.</>}
               </p>
             </section>
           ) : null}
