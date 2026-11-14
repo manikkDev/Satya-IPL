@@ -21,10 +21,12 @@ import type { Certainty } from "@/content/copy/vocabulary";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
 
-type Target = { id: string; label: string; sub: string; cap: bigint; credit: boolean };
+type Target = { id: string; label: string; sub: string; cap: bigint; credit: boolean; same: boolean; exact: boolean; date?: string };
+
+const norm = (v?: string | null) => (v ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
 const inputBase =
-  "h-9 w-28 rounded-[var(--radius-sm)] border bg-[var(--paper)] px-2 text-right text-sm tnum outline-none transition-colors focus:border-[var(--accent)] disabled:opacity-40";
+  "h-10 w-32 rounded-[var(--radius-sm)] border bg-[var(--paper)] px-2.5 text-right text-[15px] tnum outline-none transition-colors focus:border-[var(--accent)] disabled:opacity-40";
 
 function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) {
   const queryClient = useQueryClient();
@@ -34,6 +36,7 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
   });
   const [picked, setPicked] = useState<Record<string, string>>({});
   const [manual, setManual] = useState(false);
+  const [showOthers, setShowOthers] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -41,19 +44,30 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
   const wb: Workbench | undefined = data;
   const remaining = paiseOf(wb?.payment.remaining ?? wb?.payment.amount ?? "0");
 
+  // Bills from the same supplier come first and an exact-amount bill is
+  // flagged — the likely match is obvious before anyone ticks a box.
   const targets = useMemo<Target[]>(() => {
     if (!wb) return [];
-    return [
-      ...wb.openInvoices.map((inv) => ({
-        id: inv.id, label: inv.number || inv.id, credit: false, cap: paiseOf(inv.openAmount),
-        sub: [inv.seller, inv.date ? formatDate(inv.date) : null].filter(Boolean).join(" · "),
-      })),
+    const payee = norm(wb.payment.counterparty);
+    const left = paiseOf(wb.payment.remaining ?? wb.payment.amount ?? "0");
+    const rows: Target[] = [
+      ...wb.openInvoices.map((inv) => {
+        const same = !!payee && norm(inv.seller) === payee;
+        const cap = paiseOf(inv.openAmount);
+        return {
+          id: inv.id, label: inv.number || "Unnumbered bill", credit: false, cap, same, exact: same && cap === left, date: inv.date,
+          sub: [inv.seller, inv.date ? formatDate(inv.date) : null].filter(Boolean).join(" · "),
+        };
+      }),
       ...wb.credits.map((c) => ({
-        id: c.id, label: c.number || c.id, credit: true, cap: paiseOf(c.amount),
+        id: c.id, label: c.number || "Credit note", credit: true, cap: paiseOf(c.amount), same: false, exact: false, date: c.date,
         sub: ["Credit note", c.date ? formatDate(c.date) : null].filter(Boolean).join(" · "),
       })),
     ];
+    return rows.sort((a, b) => Number(b.exact) - Number(a.exact) || Number(b.same) - Number(a.same) || String(a.date ?? "").localeCompare(String(b.date ?? "")));
   }, [wb]);
+  const sameTargets = targets.filter((t) => t.same);
+  const otherTargets = targets.filter((t) => !t.same);
   const byId = useMemo(() => new Map(targets.map((t) => [t.id, t])), [targets]);
 
   // Parse every picked amount once; collect per-row problems.
@@ -75,9 +89,9 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
   const over = parsed.total > remaining;
   const hasProblems = Object.keys(parsed.problems).length > 0;
   const disabler =
-    Object.keys(picked).length === 0 ? "Pick an option or tick at least one invoice"
+    Object.keys(picked).length === 0 ? "Pick an option or tick at least one bill"
     : hasProblems ? "Fix the highlighted amounts"
-    : parsed.total <= ZERO ? "Pick an option or tick at least one invoice"
+    : parsed.total <= ZERO ? "Pick an option or tick at least one bill"
     : over ? "The picks add up to more than what is left of the payment"
     : reason.trim().length < 5 ? "Say why — a few words, e.g. “paid after delivery”"
     : null;
@@ -106,7 +120,7 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
       });
       await queryClient.invalidateQueries({ queryKey: ["payments"] });
       queryClient.removeQueries({ queryKey: ["pay-wb", paymentId] });
-      toast.success("Payment allocated — reconciliation is re-running.");
+      toast.success("Payment matched — Satya is re-checking the orders.");
       setDone(true);
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
@@ -127,8 +141,8 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
         <span className="grid h-14 w-14 place-items-center rounded-full bg-[var(--accent-soft)]">
           <Loader2 size={22} className="animate-spin text-[var(--accent)] motion-reduce:animate-none" aria-hidden="true" />
         </span>
-        <p className="mt-5 text-sm font-medium text-[var(--ink-2)]">Finding open invoices and exact matches…</p>
-        <p className="mt-1 text-xs text-[var(--muted)]">Nothing is guessed — only exact sums come back.</p>
+        <p className="mt-5 text-[17px] font-semibold text-[var(--ink)]">Finding the bills this could pay…</p>
+        <p className="mt-1 text-[15px] text-[var(--muted)]">Nothing is guessed — only exact sums are suggested.</p>
       </div>
     );
   }
@@ -139,8 +153,8 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
     return (
       <div className="rise flex flex-1 flex-col items-center justify-center px-6 py-24 text-center">
         <span className="grid h-16 w-16 place-items-center rounded-full bg-[var(--confirmed-soft)]"><CheckCircle2 size={30} className="text-[var(--confirmed)]" aria-hidden="true" /></span>
-        <p className="mt-5 text-base font-semibold text-[var(--ink)]">Allocated</p>
-        <p className="mt-1 max-w-sm text-sm text-[var(--muted)]">Reconciliation is running — findings and order balances update on their own.</p>
+        <p className="mt-5 text-[19px] font-semibold text-[var(--ink)]">Payment matched</p>
+        <p className="mt-1 max-w-sm text-[15px] text-[var(--muted)]">Satya is re-checking the affected orders — balances and issues update on their own in a few seconds.</p>
         <Btn className="mt-6" onClick={onDone}>Back to payments</Btn>
       </div>
     );
@@ -158,22 +172,22 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
           {/* payment summary */}
           <div className="space-y-4">
             <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
-              <p className="text-xs font-semibold text-[var(--muted)]">Left to allocate</p>
+              <p className="text-[14px] font-medium text-[var(--muted)]">Left to match</p>
               <p className="mt-2 text-[26px] font-semibold tracking-tight text-[var(--ink)]"><Money value={paiseToDecimal(remaining)} /></p>
-              <dl className="mt-3 space-y-1.5 text-xs">
+              <dl className="mt-3 space-y-2 text-[14px]">
                 {wb.payment.amount ? <div className="flex justify-between gap-2"><dt className="text-[var(--muted)]">Payment amount</dt><dd><Money value={wb.payment.amount} className="text-[var(--ink)]" /></dd></div> : null}
                 {wb.payment.counterparty ? <div className="flex justify-between gap-2"><dt className="text-[var(--muted)]">Paid to</dt><dd className="truncate text-[var(--ink)]">{wb.payment.counterparty}</dd></div> : null}
                 <div className="flex justify-between gap-2"><dt className="text-[var(--muted)]">Date</dt><dd className="text-[var(--ink)]">{wb.payment.date ? <DateText value={wb.payment.date} /> : "—"}</dd></div>
-                <div className="flex justify-between gap-2"><dt className="text-[var(--muted)]">Bank ref (UTR)</dt><dd className="font-code text-[var(--ink)]">{wb.payment.utr || "none"}</dd></div>
+                <div className="flex justify-between gap-2"><dt className="text-[var(--muted)]">Bank ref (UTR)</dt><dd className="tnum text-[var(--ink)]">{wb.payment.utr || "None"}</dd></div>
               </dl>
             </div>
             <dl className="grid grid-cols-2 gap-2.5 lg:grid-cols-1">
               <div className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-3">
-                <dt className="text-xs text-[var(--muted)]">Open invoices</dt>
-                <dd className="tnum mt-1 text-lg font-semibold text-[var(--ink)]">{wb.openInvoices.length}</dd>
+                <dt className="text-[13px] text-[var(--muted)]">{sameTargets.length ? "Open bills from this supplier" : "Open bills (all suppliers)"}</dt>
+                <dd className="tnum mt-1 text-lg font-semibold text-[var(--ink)]">{sameTargets.length || wb.openInvoices.length}</dd>
               </div>
               <div className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-3">
-                <dt className="text-xs text-[var(--muted)]">Open value</dt>
+                <dt className="text-[13px] text-[var(--muted)]">Open value</dt>
                 <dd className="mt-1 text-lg font-semibold text-[var(--ink)]"><Money value={paiseToDecimal(openValue)} /></dd>
               </div>
             </dl>
@@ -183,9 +197,9 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
           <div className="min-w-0 space-y-4">
             {solutions.length > 0 ? (
               <section aria-labelledby="wb-options">
-                <h3 id="wb-options" className="flex items-center gap-1.5 text-xs font-semibold text-[var(--muted)]">
-                  <Wand2 size={12} className="text-[var(--accent)]" aria-hidden="true" />
-                  {suggestion?.unique ? "Exact match found" : `${solutions.length} possible splits`}
+                <h3 id="wb-options" className="flex items-center gap-1.5 text-[15px] font-semibold text-[var(--ink)]">
+                  <Wand2 size={15} className="text-[var(--accent)]" aria-hidden="true" />
+                  {suggestion?.unique ? "Satya found an exact match" : `${solutions.length} ways the amount adds up exactly`}
                 </h3>
                 <div className="mt-2 space-y-2">
                   {solutions.map((sol, i) => {
@@ -204,18 +218,18 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
                         )}
                       >
                         <span className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-semibold text-[var(--ink)]">Option {String.fromCharCode(65 + i)}</span>
+                          <span className="text-[15px] font-semibold text-[var(--ink)]">Option {String.fromCharCode(65 + i)}</span>
                           {suggestion?.certainty ? <CertaintyBadge certainty={suggestion.certainty as Certainty} short /> : null}
                         </span>
                         <span className="mt-2 block space-y-1">
                           {sol.allocations.map((a) => (
-                            <span key={a.documentId} className="flex items-baseline justify-between gap-3 text-xs text-[var(--ink-2)]">
-                              <span className="font-code truncate">{byId.get(a.documentId)?.label ?? a.documentId}</span>
+                            <span key={a.documentId} className="flex items-baseline justify-between gap-3 text-[14px] text-[var(--ink-2)]">
+                              <span className="truncate">{byId.get(a.documentId)?.label ?? "Bill"}</span>
                               <Money value={a.amount.amount} />
                             </span>
                           ))}
                           {residual > ZERO ? (
-                            <span className="flex items-baseline justify-between text-xs text-[var(--muted)]"><span>Left over</span><Money value={paiseToDecimal(residual)} /></span>
+                            <span className="flex items-baseline justify-between text-[14px] text-[var(--muted)]"><span>Left over</span><Money value={paiseToDecimal(residual)} /></span>
                           ) : null}
                         </span>
                       </button>
@@ -226,8 +240,8 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
             ) : suggestion ? (
               <div className="flex items-start gap-2.5 rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--possible)_40%,transparent)] bg-[var(--possible-soft)] p-3.5">
                 <CircleAlert size={15} className="mt-0.5 shrink-0 text-[var(--possible)]" aria-hidden="true" />
-                <p className="text-sm leading-relaxed text-[var(--ink-2)]">
-                  No combination of open invoices sums to exactly <Money value={paiseToDecimal(remaining)} className="font-semibold" />. Choose invoices by hand below — part allocations are fine.
+                <p className="text-[15px] leading-relaxed text-[var(--ink-2)]">
+                  No combination of open bills adds up to exactly <Money value={paiseToDecimal(remaining)} className="font-semibold" />. Pick bills by hand below — part payments are fine.
                 </p>
               </div>
             ) : null}
@@ -239,13 +253,16 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
                 onClick={() => setManual((v) => !v)}
                 className="flex w-full items-center justify-between px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)]/60"
               >
-                <span className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]"><Hand size={14} className="text-[var(--accent)]" aria-hidden="true" /> Choose by hand</span>
+                <span className="flex items-center gap-2 text-[15px] font-semibold text-[var(--ink)]"><Hand size={15} className="text-[var(--accent)]" aria-hidden="true" /> Pick bills by hand</span>
                 <ChevronRight size={14} className={cn("text-[var(--muted)] transition-transform", (manual || solutions.length === 0) && "rotate-90")} aria-hidden="true" />
               </button>
               {manual || solutions.length === 0 ? (
                 <ul className="border-t border-[var(--line)]">
-                  {targets.length === 0 ? <li className="px-4 py-6 text-center text-sm text-[var(--muted)]">No open invoices or credit notes in this entity.</li> : null}
-                  {targets.map((t) => {
+                  {targets.length === 0 ? <li className="px-4 py-6 text-center text-[15px] text-[var(--muted)]">No open bills or credit notes for this company.</li> : null}
+                  {sameTargets.length === 0 && otherTargets.length > 0 ? (
+                    <li className="px-4 py-3 text-[14px] text-[var(--muted)]">No open bills from {wb.payment.counterparty ?? "this supplier"} — other suppliers’ bills are listed below.</li>
+                  ) : null}
+                  {(showOthers || sameTargets.length === 0 ? targets : sameTargets.concat(targets.filter((t) => !t.same && t.id in picked))).map((t) => {
                     const on = t.id in picked;
                     const problem = parsed.problems[t.id];
                     const inputId = `alloc-${t.id}`;
@@ -259,10 +276,13 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
                           onChange={(e) => toggle(t, e.target.checked)}
                         />
                         <label htmlFor={`pick-${t.id}`} className="min-w-0 flex-1 basis-[calc(100%-2rem)] cursor-pointer sm:basis-0">
-                          <span className="block truncate font-code text-xs text-[var(--ink)]">{t.label}</span>
-                          <span className={cn("block truncate text-xs", t.credit ? "text-[var(--accent)]" : "text-[var(--muted)]")}>{t.sub || "—"}</span>
+                          <span className="flex items-center gap-2 truncate text-[15px] text-[var(--ink)]">
+                            {t.label}
+                            {t.exact ? <span className="rounded-full bg-[var(--confirmed-soft)] px-2 py-0.5 text-[12px] font-medium text-[var(--confirmed)]">Exact amount</span> : null}
+                          </span>
+                          <span className={cn("block truncate text-[13px]", t.credit ? "text-[var(--accent)]" : "text-[var(--muted)]")}>{t.sub || "—"}</span>
                         </label>
-                        <span className="ml-7 text-xs text-[var(--muted)] sm:ml-0">open <Money value={paiseToDecimal(t.cap)} /></span>
+                        <span className="ml-7 text-[14px] text-[var(--muted)] sm:ml-0">open <Money value={paiseToDecimal(t.cap)} /></span>
                         <div className="ml-auto flex flex-col items-end">
                           <label htmlFor={inputId} className="sr-only">Amount for {t.label}</label>
                           <input
@@ -276,11 +296,18 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
                             onChange={(e) => setPicked((prev) => ({ ...prev, [t.id]: e.target.value }))}
                             className={cn(inputBase, problem ? "border-[var(--sev-critical)]" : "border-[var(--line)]")}
                           />
-                          {problem ? <span id={`${inputId}-err`} className="mt-1 text-xs text-[var(--sev-critical)]">{problem}</span> : null}
+                          {problem ? <span id={`${inputId}-err`} className="mt-1 text-[13px] text-[var(--sev-critical)]">{problem}</span> : null}
                         </div>
                       </li>
                     );
                   })}
+                  {sameTargets.length > 0 && otherTargets.length > 0 ? (
+                    <li className="px-4 py-3">
+                      <button type="button" onClick={() => setShowOthers((v) => !v)} className="text-[14px] font-medium text-[var(--accent-strong)] hover:underline dark:text-[var(--accent)]">
+                        {showOthers ? "Hide other suppliers’ bills" : `Show ${otherTargets.length} bill${otherTargets.length === 1 ? "" : "s"} from other suppliers`}
+                      </button>
+                    </li>
+                  ) : null}
                 </ul>
               ) : null}
             </section>
@@ -291,11 +318,11 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
       {/* footer — always visible */}
       <div className="border-t border-[var(--line)] bg-[var(--surface)] px-4 py-4 sm:px-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-sm text-[var(--muted)]">
+          <p className="text-[15px] text-[var(--muted)]">
             Covering <Money value={paiseToDecimal(parsed.total)} className="font-semibold text-[var(--ink)]" /> of <Money value={paiseToDecimal(remaining)} />
           </p>
           {over ? (
-            <p className="inline-flex items-center gap-1 text-xs font-medium text-[var(--sev-critical)]">
+            <p className="inline-flex items-center gap-1 text-[14px] font-medium text-[var(--sev-critical)]">
               <CircleAlert size={12} aria-hidden="true" /> Over by <Money value={paiseToDecimal(parsed.total - remaining)} />
             </p>
           ) : null}
@@ -307,14 +334,14 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
             id="alloc-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Why this split? e.g. paid after delivery"
-            className="h-9 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--paper)] px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)]"
+            placeholder="Why these bills? e.g. supplier’s remittance advice"
+            className="h-10 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--paper)] px-3 text-[15px] text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)]"
           />
           <Btn disabled={Boolean(disabler) || busy} onClick={allocate} icon={busy ? Loader2 : undefined}>
-            {busy ? "Allocating…" : "Allocate"}
+            {busy ? "Matching…" : "Match payment"}
           </Btn>
         </div>
-        {disabler ? <p className="mt-2 text-xs text-[var(--muted)]" aria-live="polite">{disabler}</p> : null}
+        {disabler ? <p className="mt-2 text-[14px] text-[var(--muted)]" aria-live="polite">{disabler}</p> : null}
       </div>
     </>
   );
@@ -336,8 +363,8 @@ export function AllocationSheet({ paymentId, onClose }: { paymentId: string | nu
         <div className="flex items-center gap-3 border-b border-[var(--line)] px-4 py-4 sm:px-6">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius-sm)] bg-[var(--accent-soft)] text-[var(--accent)]"><Wallet size={17} aria-hidden="true" /></span>
           <div className="min-w-0 flex-1">
-            <SheetTitle className="truncate text-sm font-semibold text-[var(--ink)]">Link this payment to invoices</SheetTitle>
-            <SheetDescription className="text-xs text-[var(--muted)]">Nothing changes until you press Allocate.</SheetDescription>
+            <SheetTitle className="truncate text-[17px] font-semibold text-[var(--ink)]">Match this payment to bills</SheetTitle>
+            <SheetDescription className="text-[14px] text-[var(--muted)]">Nothing changes until you press Match payment.</SheetDescription>
           </div>
           <button
             type="button"
