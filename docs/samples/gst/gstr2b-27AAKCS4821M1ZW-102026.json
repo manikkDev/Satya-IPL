@@ -1,0 +1,76 @@
+{
+  "chksum": "FICTIONAL-SAMPLE-NOT-FROM-GSTN",
+  "data": {
+    "gstin": "27AAKCS4821M1ZW",
+    "rtnprd": "102026",
+    "version": "1.0",
+    "gendt": "14-11-2026",
+    "docdata": {
+      "b2b": [
+        {
+          "ctin": "27AAHCS6742Q1ZJ",
+          "trdnm": "SHAKTI INDUSTRIAL SUPPLIERS PVT LTD",
+          "supfildt": "11-11-2026",
+          "supprd": "102026",
+          "inv": [
+            { "inum": "SIS/26-27/0199", "typ": "R", "dt": "01-10-2026", "val": 115640.00, "pos": "27", "rev": "N", "itcavl": "Y", "rsn": "", "diffprcnt": 1, "srctyp": "e-Invoice", "irn": "a5c1e4f0b8d2c7e6f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2", "irngendate": "01-10-2026",
+              "items": [ { "num": 1, "rt": 18, "txval": 98000.00, "igst": 17640.00, "cgst": 0, "sgst": 0, "cess": 0 } ] },
+            { "inum": "SIS/26-27/0226", "typ": "R", "dt": "31-10-2026", "val": 155137.50, "pos": "27", "rev": "N", "itcavl": "Y", "rsn": "", "diffprcnt": 1, "srctyp": "e-Invoice",
+              "items": [ { "num": 1, "rt": 5, "txval": 147750.00, "igst": 0, "cgst": 3693.75, "sgst": 3693.75, "cess": 0 } ] }
+          ]
+        },
+        {
+          "ctin": "06AAGCA5531D1Z4",
+          "trdnm": "ARAVALI ELECTRICALS & CONTROLS PVT LTD",
+          "supfildt": "11-11-2026",
+          "supprd": "102026",
+          "inv": [
+            { "inum": "AEC/26-27/0353", "typ": "R", "dt": "02-10-2026", "val": 480440.00, "pos": "27", "rev": "N", "itcavl": "Y", "rsn": "", "diffprcnt": 1, "srctyp": "e-Invoice",
+              "items": [ { "num": 1, "rt": 18, "txval": 402444.44, "igst": 72440.00, "cgst": 0, "sgst": 0, "cess": 0 }, { "num": 2, "rt": 18, "txval": 5555.56, "igst": 0, "cgst": 0, "sgst": 0, "cess": 0 } ] }
+          ]
+        },
+        {
+          "ctin": "27AAKFD3320R1Z3",
+          "trdnm": "DECCAN VALVE INDUSTRIES",
+          "supfildt": "10-11-2026",
+          "supprd": "102026",
+          "inv": [
+            { "inum": "DVI/2026-27/134", "typ": "R", "dt": "19-10-2026", "val": 68676.00, "pos": "27", "rev": "N", "itcavl": "Y", "rsn": "", "diffprcnt": 1, "srctyp": "Upload",
+              "items": [ { "num": 1, "rt": 18, "txval": 58200.00, "igst": 0, "cgst": 5238.00, "sgst": 5238.00, "cess": 0 } ] }
+          ]
+        },
+        {
+          "ctin": "27BXJPJ7316C1ZK",
+          "trdnm": "MERIDIAN PUMP SUPPLY",
+          "supfildt": "09-11-2026",
+          "supprd": "102026",
+          "inv": [
+            { "inum": "MPS/26-27/041", "typ": "R", "dt": "20-10-2026", "val": 70800.00, "pos": "27", "rev": "N", "itcavl": "Y", "rsn": "", "diffprcnt": 1, "srctyp": "Upload",
+              "items": [ { "num": 1, "rt": 18, "txval": 60000.00, "igst": 0, "cgst": 5400.00, "sgst": 5400.00, "cess": 0 } ] }
+          ]
+        },
+        {
+          "ctin": "27CQPPP4408F1ZK",
+          "trdnm": "INDRAYANI FASTENERS & HARDWARE",
+          "supfildt": "11-11-2026",
+          "supprd": "102026",
+          "inv": [
+            { "inum": "IFH-0541", "typ": "R", "dt": "16-10-2026", "val": 46020.00, "pos": "27", "rev": "N", "itcavl": "Y", "rsn": "", "diffprcnt": 1, "srctyp": "Upload",
+              "items": [ { "num": 1, "rt": 18, "txval": 39000.00, "igst": 0, "cgst": 3510.00, "sgst": 3510.00, "cess": 0 } ] }
+          ]
+        },
+        {
+          "ctin": "33AADCK7758N1ZY",
+          "trdnm": "KONGU PUMPS & SPARES PVT LTD",
+          "supfildt": "11-11-2026",
+          "supprd": "102026",
+          "inv": [
+            { "inum": "KPS2627-0388", "typ": "R", "dt": "28-10-2026", "val": 23600.00, "pos": "27", "rev": "N", "itcavl": "Y", "rsn": "", "diffprcnt": 1, "srctyp": "e-Invoice",
+              "items": [ { "num": 1, "rt": 18, "txval": 20000.00, "igst": 3600.00, "cgst": 0, "sgst": 0, "cess": 0 } ] }
+          ]
+        }
+      ],
+      "cdnr": []
+    }
+  }
+}

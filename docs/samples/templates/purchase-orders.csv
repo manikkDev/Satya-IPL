@@ -1,0 +1,3 @@
+PO number *,PO date *,Supplier GSTIN,Supplier name,Line no,Item code,Description *,HSN/SAC,Quantity *,Unit,Rate *,GST %,Discount %,Delivery date,Payment terms (days)
+PO/EXT/26-27/0101,06-11-2026,27AAKCS7741P1ZH,Sahyadri Seals & Gaskets Pvt Ltd,1,SEAL-CART-45,"Cartridge mechanical seal 45 mm, SiC/Carbon, EPDM",84842000,20,Nos,3200.00,18,,20-11-2026,30
+PO/EXT/26-27/0101,06-11-2026,27AAKCS7741P1ZH,Sahyadri Seals & Gaskets Pvt Ltd,2,GSK-SPW-100,"Spiral-wound gasket DN100 PN16, SS316/graphite",84849000,50,Nos,610.00,18,,20-11-2026,30
