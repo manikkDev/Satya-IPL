@@ -185,8 +185,10 @@ export async function runCopilot({ message, context = {}, auth, llm = null, call
   const basePlan = planFor(route.intent, { entities: route.entities, resolved, message: text, today });
   extras = opts.mode === "analyse" ? analyseExtras(route.intent, { resolved }).filter((x) => !basePlan.some((b) => b.tool === x.tool)) : [];
   const plan = [...basePlan, ...extras];
-  // attachment questions read the document first, so the model starts from it
-  const prefetch = route.intent === "attachment_review";
+  // attachment questions read the document first, and Analyse runs its whole
+  // investigation plan up front — the model starts from every result and can
+  // dig further, so depth never depends on the model choosing to look
+  const prefetch = route.intent === "attachment_review" || (opts.mode === "analyse" && plan.length > 0);
   if (prefetch) await runPlan(plan);
 
   /* ---- 3. agent loop (LLM) or deterministic plan ---------------------- */

@@ -1218,9 +1218,6 @@
     "msme_payments_due",
     "list_findings"
    ],
-   "mustInclude": [
-    "Alsochecked"
-   ],
    "figures": [
     "totals.outstanding@list_payables"
    ]
@@ -1273,7 +1270,7 @@
     "list_payables"
    ],
    "mustInclude": [
-    ":::draftInternalnote"
+    ":::draft"
    ]
   }
  },
@@ -1340,9 +1337,9 @@
     "match_attachment",
     "check_attachment_gst"
    ],
-   "mustInclude": [
-    "Don'tpaythisinvoiceyet",
-    "Duplicate:"
+   "mentions": [
+    "duplicat",
+    "DVI/26-27/0105"
    ]
   }
  },

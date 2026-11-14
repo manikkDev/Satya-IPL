@@ -50,12 +50,24 @@ export function segmentAnswer(raw: string, streaming: boolean): { segments: Segm
     const start = m.index ?? 0;
     if (start > last) segments.push({ kind: "md", text: text.slice(last, start) });
     const closed = /\n:::[ \t]*$/.test(m[0]);
-    segments.push({ kind: "draft", title: m[1].trim() || "Draft", body: m[2].replace(/\n?:::[ \t]*$/, "").trimEnd(), open: !closed });
+    segments.push({ kind: "draft", title: m[1].trim() || "Draft", body: plainDraft(m[2].replace(/\n?:::[ \t]*$/, "")), open: !closed });
     last = start + m[0].length;
   }
   if (last < text.length) segments.push({ kind: "md", text: text.slice(last) });
   if (working.trim()) segments.push({ kind: "working", text: working.trim() });
   return { segments: segments.filter((s) => s.kind !== "md" || s.text.trim()), evidence };
+}
+
+/** A draft is text to send: drop markdown marks and source refs, keep lists. */
+function plainDraft(body: string): string {
+  return body
+    .replace(/\s?\[S\d+\]/g, "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /** Number citations by first use when the server list isn't here yet (streaming). */

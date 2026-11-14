@@ -269,6 +269,12 @@ function score(gc, payload, ctx) {
     figures.push(ok);
     if (!ok) r.notes.push(`figure ${f}=${value} not in answer`);
   }
+  // wording-free checks: each pattern must appear (case-insensitive)
+  for (const m of e.mentions || []) {
+    const ok = new RegExp(m, "i").test(String(payload.content));
+    figures.push(ok);
+    if (!ok) r.notes.push(`mentions /${m}/`);
+  }
   for (const m of e.mustInclude || []) {
     const ok = plain.includes(m);
     figures.push(ok);

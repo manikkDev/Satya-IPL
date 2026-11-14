@@ -280,9 +280,10 @@ export function workingSection(answerText, derivations = []) {
 
 /** Evidence-mode internal note built from a composed answer (Draft mode). */
 export function noteFromAnswer(markdown, title = "Internal note") {
-  const text = String(markdown || "");
-  const head = (/^\*\*(.+?)\*\*/.exec(text.trim())?.[1] || "").trim();
-  const bullets = [...text.matchAll(/^- (.+)$/gm)].map((m) => m[1].replace(/\s?\[S\d+\]/g, "").trim()).slice(0, 5);
+  const text = String(markdown || "").replace(/^\s*_Evidence:_.*$/gim, "").trim();
+  const firstLine = text.split("\n").find((l) => l.trim() && !/^\s*[-*•]\s/.test(l)) || "";
+  const head = ((/^\*\*(.+?)\*\*/.exec(text)?.[1]) || firstLine.replace(/[*_#]/g, "")).replace(/\s?\[S\d+\]/g, "").trim();
+  const bullets = [...text.matchAll(/^\s*[-*•]\s+(.+)$/gm)].map((m) => m[1].replace(/\s?\[S\d+\]/g, "").replace(/\*\*/g, "").trim()).filter(Boolean).slice(0, 5);
   if (!head) return "";
   const body = [`Subject: ${head.replace(/[.]+$/, "")}`, "", ...(bullets.length ? bullets.map((b) => `- ${b}`) : [head]), "", "Source: Satya, from our purchase records."].join("\n");
   return `:::draft ${title}\n${body}\n:::`;
