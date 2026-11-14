@@ -15,13 +15,16 @@ import { mocksEnabled } from "@/lib/flags";
 import { useSession } from "@/components/v2/session";
 import { Money, DateText, ErrorState, EmptyState, PageHeader, FadeIn, Card, Btn, SeverityBadge } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { pageTabsList, pageTabsTrigger } from "@/components/pages/shared/page-tabs";
+import { findingLabel } from "@/content/copy/findings";
 import { buildPayables, buildSpend, buildFindings, findingTypeLabel, SEVERITIES, type SupplierInfo } from "@/components/pages/reports/aggregate";
 import { cn } from "@/lib/utils";
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong.");
 
 const th = "px-4 py-2.5 text-[13px] font-semibold text-[var(--muted)]";
-const td = "px-4 py-3 text-sm text-[var(--ink-2)]";
+const td = "px-4 py-3.5 text-[15px] text-[var(--ink-2)]";
 
 function SectionSkeleton({ rows = 4 }: { rows?: number }) {
   return (
@@ -36,10 +39,10 @@ function SectionHead({ icon, title, hint, onExport, disabled }: { icon: typeof C
   return (
     <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5 pb-4">
       <div className="min-w-0">
-        <h2 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[var(--ink)]">
-          <Icon size={15} className="text-[var(--muted)]" aria-hidden="true" /> {title}
+        <h2 className="flex items-center gap-2 text-[17px] font-semibold tracking-tight text-[var(--ink)]">
+          <Icon size={18} className="text-[var(--muted)]" aria-hidden="true" /> {title}
         </h2>
-        {hint ? <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">{hint}</p> : null}
+        {hint ? <p className="mt-1 max-w-2xl text-[15px] text-[var(--muted)]">{hint}</p> : null}
       </div>
       {onExport ? <Btn size="sm" variant="secondary" icon={Download} onClick={onExport} disabled={disabled}>Export CSV</Btn> : null}
     </div>
@@ -94,6 +97,7 @@ export default function ReportsPage() {
     return [...set].sort().reverse();
   }, [invoicesQ.data]);
   const [fy, setFy] = useState<string>("");
+  const [report, setReport] = useState("ageing");
   const spend = useMemo(() => (invoicesQ.data ? buildSpend(invoicesQ.data.items, suppliers, fy) : null), [invoicesQ.data, suppliers, fy]);
   const findings = useMemo(() => (findingsQ.data ? buildFindings(findingsQ.data.items) : null), [findingsQ.data]);
 
@@ -117,8 +121,8 @@ export default function ReportsPage() {
   const exportFindings = () => {
     if (!findings) return;
     downloadCsv(`open-findings-${fileTag}.csv`,
-      ["Finding type", "Code", ...SEVERITIES.map((s) => s[0].toUpperCase() + s.slice(1)), "Total", "Amount involved (INR)"],
-      findings.rows.map((r) => [findingTypeLabel(r.code), r.code, ...SEVERITIES.map((s) => r.counts[s] ?? 0), r.total, paiseToDecimal(r.exposure)]));
+      ["Issue", "Code", ...SEVERITIES.map((s) => s[0].toUpperCase() + s.slice(1)), "Total", "Amount involved (INR)"],
+      findings.rows.map((r) => [findingLabel(r.code, findingTypeLabel(r.code)), r.code, ...SEVERITIES.map((s) => r.counts[s] ?? 0), r.total, paiseToDecimal(r.exposure)]));
   };
 
   if (mocks) {
@@ -136,15 +140,23 @@ export default function ReportsPage() {
     <FadeIn className="space-y-5">
       <PageHeader
         title="Reports"
-        description={<>How old your unpaid bills are, who you spend the most with, and open issues for <strong className="font-medium text-[var(--ink-2)]">{activeEntity?.legalName ?? "this entity"}</strong> — as of <DateText value={asOf} /> (IST). Every figure comes from recorded documents; export any table as CSV.</>}
+        description={<>Ready-made views for {activeEntity?.legalName ?? "your company"} as of <DateText value={asOf} />. Every figure comes from recorded documents, and each report exports to CSV for your CA.</>}
       />
+
+      <Tabs value={report} onValueChange={setReport}>
+        <TabsList className={pageTabsList}>
+          <TabsTrigger value="ageing" className={pageTabsTrigger}>Unpaid bills by age</TabsTrigger>
+          <TabsTrigger value="spend" className={pageTabsTrigger}>Spend by supplier</TabsTrigger>
+          <TabsTrigger value="findings" className={pageTabsTrigger}>Open issues by type</TabsTrigger>
+        </TabsList>
+        <TabsContent value="ageing" className="mt-6">
 
       {/* ---------- payables ageing ---------- */}
       <Card pad={false} className="overflow-hidden">
         <SectionHead
           icon={Clock3}
-          title="Payables ageing"
-          hint="Unpaid supplier invoices by age since the invoice date. Outstanding = invoice total minus payments allocated to it. Micro and small (MSME) suppliers must be paid within 45 days."
+          title="Unpaid bills by age"
+          hint="How long supplier bills have been unpaid, counted from the bill date. Micro and small (MSME) suppliers must be paid within 45 days — older MSME amounts are shown in red."
           onExport={exportAgeing}
           disabled={!payables?.open.length}
         />
@@ -171,7 +183,7 @@ export default function ReportsPage() {
                   {payables.rows.map((r) => {
                     const msmeLate = (r.key === "46-60" || r.key === "60+") && r.msmeCount > 0;
                     return (
-                      <tr key={r.key} className={cn("border-b border-[var(--line)] last:border-0", msmeLate && "bg-[var(--sev-high-soft)]")}>
+                      <tr key={r.key} className="border-b border-[var(--line)] last:border-0" style={msmeLate ? { boxShadow: "inset 3px 0 0 var(--sev-high)" } : undefined}>
                         <th scope="row" className={cn(td, "text-left font-medium text-[var(--ink)]")}>{r.label}</th>
                         <td className={cn(td, "tnum text-right")}>{r.count}</td>
                         <td className={cn(td, "text-right font-medium text-[var(--ink)]")}><Money value={paiseToDecimal(r.amount)} /></td>
@@ -179,7 +191,7 @@ export default function ReportsPage() {
                           {r.msmeCount ? (
                             <span className={cn("inline-flex flex-col items-end", msmeLate && "text-[var(--sev-high)]")}>
                               <Money value={paiseToDecimal(r.msmeAmount)} className="font-medium" />
-                              <span className="inline-flex items-center gap-1 text-xs">
+                              <span className="inline-flex items-center gap-1 text-[13px]">
                                 {msmeLate ? <TriangleAlert size={12} aria-hidden="true" /> : null}
                                 <span className="tnum">{r.msmeCount}</span> invoice{r.msmeCount === 1 ? "" : "s"}{msmeLate ? " · past 45 days" : ""}
                               </span>
@@ -206,7 +218,7 @@ export default function ReportsPage() {
                 </tfoot>
               </table>
             </div>
-            <div className="space-y-1.5 border-t border-[var(--line)] px-5 py-3 text-xs text-[var(--muted)]">
+            <div className="space-y-1.5 border-t border-[var(--line)] px-5 py-3 text-[14px] text-[var(--muted)]">
               {payables.future.count ? (
                 <p className="flex items-start gap-1.5"><Info size={13} className="mt-px shrink-0" aria-hidden="true" />
                   <span><span className="tnum">{payables.future.count}</span> unpaid invoice{payables.future.count === 1 ? " is" : "s are"} dated after today (<Money value={paiseToDecimal(payables.future.amount)} />) — not aged above; check the invoice dates.</span>
@@ -222,19 +234,20 @@ export default function ReportsPage() {
                   <span>Only the first {invoicesQ.data?.items.length} of {invoicesQ.data?.total} invoices were loaded — totals may be understated.</span>
                 </p>
               ) : null}
-              <p>Credit notes are not netted here. <Link href="/app/compliance" className="font-medium text-[var(--accent)] hover:underline">MSME deadlines per invoice →</Link></p>
+              <p>Credit notes are not netted here. <Link href="/app/compliance" className="font-medium text-[var(--accent-strong)] hover:underline dark:text-[var(--accent)]">MSME deadlines per invoice →</Link></p>
             </div>
           </>
         )}
       </Card>
 
-      {/* ---------- spend by supplier ---------- */}
+        </TabsContent>
+        <TabsContent value="spend" className="mt-6">
       <Card pad={false} className="overflow-hidden">
         <SectionHead icon={BarChart3} title="Spend by supplier" hint="Top 10 suppliers by purchase invoice value (including GST)." onExport={exportSpend} disabled={!spend?.top.length} />
         {fys.length > 1 ? (
           <div className="flex items-center gap-2 px-5 pb-4">
-            <label htmlFor="spend-fy" className="text-xs font-medium text-[var(--muted)]">Financial year</label>
-            <select id="spend-fy" value={fy} onChange={(e) => setFy(e.target.value)} className="h-8 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] px-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]">
+            <label htmlFor="spend-fy" className="text-[14px] font-medium text-[var(--ink-2)]">Financial year</label>
+            <select id="spend-fy" value={fy} onChange={(e) => setFy(e.target.value)} className="h-10 rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-[15px] text-[var(--ink)] outline-none focus:border-[var(--accent)]">
               <option value="">All years</option>
               {fys.map((y) => <option key={y} value={y}>FY {y}</option>)}
             </select>
@@ -251,12 +264,12 @@ export default function ReportsPage() {
             <ol className="border-t border-[var(--line)]">
               {spend.top.map((g, i) => (
                 <li key={g.key} className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 border-b border-[var(--line)] px-5 py-3 last:border-0 sm:grid-cols-[1.5rem_minmax(0,14rem)_minmax(0,1fr)_auto]">
-                  <span className="tnum text-xs text-[var(--muted)]">{i + 1}</span>
+                  <span className="tnum text-[13px] text-[var(--muted)]">{i + 1}</span>
                   <span className="min-w-0">
                     {g.supplierId ? (
-                      <Link href={`/app/suppliers/${g.supplierId}`} className="line-clamp-2 break-words text-sm font-medium text-[var(--ink)] hover:text-[var(--accent)] hover:underline">{g.name}</Link>
-                    ) : <span className="line-clamp-2 break-words text-sm font-medium text-[var(--ink)]">{g.name}</span>}
-                    <span className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                      <Link href={`/app/suppliers/${g.supplierId}`} className="line-clamp-2 break-words text-[15px] font-medium text-[var(--ink)] hover:underline">{g.name}</Link>
+                    ) : <span className="line-clamp-2 break-words text-[15px] font-medium text-[var(--ink)]">{g.name}</span>}
+                    <span className="flex items-center gap-2 text-[13px] text-[var(--muted)]">
                       <span><span className="tnum">{g.count}</span> invoice{g.count === 1 ? "" : "s"}</span>
                       {g.msme ? <span className="inline-flex items-center gap-1 font-medium text-[var(--likely)]"><BadgeCheck size={12} aria-hidden="true" /> MSME</span> : null}
                     </span>
@@ -267,13 +280,13 @@ export default function ReportsPage() {
                     </span>
                   </span>
                   <span className="text-right">
-                    <Money value={paiseToDecimal(g.amount)} className="block text-sm font-semibold text-[var(--ink)]" />
-                    <span className="tnum block text-xs text-[var(--muted)]">{pctOf(g.amount, spend.grand)}% of total</span>
+                    <Money value={paiseToDecimal(g.amount)} className="block text-[15px] font-semibold text-[var(--ink)]" />
+                    <span className="tnum block text-[13px] text-[var(--muted)]">{pctOf(g.amount, spend.grand)}% of total</span>
                   </span>
                 </li>
               ))}
             </ol>
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] bg-[var(--surface-2)]/40 px-5 py-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] bg-[var(--surface-2)]/40 px-5 py-3 text-[15px]">
               <span className="text-[var(--muted)]">
                 {spend.others.length ? <><span className="tnum">{spend.others.length}</span> more supplier{spend.others.length === 1 ? "" : "s"} in the CSV · </> : null}
                 <span className="tnum">{spend.supplierCount}</span> supplier{spend.supplierCount === 1 ? "" : "s"} in total
@@ -284,9 +297,10 @@ export default function ReportsPage() {
         )}
       </Card>
 
-      {/* ---------- findings by type & severity ---------- */}
+        </TabsContent>
+        <TabsContent value="findings" className="mt-6">
       <Card pad={false} className="overflow-hidden">
-        <SectionHead icon={ListChecks} title="Open findings by type" hint="Every open issue the checks have raised, grouped by what went wrong and how serious it is." onExport={exportFindings} disabled={!findings?.rows.length} />
+        <SectionHead icon={ListChecks} title="Open issues by type" hint="Every open issue Satya’s checks have raised, grouped by what went wrong and how serious it is." onExport={exportFindings} disabled={!findings?.rows.length} />
         {findingsQ.error ? (
           <div className="px-5 pb-5"><ErrorState message={errMsg(findingsQ.error)} onRetry={() => findingsQ.refetch()} /></div>
         ) : findingsQ.isLoading || !findings ? (
@@ -299,7 +313,7 @@ export default function ReportsPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[var(--line)] bg-[var(--surface-2)]/60">
-                    <th scope="col" className={cn(th, "text-left")}>Finding type</th>
+                    <th scope="col" className={cn(th, "text-left")}>Issue</th>
                     {SEVERITIES.map((s) => (
                       <th key={s} scope="col" className={cn(th, "text-right normal-case tracking-normal")}><span className="inline-flex justify-end"><SeverityBadge severity={s} /></span></th>
                     ))}
@@ -311,8 +325,7 @@ export default function ReportsPage() {
                   {findings.rows.map((r) => (
                     <tr key={r.code} className="border-b border-[var(--line)] last:border-0">
                       <th scope="row" className={cn(td, "text-left font-medium text-[var(--ink)]")}>
-                        {findingTypeLabel(r.code)}
-                        <span className="font-code block text-xs font-normal text-[var(--muted)]">{r.code}</span>
+                        {findingLabel(r.code, findingTypeLabel(r.code))}
                       </th>
                       {SEVERITIES.map((s) => (
                         <td key={s} className={cn(td, "tnum text-right", !r.counts[s] && "text-[var(--muted)]")}>{r.counts[s] ?? "—"}</td>
@@ -332,15 +345,17 @@ export default function ReportsPage() {
                 </tfoot>
               </table>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] px-5 py-3 text-xs text-[var(--muted)]">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] px-5 py-3 text-[14px] text-[var(--muted)]">
               {findingsQ.data && findingsQ.data.items.length < findingsQ.data.total ? (
-                <span className="inline-flex items-center gap-1.5 text-[var(--sev-medium)]"><TriangleAlert size={13} aria-hidden="true" /> Showing the newest {findingsQ.data.items.length} of {findingsQ.data.total} open findings.</span>
-              ) : <span>Amount involved is only counted where a finding states one.</span>}
-              <Link href="/app/investigations" className="font-medium text-[var(--accent)] hover:underline">Work through them in Investigations →</Link>
+                <span className="inline-flex items-center gap-1.5 text-[var(--sev-medium)]"><TriangleAlert size={13} aria-hidden="true" /> Showing the newest {findingsQ.data.items.length} of {findingsQ.data.total} open issues.</span>
+              ) : <span>Amount involved is only counted where an issue states one.</span>}
+              <Link href="/app/investigations" className="font-medium text-[var(--accent-strong)] hover:underline dark:text-[var(--accent)]">Work through them in To review →</Link>
             </div>
           </>
         )}
       </Card>
+        </TabsContent>
+      </Tabs>
     </FadeIn>
   );
 }
