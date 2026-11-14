@@ -17,7 +17,7 @@ export default function ProtectedRoute({ children, allowedRoles }: { children: R
     if (!user) {
       router.replace('/login');
     } else if (allowedRoles && !allowedRoles.includes(user.role)) {
-      router.replace('/dashboard');
+      router.replace('/app');
     } else {
       setIsChecking(false);
     }

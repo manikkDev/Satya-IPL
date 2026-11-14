@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem("token", jwt);
         setToken(jwt);
       }
-      router.push("/dashboard");
+      router.push("/app");
     },
     [router],
   );

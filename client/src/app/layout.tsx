@@ -1,57 +1,44 @@
-import type { CSSProperties } from "react";
-import type { Metadata } from "next";
-import { Inter, Fraunces, JetBrains_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { AuthProvider } from "@/contexts/auth-context";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
-const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", display: "swap" });
-const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jbmono", display: "swap" });
-
-const fontVariables = {
-  "--font-epilogue": "Inter, ui-sans-serif, system-ui, sans-serif",
-  "--font-geist-mono": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-  "--font-playfair": "Georgia, Cambria, Times New Roman, serif",
-  "--font-silkscreen": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-} as CSSProperties;
+const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
+const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
+const instrument = Instrument_Serif({ subsets: ["latin"], weight: "400", style: ["normal", "italic"], variable: "--font-instrument", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Satya · Evidence-led Business Operations",
-  description: "Reconstruct orders, receipts, invoices and payments with traceable evidence. Built for Indian business operations.",
-  icons: {
-    icon: "/satya.svg",
-    shortcut: "/satya.svg",
-    apple: "/satya.svg",
-  },
+  title: { default: "Satya · Know what you really owe", template: "%s · Satya" },
+  description:
+    "Satya matches purchase orders, deliveries, invoices, payments and GST records for Indian businesses — showing what you really owe, why, and the evidence behind every number.",
+  icons: { icon: "/satya.svg", shortcut: "/satya.svg", apple: "/satya.svg" },
+  applicationName: "Satya",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f6f3" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c0e0d" },
+  ],
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`h-full ${inter.variable} ${fraunces.variable} ${jetbrainsMono.variable}`}>
-      <body
-        className="antialiased h-full"
-        style={fontVariables}
-        suppressHydrationWarning
-      >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem={false}
-        >
-          <div className="relative min-h-full">
-            <AuthProvider>
-              {children}
-              <Toaster position="top-center" richColors />
-              {process.env.NEXT_PUBLIC_ENABLE_ANALYTICS === '1' && <Analytics />}
-            </AuthProvider>
-          </div>
+    <html
+      lang="en-IN"
+      suppressHydrationWarning
+      className={`h-full ${geist.variable} ${geistMono.variable} ${instrument.variable}`}
+    >
+      <body className="h-full antialiased" suppressHydrationWarning>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+          <AuthProvider>
+            {children}
+            <Toaster position="top-center" richColors closeButton />
+            {process.env.NEXT_PUBLIC_ENABLE_ANALYTICS === "1" && <Analytics />}
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

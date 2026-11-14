@@ -19,6 +19,7 @@ import { AiCapacityPill } from "@/components/AiCapacityPill";
 import { SessionProvider, useSession } from "@/components/v2/session";
 import { HealthBanner } from "@/components/v2/health-banner";
 import { mocksEnabled } from "@/lib/flags";
+import { Logo, LogoMark } from "@/components/brand/logo";
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem, CommandShortcut,
 } from "@/components/ui/command";
@@ -81,7 +82,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
       {NAV_SECTIONS.map((section, si) => (
         <div key={si} className={cn(si > 0 && "mt-5")}>
           {section.label ? (
-            <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
+            <p className="px-3 pb-1.5 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--muted)]">
               {section.label}
             </p>
           ) : null}
@@ -96,20 +97,13 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "group relative flex items-center gap-3 rounded-[var(--radius-sm)] px-3 py-2 text-[13.5px] transition-all duration-150",
+                      "group relative flex items-center gap-3 rounded-[var(--radius-sm)] px-3 py-[7px] text-[14px] transition-colors duration-150",
                       active
-                        ? "bg-[var(--sidebar-active-bg)] font-medium text-[var(--sidebar-active-ink)]"
+                        ? "bg-[var(--sidebar-active-bg)] font-medium text-[var(--sidebar-active-ink)] shadow-[var(--shadow-1)] ring-1 ring-[var(--line)]"
                         : "text-[var(--sidebar-ink)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
                     )}
                   >
-                    <span
-                      className={cn(
-                        "absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-[var(--accent)] transition-all duration-150",
-                        active ? "opacity-100" : "opacity-0 group-hover:opacity-40",
-                      )}
-                      aria-hidden="true"
-                    />
-                    <Icon size={17} aria-hidden="true" className={cn("shrink-0 transition-colors", active && "text-[var(--accent)]")} />
+                    <Icon size={17} strokeWidth={active ? 2.1 : 1.8} aria-hidden="true" className={cn("shrink-0 transition-colors", active ? "text-[var(--accent)]" : "text-[var(--muted)] group-hover:text-[var(--ink-2)]")} />
                     {item.label}
                   </Link>
                 </li>
@@ -128,7 +122,7 @@ function EntitySwitcher() {
   return (
     <Select value={activeEntity?.id} onValueChange={setActiveEntityId}>
       <SelectTrigger
-        className="h-9 w-auto max-w-56 gap-2 border-[var(--line)] bg-[var(--surface)] text-sm text-[var(--ink)] shadow-[var(--shadow-1)]"
+        className="h-9 w-auto max-w-64 gap-2 border-[var(--line-strong)] bg-[var(--surface)] text-sm text-[var(--ink)] shadow-[var(--shadow-1)]"
         aria-label="Choose entity"
       >
         <span className="truncate text-[13px] [&_span]:mr-1.5">
@@ -151,7 +145,7 @@ function ThemeToggleButton() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const dark = !mounted || theme === "dark";
+  const dark = mounted && theme === "dark";
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -159,7 +153,7 @@ function ThemeToggleButton() {
           type="button"
           onClick={() => setTheme(dark ? "light" : "dark")}
           aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-          className="grid h-9 w-9 place-items-center rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] text-[var(--ink-2)] transition-colors hover:border-[var(--line-strong)] hover:text-[var(--ink)]"
+          className="hidden h-9 w-9 place-items-center rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] text-[var(--ink-2)] shadow-[var(--shadow-1)] transition-colors hover:text-[var(--ink)] sm:grid"
         >
           {dark ? <Sun size={15} /> : <Moon size={15} />}
         </button>
@@ -172,24 +166,29 @@ function ThemeToggleButton() {
 function UserMenu() {
   const { user, logout } = useSession();
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         className="flex items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-sm text-[var(--ink-2)] transition-colors hover:bg-[var(--surface-2)]"
         aria-label="Account menu"
       >
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--accent-soft)] text-xs font-semibold text-[var(--accent-strong)] ring-1 ring-[var(--accent)]/30">
+        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--accent)] text-xs font-semibold text-[var(--on-accent)]">
           {(user?.name || "S").charAt(0).toUpperCase()}
         </span>
         <span className="hidden sm:block max-w-32 truncate text-[13px]">{user?.name ?? "Account"}</span>
-        <ChevronDown size={14} aria-hidden="true" />
+        <ChevronDown size={14} aria-hidden="true" className="hidden sm:block" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="v2 w-56 border-[var(--line)] bg-[var(--surface)]">
+      <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel>
           <span className="block truncate">{user?.name}</span>
           <span className="block truncate text-xs font-normal text-[var(--muted)]">{user?.email}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem className="sm:hidden" onSelect={() => setTheme(theme === "dark" ? "light" : "dark")}>
+          {theme === "dark" ? <Sun size={15} className="mr-2" aria-hidden="true" /> : <Moon size={15} className="mr-2" aria-hidden="true" />}
+          {theme === "dark" ? "Light mode" : "Dark mode"}
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => router.push("/app/settings")}>
           <Settings size={15} className="mr-2" aria-hidden="true" /> Settings
         </DropdownMenuItem>
@@ -290,36 +289,38 @@ function ShellInner({ children }: { children: ReactNode }) {
 
       <div className="mx-auto flex min-h-screen max-w-[var(--app-max)]">
         {/* Sidebar — desktop */}
-        <aside className="sticky top-0 hidden h-screen w-[232px] shrink-0 flex-col overflow-y-auto border-r border-[var(--sidebar-line)] bg-[var(--sidebar-bg)] md:flex">
+        <aside className="sticky top-0 hidden h-screen w-[240px] shrink-0 flex-col overflow-y-auto border-r border-[var(--sidebar-line)] bg-[var(--sidebar-bg)] md:flex">
           <div className="px-5 pb-4 pt-5">
-            <Link href="/app" className="flex items-center gap-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/satya.svg" alt="" aria-hidden="true" className="h-7 w-7 rounded-[7px]" />
-              <span className="text-[19px] font-bold tracking-tight text-[var(--ink)]">
-                satya<span className="text-[var(--accent)]">.</span>
-              </span>
+            <Link href="/app" aria-label="Satya home" className="inline-flex rounded-[var(--radius-sm)]">
+              <Logo size={28} />
             </Link>
           </div>
           <NavLinks />
           <div className="border-t border-[var(--sidebar-line)] p-4">
-            <p className="text-[11px] leading-relaxed text-[var(--muted)]">
+            <p className="text-xs leading-relaxed text-[var(--muted)]">
               Every number links back to a document. Missing information is never guessed.
             </p>
+            <p className="mt-2 text-[11px] text-[var(--muted)]/80">Demo data · no live payments</p>
           </div>
         </aside>
 
         {/* Main column */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-[var(--line)] bg-[var(--topbar-bg)] px-4 backdrop-blur-md sm:px-6">
-            <EntitySwitcher />
+          <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-[var(--line)] bg-[var(--topbar-bg)] px-4 backdrop-blur-md sm:gap-3 sm:px-6">
+            <Link href="/app" aria-label="Satya home" className="md:hidden">
+              <LogoMark size={28} />
+            </Link>
+            <div className="hidden min-w-0 sm:block">
+              <EntitySwitcher />
+            </div>
             <button
               type="button"
               onClick={() => setPaletteOpen(true)}
-              className="ml-auto flex h-9 items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] shadow-[var(--shadow-1)] transition-colors hover:border-[var(--line-strong)] hover:text-[var(--ink-2)]"
+              className="ml-auto flex h-9 items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] shadow-[var(--shadow-1)] transition-colors hover:text-[var(--ink-2)] sm:min-w-56"
             >
               <Search size={15} aria-hidden="true" />
               <span className="hidden sm:inline">Search or ask…</span>
-              <kbd className="hidden rounded border border-[var(--line)] bg-[var(--surface-2)] px-1.5 py-px font-code text-[10px] sm:inline">⌘K</kbd>
+              <kbd className="ml-auto hidden rounded border border-[var(--line)] bg-[var(--surface-2)] px-1.5 py-px font-code text-[11px] sm:inline">⌘K</kbd>
             </button>
             <div className="hidden lg:block">
               <AiCapacityPill />
@@ -328,7 +329,7 @@ function ShellInner({ children }: { children: ReactNode }) {
             <UserMenu />
           </header>
 
-          <main id="app-content" tabIndex={-1} className="flex-1 px-4 py-7 pb-24 sm:px-6 md:pb-12 lg:px-8">
+          <main id="app-content" tabIndex={-1} className="flex-1 px-4 py-6 pb-28 outline-none sm:px-6 sm:py-8 md:pb-12 lg:px-10">
             <div className="mx-auto w-full max-w-[var(--content-max)]">
               <HealthBanner />
               {children}
@@ -340,7 +341,7 @@ function ShellInner({ children }: { children: ReactNode }) {
       {/* Bottom nav — mobile */}
       <nav
         aria-label="Quick navigation"
-        className="fixed inset-x-0 bottom-0 z-30 flex items-stretch justify-around border-t border-[var(--line)] bg-[var(--sidebar-bg)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 flex items-stretch justify-around border-t border-[var(--line)] bg-[var(--surface)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
       >
         {MOBILE_NAV.map((item) => {
           const Icon = item.icon;
@@ -365,8 +366,9 @@ function ShellInner({ children }: { children: ReactNode }) {
             <Menu size={19} aria-hidden="true" />
             More
           </SheetTrigger>
-          <SheetContent side="bottom" className="v2 border-[var(--line)] bg-[var(--sidebar-bg)] p-0 pb-6">
+          <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto border-[var(--line)] bg-[var(--sidebar-bg)] p-0 pb-6">
             <div className="px-5 pb-2 pt-5 text-sm font-medium text-[var(--ink)]">All pages</div>
+            <div className="px-5 pb-2 sm:hidden"><EntitySwitcher /></div>
             <NavLinks onNavigate={() => setMoreOpen(false)} />
           </SheetContent>
         </Sheet>

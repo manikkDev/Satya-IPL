@@ -5,7 +5,6 @@
 // strings only.
 
 import { CheckCircle2, CircleDot, Circle, CircleHelp, CircleDashed, OctagonAlert, TriangleAlert, CircleAlert, Info, Check, MessageCircleQuestion, CircleArrowUp, PauseCircle, Inbox, RotateCcw, ArrowRight, type LucideIcon } from "lucide-react";
-import { motion, type Variants } from "framer-motion";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -49,9 +48,9 @@ type BtnVariant = "primary" | "secondary" | "ghost" | "danger" | "outline";
 
 const BTN_VARIANTS: Record<BtnVariant, string> = {
   primary:
-    "bg-[var(--accent)] text-white shadow-[0_1px_0_rgb(0_0_0/0.2),inset_0_1px_0_rgb(255_255_255/0.12)] hover:bg-[var(--accent-strong)] hover:shadow-[var(--shadow-2)] active:translate-y-px dark:text-[#06231c]",
+    "bg-[var(--accent)] text-[var(--on-accent)] shadow-[0_1px_0_rgb(0_0_0/0.12),inset_0_1px_0_rgb(255_255_255/0.14)] hover:bg-[var(--accent-strong)] active:translate-y-px",
   secondary:
-    "bg-[var(--surface-2)] text-[var(--ink)] border border-[var(--line)] hover:bg-[var(--surface-3)] hover:border-[var(--line-strong)]",
+    "bg-[var(--surface)] text-[var(--ink)] border border-[var(--line-strong)] shadow-[var(--shadow-1)] hover:bg-[var(--surface-2)]",
   outline:
     "border border-[var(--accent)]/45 text-[var(--accent-strong)] bg-transparent hover:bg-[var(--accent-soft)] hover:border-[var(--accent)]/70",
   ghost:
@@ -108,71 +107,39 @@ export function PageHeader({
   eyebrow?: string;
 }) {
   return (
-    <div className="mb-7 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+    <div className="mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
       <div className="min-w-0">
         {eyebrow ? (
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">{eyebrow}</p>
+          <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-[var(--accent)]">{eyebrow}</p>
         ) : null}
-        <h1 className="text-[22px] font-semibold tracking-tight text-[var(--ink)]">{title}</h1>
-        {description ? <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-[var(--muted)]">{description}</p> : null}
+        <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-[var(--ink)]">{title}</h1>
+        {description ? <p className="mt-2 max-w-2xl text-[14.5px] leading-relaxed text-[var(--muted)]">{description}</p> : null}
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
     </div>
   );
 }
 
-/** Subtle rise-in on mount — shared by every page so motion stays uniform. */
+/** Subtle rise-in on mount — CSS-driven so it never sticks half-faded. */
 export function FadeIn({ children, delay = 0, className }: { children: React.ReactNode; delay?: number; className?: string }) {
   return (
-    <motion.div
-      className={className}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay, ease: [0.21, 0.65, 0.36, 1] }}
-    >
+    <div className={cn("rise", className)} style={delay ? { animationDelay: `${Math.round(delay * 1000)}ms` } : undefined}>
       {children}
-    </motion.div>
+    </div>
   );
 }
-
-const STAGGER: Variants = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.06 } },
-};
-const STAGGER_ITEM: Variants = {
-  hidden: { opacity: 0, y: 10 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.32, ease: [0.21, 0.65, 0.36, 1] } },
-};
 
 /** Staggered entrance for grids/lists of cards. */
 export function Stagger({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <motion.div className={className} variants={STAGGER} initial="hidden" animate="show">
-      {children}
-    </motion.div>
-  );
+  return <div className={cn("rise-stagger", className)}>{children}</div>;
 }
 export function StaggerItem({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <motion.div className={className} variants={STAGGER_ITEM}>
-      {children}
-    </motion.div>
-  );
+  return <div className={className}>{children}</div>;
 }
 
-/** Scroll-reveal for long pages (lands once). */
-export function Reveal({ children, className, delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  return (
-    <motion.div
-      className={className}
-      initial={{ opacity: 0, y: 22 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.5, delay, ease: [0.21, 0.65, 0.36, 1] }}
-    >
-      {children}
-    </motion.div>
-  );
+/** Long-page section wrapper (kept for API compatibility; renders immediately). */
+export function Reveal({ children, className }: { children: React.ReactNode; className?: string; delay?: number }) {
+  return <div className={cn("rise", className)}>{children}</div>;
 }
 
 /* ---------- cards ---------- */

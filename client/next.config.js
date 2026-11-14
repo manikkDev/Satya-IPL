@@ -1,52 +1,49 @@
 /** @type {import('next').NextConfig} */
-// import { SERVER_URL } from "@/utils/commonHelper";
-// const server_url = require("../utils/commonHelper");
+
+// Legacy screens were retired in favour of the /app workspace. Old links and
+// bookmarks land on the matching v2 page.
+const LEGACY_REDIRECTS = [
+  ["/dashboard", "/app"],
+  ["/cases", "/app/investigations"],
+  ["/cases/:id", "/app/investigations/:id"],
+  ["/chat", "/app/ask"],
+  ["/inbox", "/app/documents"],
+  ["/records", "/app/documents"],
+  ["/purchase-orders", "/app/orders"],
+  ["/audit", "/app/audit"],
+  ["/evaluation", "/research"],
+  ["/contracts", "/app"],
+  ["/outbox", "/app/settings"],
+  ["/predictive-risk", "/app/suppliers"],
+  ["/analyst/:path*", "/app"],
+  ["/citizen/:path*", "/app"],
+  ["/graph", "/app/investigations"],
+];
+
 const nextConfig = {
   outputFileTracingRoot: __dirname,
-  async redirects() {
-    return [
-      { source: '/analyst/:path*', destination: '/dashboard', permanent: false },
-      { source: '/citizen/:path*', destination: '/dashboard', permanent: false },
-      { source: '/graph', destination: '/cases', permanent: false },
-    ];
-  },
-  eslint: {
-    // Production builds must fail when application lint checks fail.
-    // Lint findings are release-blocking rather than silently ignored.
-    ignoreDuringBuilds: false,
-  },
-  typescript: {
-    // !! REQUIRED !!
-    // Production builds must fail when TypeScript validation fails.
-    // Type errors cannot be bypassed in release builds.
-    // !! REQUIRED !!
-    ignoreBuildErrors: false,
-  },
-  async rewrites() {
-    return [
-      // {
-      //   source: "/api/speech/:path*",
-      //   destination: `${server_url}/api/speech/:path*`,
-      // },
-    ];
-  },
-  // Enable React Strict Mode
-  // NOTE: Disabled because React Strict Mode double-invokes effects in dev,
-  // which destroys SSE (EventSource) connections immediately on mount.
+  // The Docker image runs the standalone server; Vercel builds normally.
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
+  // SSE copilot streams don't survive Strict Mode's double-mounted effects in dev.
   reactStrictMode: false,
-  // Configure images if needed
-  images: {
-    domains: ['*'],
+  poweredByHeader: false,
+  // Release builds fail on lint or type errors — never bypassed.
+  eslint: { ignoreDuringBuilds: false },
+  typescript: { ignoreBuildErrors: false },
+  async redirects() {
+    return LEGACY_REDIRECTS.map(([source, destination]) => ({ source, destination, permanent: true }));
   },
-  // Output directory for the build
-  distDir: '.next',
-  // Enable static HTML export
-  output: 'standalone',
-  // Enable server components
-  env: {
-    NEXT_PUBLIC_GOOGLE_CLIENT_ID:
-      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
-      process.env.GOOGLE_CLIENT_ID,
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+        ],
+      },
+    ];
   },
 };
 
