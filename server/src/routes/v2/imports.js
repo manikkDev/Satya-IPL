@@ -223,7 +223,18 @@ const legacyRun = async (req, source, summary, createdIds, extra = {}) => Import
 // from the row keys (HDFC/ICICI/SBI/Axis/Kotak exports) and the UTR read from
 // the narration. New debits get allocation suggestions + exact auto-allocation.
 router.post("/bank-csv", handle(async (req, res) => {
-  assertPlainInput(req.body);
+  // bank headings contain dots ("Chq./Ref.No.", "Withdrawal Amt.") — row keys
+  // are only read, never used in queries, so only $-keys and object-valued
+  // cells are rejected there; the rest of the body gets the full guard
+  const { rows: rawRows, ...rest } = req.body || {};
+  assertPlainInput(rest);
+  if (Array.isArray(rawRows)) for (const row of rawRows) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) throw fail(422, "VALIDATION_FAILED", "rows[] must be objects keyed by column heading");
+    for (const [k, v] of Object.entries(row)) {
+      if (k.startsWith("$")) throw fail(422, "VALIDATION_FAILED", `Field "${k}" is not allowed`);
+      if (v !== null && typeof v === "object") throw fail(422, "VALIDATION_FAILED", "Row cells must be text");
+    }
+  }
   canImport(req);
   const { entityId, rows = [] } = req.body;
   let mapping = req.body.mapping || {};
