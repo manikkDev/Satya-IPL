@@ -99,7 +99,7 @@ function CreateWorkspace() {
           </button>
           <p className="text-[14px] leading-relaxed text-[var(--muted)]">
             By continuing you agree to the <Link href="/legal/terms" className="underline underline-offset-2 hover:text-[var(--ink)]">terms</Link> and{" "}
-            <Link href="/legal/privacy" className="underline underline-offset-2 hover:text-[var(--ink)]">privacy policy</Link>. Pilot workspaces are free.
+            <Link href="/legal/privacy" className="underline underline-offset-2 hover:text-[var(--ink)]">privacy policy</Link>. Satya is a prototype: please use sample or anonymised data.
           </p>
         </form>
       </AuthCard>

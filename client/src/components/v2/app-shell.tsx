@@ -239,7 +239,7 @@ function DemoBanner() {
         <span className="hidden sm:inline">The suppliers, invoices and payments are sample data — nothing here moves real money.</span>
       </span>
       <Link href="/signup" className="hidden shrink-0 font-semibold text-[var(--saffron-ink)] hover:underline sm:inline">
-        Start a pilot with your data
+        Start your own pilot workspace
       </Link>
       <button type="button" onClick={() => setHidden(true)} aria-label="Hide demo notice" className="grid h-7 w-7 shrink-0 place-items-center rounded text-[var(--muted)] hover:text-[var(--ink)]">
         <X size={16} aria-hidden="true" />

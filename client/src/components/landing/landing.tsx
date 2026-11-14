@@ -554,10 +554,13 @@ export function Landing() {
             <div className="grid gap-8 rounded-[var(--radius-lg)] border border-[var(--line-strong)] bg-[var(--surface)] p-6 sm:p-10 lg:grid-cols-[1.2fr_1fr] lg:items-center">
               <div>
                 <h2 id="start-title" className="text-[30px] font-semibold leading-tight tracking-[-0.022em] text-[var(--ink)] sm:text-[34px]">
-                  Try it on a month of your own bills
+                  Set up your own pilot workspace
                 </h2>
                 <p className="mt-3 text-lg leading-relaxed text-[var(--ink-2)]">
-                  Create a workspace, import one month from Tally, your bank and GSTR-2B, and see what Satya finds. No card needed.
+                  Create a workspace, add your company’s GSTIN, import a month of records and invite your team. No card needed.
+                </p>
+                <p className="mt-3 text-[15px] leading-relaxed text-[var(--muted)]">
+                  Satya is a working prototype — for now, please use sample or anonymised records rather than live business data.
                 </p>
                 <p className="mt-3 text-[15px] text-[var(--muted)]">
                   Want numbers first?{" "}

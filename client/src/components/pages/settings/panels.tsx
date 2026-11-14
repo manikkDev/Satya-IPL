@@ -179,7 +179,14 @@ export function PeoplePanel() {
           Makers can’t also be checkers: whoever prepares an order, bank change or payment release needs a colleague to approve it.
         </p>
       </Card>
-      <ReadOnlyNote>Inviting people and changing roles is done by your Satya administrator.</ReadOnlyNote>
+      {perms.includes("user.manage") || (me.permissions["*"] ?? []).includes("user.manage") ? (
+        <Card>
+          <CardTitle icon={Users} description="Invite colleagues by email and choose what each person can do. They get a one-time join link.">Your team</CardTitle>
+          <LinkBtn href="/app/setup#team" variant="primary" icon={Users}>Invite people</LinkBtn>
+        </Card>
+      ) : (
+        <ReadOnlyNote>Inviting people and changing roles is done by your Satya administrator.</ReadOnlyNote>
+      )}
     </div>
   );
 }
