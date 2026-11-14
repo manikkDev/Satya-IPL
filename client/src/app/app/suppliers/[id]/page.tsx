@@ -20,7 +20,10 @@ import { Money, DateText, ErrorState, FadeIn, Card, CardTitle, Term, StatusBadge
 import { Skeleton } from "@/components/ui/skeleton";
 import { STATUS_LABEL } from "@/content/copy/vocabulary";
 import { gstStateName, decodeIfsc, panFromGstin } from "@/lib/india";
-import { daysLeftText } from "@/lib/format";
+import { daysLeftText, formatMoney } from "@/lib/format";
+import { v2PagesSupplier as v2Pages } from "@/lib/api/v2-pages";
+import { workflow } from "@/lib/api/workflow";
+import { RiskBadge } from "@/components/v2/risk-badge";
 import { cn } from "@/lib/utils";
 
 type MoneyLike = { amount: string; currency: string };
@@ -128,6 +131,15 @@ export default function SupplierDetailPage() {
     queryFn: () => v2.cases(),
     enabled,
   });
+  // Exact, server-computed position for this supplier (paise arithmetic,
+  // all invoices/payments — not a client-side sample).
+  const summaryQ = useQuery({
+    queryKey: ["supplier-summary", id],
+    queryFn: () => v2Pages.supplierSummary(id),
+    enabled: enabled && !mocks,
+    retry: 0,
+  });
+  const riskQ = useQuery({ queryKey: ["supplier-risk", id], queryFn: () => workflow.supplierRisk(id), enabled: enabled && !mocks, retry: 0 });
   const complianceQ = useQuery({
     queryKey: ["supplier-compliance", id],
     queryFn: () => v2.complianceSection("msme"),
@@ -184,11 +196,13 @@ export default function SupplierDetailPage() {
 
   const isMsme = Boolean(supplier.msme || supplier.msmeFlag);
   const gstStates = [...new Set((supplier.gstins ?? []).map((g) => gstStateName(g.stateCode ?? g.gstin?.slice(0, 2))).filter(Boolean))] as string[];
-  const openIssues = Math.max(totals.issues, supplier.issueCount);
-  const openValue = supplier.openValue ?? (ordersQ.data ? inr(Math.max(0, totals.invoiced - totals.paid)) : undefined);
-  const paidTotal = payments.length
+  const sum = summaryQ.data;
+  const openIssues = sum?.openFindings?.count ?? Math.max(totals.issues, supplier.issueCount);
+  const openValue = sum ? sum.outstanding : supplier.openValue ?? (ordersQ.data ? inr(Math.max(0, totals.invoiced - totals.paid)) : undefined);
+  const paidTotal = sum ? sum.paid : payments.length
     ? inr(payments.reduce((s, p) => s + Number(typeof p.amount === "string" ? p.amount : p.amount?.amount ?? 0), 0))
     : totals.paid > 0 ? inr(totals.paid) : undefined;
+  const orderedTotal = sum ? sum.ordered : orders.length ? inr(totals.ordered) : undefined;
   const terms = supplier.paymentTermsDays != null ? `${supplier.paymentTermsDays} days` : "—";
 
   return (
@@ -235,11 +249,11 @@ export default function SupplierDetailPage() {
           <Kpi
             label="Outstanding payable"
             value={openValue ? <Money value={openValue} /> : "—"}
-            sub="invoiced less paid on record"
+            sub={sum?.disputed ? `${formatMoney(sum.disputed)} on invoices with open issues` : "invoiced less paid and credited"}
           />
           <Kpi
             label="Order value"
-            value={ordersQ.isLoading ? "…" : orders.length ? <Money value={inr(totals.ordered)} /> : "—"}
+            value={orderedTotal ? <Money value={orderedTotal} /> : ordersQ.isLoading ? "…" : "—"}
             sub={`${orders.length} purchase order${orders.length === 1 ? "" : "s"}`}
           />
           <Kpi
@@ -262,6 +276,30 @@ export default function SupplierDetailPage() {
           <Kpi label="Payment terms" value={terms} sub="agreed credit period" />
         </div>
       </Card>
+
+      {riskQ.data ? (
+        <Card>
+          <CardTitle hint="Rule-based — every point is explained">Supplier risk</CardTitle>
+          <div className="flex flex-wrap items-start gap-4">
+            <RiskBadge risk={riskQ.data} className="text-sm" />
+            {riskQ.data.factors.length === 0 ? (
+              <p className="text-sm text-[var(--muted)]">No open issues or master-data gaps — nothing raises this supplier’s risk.</p>
+            ) : (
+              <ul className="min-w-0 flex-1 space-y-2">
+                {riskQ.data.factors.map((f) => (
+                  <li key={f.label} className="flex items-start justify-between gap-4 text-sm">
+                    <span>
+                      <span className="text-[var(--ink)]">{f.label}</span>
+                      {f.detail ? <span className="block text-xs text-[var(--muted)]">{f.detail}</span> : null}
+                    </span>
+                    <span className="tnum shrink-0 text-xs font-medium text-[var(--ink-2)]">+{f.points}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-3">
         {/* ---------- activity column ---------- */}

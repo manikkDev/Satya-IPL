@@ -422,3 +422,20 @@ export const paymentsApi = {
       { method: "POST", body },
     ),
 };
+
+
+/* ---------- supplier summary (exact, server-computed) ---------- */
+
+type SummaryMoney = { amount: string; currency: string };
+export type SupplierSummary = {
+  id: string; name: string;
+  ordered: SummaryMoney; invoiced: SummaryMoney; paid: SummaryMoney; credited: SummaryMoney;
+  outstanding: SummaryMoney; disputed: SummaryMoney; undisputedOutstanding: SummaryMoney;
+  unallocatedPayments: SummaryMoney;
+  openFindings: { count: number; bySeverity?: Record<string, number> };
+  msme?: { category?: string; covered?: boolean; overdue?: SummaryMoney };
+};
+
+export const v2PagesSupplier = {
+  supplierSummary: (id: string) => fetchJson<SupplierSummary>(`/api/v2/suppliers/${encodeURIComponent(id)}/summary`),
+};
