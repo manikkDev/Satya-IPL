@@ -75,13 +75,21 @@ def delivery_shortfall(ledger, docs=None, as_of=None):
     ]
 
 
+def _canonical_invoice_number(number):
+    """'MPS/26-27/041', 'MPS-26-27-041' and 'mps 26 27 041' are the same bill
+    keyed differently — compare on letters and digits only."""
+    import re
+    return re.sub(r"[^0-9a-z]", "", (number or "").lower())
+
+
 def duplicate_invoice_suspect(docs):
-    """DUPLICATE_INVOICE_SUSPECT — same seller+number+amount twice."""
+    """DUPLICATE_INVOICE_SUSPECT — same seller + invoice number (ignoring
+    separators and case) + amount recorded more than once."""
     from collections import defaultdict
     groups = defaultdict(list)
     for d in docs:
         if d["type"] == "INVOICE_IN" and d["status"] not in {"reversed", "cancelled"}:
-            key = (d["seller"]["name"].lower(), d["number"].lower(),
+            key = (d["seller"]["name"].lower(), _canonical_invoice_number(d["number"]),
                    d.get("totals", {}).get("grand") if d.get("totals") else None)
             groups[key].append(d)
     findings = []
@@ -91,7 +99,7 @@ def duplicate_invoice_suspect(docs):
         original, *dups = sorted(group, key=lambda d: d["observedAt"])
         findings.append(_finding(
             "DUPLICATE_INVOICE_SUSPECT", "high", "PROBABLE",
-            f"Invoice {number} from {seller} appears {len(group)} times — confirm whether one obligation or revised billing",
+            f"Invoice {' / '.join(sorted({d['number'] for d in group}))} from {seller} appears {len(group)} times — confirm whether one obligation or revised billing",
             [{"documentId": d["id"]} for d in group],
             str(D(group[0]["totals"]["grand"]) * (len(group) - 1)) if group[0].get("totals") else None))
         original_id = original["id"]

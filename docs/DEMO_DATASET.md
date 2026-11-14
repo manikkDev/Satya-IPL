@@ -99,7 +99,7 @@ The "Expected findings" column lists what the engine *should* raise once the pen
 | S09 | 000012 | Deccan | Short-closed at 16 of 25 butterfly valves with supplier consent; PO line adjusted to 16; 16 billed and paid | none, clean | resolved · owner 000009 |
 | S10 | 000006 | Maratha | Clean multi-line: pulleys, bushes and housings | none, clean | resolved · owner 000010 |
 | S11 | 000034 | Shakti | First lot only: 3 of 10 pumps in, 7 in transit, not invoiced | `DELIVERY_SHORTFALL`, `DOC_MISSING_INVOICE` | open · owner 000011 |
-| **S12** | **000029 (PO-1001)** | **Meridian** | **Flagship (details below)** | `INVOICE_QTY_EXCEEDS_RECEIVED`, `QTY_INVOICED_EXCEEDS_ACCEPTED`, `DELIVERY_SHORTFALL`, `PAY_SPLIT`, `PAY_UNALLOCATED` | open |
+| **S12** | **000029 (PO-1001)** | **Meridian** | **Flagship (details below)** | `DUPLICATE_INVOICE_SUSPECT`, `INVOICE_QTY_EXCEEDS_RECEIVED`, `QTY_INVOICED_EXCEEDS_ACCEPTED`, `DELIVERY_SHORTFALL` (once the batch is due), `PAY_SPLIT`, `PAY_UNALLOCATED` | open |
 | S13 | 000031 (PO-1002) | Meridian | 15 kits received and billed (MPS/26-27/042, ₹17,700), not yet due; a candidate for T03 | none, clean | open |
 | S14 | 000022 | Godavari | Price variance: motors billed at ₹44,200 vs PO ₹42,500 (+4%, over the 2% tolerance) | `PRICE_VARIANCE` | in_review |
 | S15 | 000009 | Godavari | Split payment: one ₹4,63,150 invoice settled by two RTGS transfers | `PAY_SPLIT` | resolved |
