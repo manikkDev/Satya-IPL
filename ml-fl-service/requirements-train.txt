@@ -1,0 +1,3 @@
+# Offline-only tooling (never imported at runtime): extraction eval-set generation.
+reportlab==4.2.5
+qrcode==8.0

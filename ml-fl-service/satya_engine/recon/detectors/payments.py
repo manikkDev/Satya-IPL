@@ -35,15 +35,21 @@ def pay_overpayment(ledger, docs):
     ]
 
 
-def pay_before_receipt(docs, ledger):
-    """PAY_BEFORE_RECEIPT — non-advance payment before goods delivered."""
+def pay_before_receipt(docs, ledger, links=None):
+    """PAY_BEFORE_RECEIPT — non-advance payment before goods delivered.
+
+    A GRN belongs to a PO through its line refs or a usable RECEIVES link
+    (confirmed, or a certified model auto-link)."""
+    received_via_link = {}
+    for l in links or []:
+        if l["kind"] == "RECEIVES" and (l["certainty"] == "CONFIRMED" or (l.get("basis") == "model" and l["certainty"] == "PROBABLE")):
+            received_via_link.setdefault(l["fromId"], set()).add(l["toId"])
     first_grn = {}
     for d in docs:
         if d["type"] == "GRN":
-            for line in d["lines"]:
-                po = (line.get("refs") or {}).get("poId")
-                if po:
-                    first_grn[po] = min(first_grn.get(po, d["date"]), d["date"])
+            pos = {(line.get("refs") or {}).get("poId") for line in d["lines"]} | received_via_link.get(d["id"], set())
+            for po in pos - {None}:
+                first_grn[po] = min(first_grn.get(po, d["date"]), d["date"])
     findings = []
     for d in docs:
         if d["type"] != "PAYMENT_OUT" or d["status"] in {"reversed", "cancelled"}:
@@ -115,5 +121,5 @@ def bank_account_changed(docs):
 
 def run_payments(ledger, docs, links):
     return (utr_repeated_observation(docs) + pay_overpayment(ledger, docs)
-            + pay_before_receipt(docs, ledger) + tax_lut_missing(docs)
+            + pay_before_receipt(docs, ledger, links) + tax_lut_missing(docs)
             + pay_unallocated(docs, links) + bank_account_changed(docs))
