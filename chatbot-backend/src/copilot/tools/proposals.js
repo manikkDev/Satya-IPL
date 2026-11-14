@@ -134,7 +134,7 @@ export function proposalTools() {
       }
       const total = ctx.sum(picked.map((p) => p.amount));
       const heldBack = ctx.sum(picked.map((p) => p.heldBack || "0").concat(excluded.filter((e) => e.why.startsWith("fully")).map((e) => e.amount)));
-      if (budget) ctx.expr(`${budget} - ${total}`);
+      if (budget) ctx.expr(`${budget} - ${total}`, "budget left after this run");
       const msmeCount = ctx.count(picked.filter((p) => p.msmeDueDate));
       for (const p of [...picked, ...excluded]) p.ref = ctx.sources.add({ kind: "document", id: p.documentId, type: "INVOICE_IN", caseId: p.caseId, number: p.invoice, label: `Invoice ${p.invoice}` });
       const id = cardId();

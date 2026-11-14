@@ -10,8 +10,12 @@ export const INTENTS = [
   "payments", "unallocated_payments", "allocation", "payment_run",
   "draft_message", "decision", "assign", "reminder",
   "calculation", "compare", "spend", "how_to", "hsn",
+  "attachment_review",
   "smalltalk", "out_of_scope", "general",
 ];
+
+/** With a document attached, these words mean the question is about it. */
+export const ABOUT_ATTACHMENT = /\b(this|attached|attachment|document|doc|invoice|bill|file|pdf|scan|photo|it|ok to pay|okay to pay|pay this|check|review|verify|valid|po|grn|duplicate|gst|gstin|hsn|rate|correct|right|wrong|fine|genuine|match)\b/i;
 
 /** Intents answered without data (no tools needed). */
 export const NO_DATA_INTENTS = new Set(["smalltalk", "out_of_scope"]);
@@ -345,6 +349,13 @@ export function planFor(intent, { entities = {}, resolved = {}, message = "", to
       break;
     case "how_to":
       add("search_help", { query: message.slice(0, 200) });
+      break;
+    case "attachment_review":
+      for (const id of resolved.attachmentIds || []) {
+        add("read_attachment", { attachmentId: id });
+        add("match_attachment", { attachmentId: id });
+        add("check_attachment_gst", { attachmentId: id });
+      }
       break;
     case "hsn":
       add("hsn_lookup", { query: (/\b(?:hsn|sac)\s*(?:code\s*)?(\d{4,8})/i.exec(message)?.[1]) || message.replace(/.*\b(?:on|for|of)\s+/i, "").replace(/[?.!]+$/, "").slice(0, 60) });

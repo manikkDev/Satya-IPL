@@ -9,11 +9,14 @@
 import { readTools } from "./read.js";
 import { proposalTools } from "./proposals.js";
 import { trustedIntent } from "./proposals.js";
+import { attachmentTools } from "./attachment.js";
 import { sumMoney, evaluate } from "../exact.js";
+import { scopeArgs, DEFAULT_OPTIONS } from "../options.js";
 
 export const VIEW_LIMIT = 9000; // chars of JSON per tool result shown to the model
 
-export const ALL_TOOL_NAMES = () => [...Object.keys(readTools()), ...Object.keys(proposalTools())];
+export const ALL_TOOL_NAMES = () => [...Object.keys(readTools()), ...Object.keys(attachmentTools()), ...Object.keys(proposalTools())];
+export const ATTACHMENT_TOOLS = ["read_attachment", "match_attachment", "check_attachment_gst"];
 
 /**
  * @param {object} deps
@@ -25,18 +28,19 @@ export const ALL_TOOL_NAMES = () => [...Object.keys(readTools()), ...Object.keys
  * @param {string} deps.userMessage the user's own words (trusted intent)
  * @param {string} [deps.today] YYYY-MM-DD (IST)
  * @param {Function} [deps.onEvent] (event, data) → SSE
+ * @param {object} [deps.options] normalised agent options (options.js)
  */
-export function createToolkit({ call, rag = null, scope = {}, sources, bank, userMessage = "", today, onEvent = () => {}, buyerName = null }) {
-  const defs = { ...readTools(), ...proposalTools() };
+export function createToolkit({ call, rag = null, scope = {}, sources, bank, userMessage = "", today, onEvent = () => {}, buyerName = null, options = DEFAULT_OPTIONS }) {
+  const defs = { ...readTools(), ...attachmentTools(), ...proposalTools() };
   const ctx = {
-    call, rag, scope, sources, bank, userMessage, buyerName,
+    call, rag, scope, sources, bank, userMessage, buyerName, options,
     today: today || new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10),
     trusted: trustedIntent(userMessage),
     // exact derivations, logged so the evaluator can recompute every figure
     sum: (values) => bank.addDerived(sumMoney(values), { op: "sum", inputs: values.map((v) => String(v ?? "0")) }),
-    expr: (expression) => {
+    expr: (expression, label, { agent = false } = {}) => {
       const out = evaluate(expression);
-      bank.addDerived(out.rounded, { op: "expr", expr: expression });
+      bank.addDerived(out.rounded, { op: "expr", expr: expression, ...(label ? { label: String(label).slice(0, 120) } : {}), ...(agent ? { agent: true } : {}) });
       bank.addNumber(out.value);
       return out;
     },
@@ -52,7 +56,8 @@ export function createToolkit({ call, rag = null, scope = {}, sources, bank, use
   async function run(name, rawArgs = {}) {
     const def = defs[name];
     const id = `t${++seq}`;
-    const args = sanitizeArgs(rawArgs);
+    // the user's scope (supplier / period) filters every call, whatever the model asked
+    const args = scopeArgs(name, sanitizeArgs(rawArgs), options.scope, ctx.today);
     if (!def) {
       const entry = { id, name, args, ok: false, ms: 0, summary: "unknown tool" };
       log.push(entry);
@@ -90,7 +95,10 @@ export function createToolkit({ call, rag = null, scope = {}, sources, bank, use
     tables,
     cards,
     results,
-    declarations: (names) => Object.entries(defs).filter(([n]) => !names || names.includes(n)).map(([, d]) => d.declaration),
+    // attachment tools are offered only when the user attached something
+    declarations: (names) => Object.entries(defs)
+      .filter(([n]) => (!names || names.includes(n)) && (options.attachmentIds.length || !ATTACHMENT_TOOLS.includes(n)))
+      .map(([, d]) => d.declaration),
     called: () => log.map((l) => l.name),
   };
 }
