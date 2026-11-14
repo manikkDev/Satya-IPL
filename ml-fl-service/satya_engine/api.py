@@ -6,10 +6,12 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from .business_matching import evaluation
+from . import model_card
 from .auth import internal
 from .compat_v1 import router as legacy_router
 from .anomaly import score as anomaly_score
-from .evaluate import report as eval_report
+from .linking.service import LinkSuggestRequest, suggest as suggest_links
+from .match.supplier_fs import SupplierDuplicatesRequest, duplicates as supplier_dupes
 from .contracts_v2 import AllocateBatchRequest, AllocatePaymentRequest, AnomalyScoreRequest, ComplianceDeadlinesRequest, DocsParseRequest, DocsValidateRequest, GstinValidateRequest, MatchCandidatesRequest, ReconcileCaseRequest, TaxComputeRequest, schemas
 from .match.candidates import candidates as match_candidates
 from .deadlines import deadlines
@@ -49,6 +51,7 @@ def create_app():
             "service": "satya-engine" if os.environ.get("FEATURE_V2_RECON_V2") == "1" else "satya-reconciliation",
             "rulesReady": True,
             "modelReady": report.get("ready", False),
+            "linkModels": {m["task"]: m["version"] for m in model_card.status()},
             "engineVersion": ENGINE_VERSION,
             "modelVersion": report.get("modelVersion"),
             "hsnMasterVersion": None,
@@ -129,23 +132,37 @@ def create_app():
 
     @app.get("/v2/models/status", dependencies=[Depends(require_v2), Depends(internal)])
     def models_status():
-        from .match.pairs import MODEL_DIR, load_model
-        tasks = ["invoice_po_line", "grn_po_line", "invoice_invoice_dup",
-                 "payment_invoice", "supplier_supplier", "item_item"]
-        models = []
-        for task in tasks:
-            bundle = load_model(task)
-            if bundle:
-                *_, card = bundle
-                models.append({"task": task, "version": card["version"],
-                               "trainedAt": card["trainedAt"], "dataSources": card["dataSources"],
-                               "metrics": card["metrics"], "limitations": card["limitations"]})
-        return {"models": models,
-                "fallback": "heuristic-v2 when no artifact in runs/satya-models/<task>/"}
+        return {"models": model_card.status(),
+                "source": "committed artifacts under models/<task>/ (no runtime training)",
+                "fallback": "heuristic-v2 for /v2/match/candidates when no runs/satya-models/<task>/ artifact"}
+
+    @app.get("/v2/models/card", dependencies=[Depends(require_v2), Depends(internal)])
+    def models_card():
+        return model_card.build()
 
     @app.get("/v2/evaluation/report", dependencies=[Depends(require_v2), Depends(internal)])
-    def evaluation_report(task: str = "invoice_po_line"):
-        return eval_report(task)
+    def evaluation_report(task: str = "link_invoice_po"):
+        # Reads the committed evaluation artifact; it used to retrain an XGBoost
+        # model on generated data on every request.
+        legacy = {"invoice_po_line": "link_invoice_po", "grn_po_line": "link_grn_po",
+                  "payment_invoice": "link_payment_invoice"}
+        name = legacy.get(task, task)
+        card = model_card.build()
+        found = next((m for m in card["models"] if m["task"] == name), None)
+        if found is None and name in ("allocation", "extraction", "anomaly", "supplierDedupe"):
+            found = card.get(name)
+        if found is None:
+            return JSONResponse(status_code=404, content={"error": {
+                "code": "NOT_FOUND", "message": f"No evaluation artifact for {task}", "requestId": uuid.uuid4().hex}})
+        return {"task": name, "generatedAt": card["generatedAt"], "honesty": card["honesty"], "report": found}
+
+    @app.post("/v2/link/suggest", dependencies=[Depends(require_v2), Depends(internal)])
+    def link_suggest(request: LinkSuggestRequest):
+        return suggest_links(request)
+
+    @app.post("/v2/suppliers/duplicates", dependencies=[Depends(require_v2), Depends(internal)])
+    def supplier_duplicates(request: SupplierDuplicatesRequest):
+        return supplier_dupes([s.model_dump(exclude_none=True) for s in request.suppliers])
 
     @app.post("/v2/train", dependencies=[Depends(require_v2), Depends(internal)])
     def train_model(request: dict):
