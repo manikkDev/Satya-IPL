@@ -4,13 +4,37 @@
 import { fetchJson } from "@/lib/api/client";
 import { SERVER_URL } from "@/utils/commonHelper";
 import { mocksEnabled } from "@/lib/flags";
+import { daysFromTodayIst, fromPaise, toPaise } from "@/lib/format";
+import type { OrderDetail as _MockOrderDetailForAlias } from "@/lib/mocks/data";
+
+/** Order detail as the workspace consumes it. `caseId` is null when the PO
+ *  has no investigation yet; `paidValue` per line is money, not units. */
+export type OrderDetail = Omit<_MockOrderDetailForAlias, "caseId" | "lifecycle"> & {
+  caseId: string | null;
+  lifecycle: (_MockOrderDetailForAlias["lifecycle"][number] & { paidValue?: string | null; invoicedValue?: string | null })[];
+};
+
+/** Σ qty × rate × (1 + gst%) for draft lines without server totals — exact in
+ *  paise (qty to 3 dp). Returns null when there is nothing to total. */
+function estimateGrossFromLines(lines: { qty?: string | null; rate?: string | null; gstRate?: string | number | null }[]): string | null {
+  let total = BigInt(0);
+  for (const line of lines) {
+    const ratePaise = toPaise(line.rate ?? "0");
+    const qtyMilli = BigInt(Math.round(Number(line.qty ?? 0) * 1000));
+    const taxable = (ratePaise * qtyMilli + BigInt(500)) / BigInt(1000);
+    const gstBp = BigInt(Math.round(Number(line.gstRate ?? 0) * 100));
+    const tax = (taxable * gstBp + BigInt(5000)) / BigInt(10000);
+    total += taxable + tax;
+  }
+  return total > BigInt(0) ? fromPaise(total) : null;
+}
 import type { Today, GraphPayload, Page, Finding } from "@/lib/api/types";
 import { mockToday, flagshipGraph, mockEntities } from "@/lib/mocks/flagship";
 import {
   mockOrders, mockOrderDetail, mockInvestigations, mockCaseDetail,
   mockDrafts, mockDraftDetail, mockPayments, mockPaymentWorkbench,
   mockSuppliers, mockCompliance, mockCopilotAnswer,
-  type OrderDetail, type OrderListRow, type Draft, type DraftDetail,
+  type OrderDetail as MockOrderDetail, type OrderListRow, type Draft, type DraftDetail,
 } from "@/lib/mocks/data";
 
 /** Uniform supplier row for the UI — covers both mock and real API shapes. */
@@ -362,8 +386,13 @@ export const v2 = {
           const linkedDocs = await Promise.all(
             linkedIds.slice(0, 20).map((id2) => v2.document(id2).catch(() => null)),
           );
-          const computedGrand = (doc.lines ?? []).reduce((s, l) => s + Number(l.qty ?? 0) * Number(l.rate ?? 0), 0);
-          const docWithTotals = { ...doc, totals: doc.totals ?? (computedGrand ? { grand: computedGrand.toFixed(2) } : doc.totals) };
+          // Fallback only for drafts without server totals: GST-inclusive, exact.
+          const computedGrand = doc.totals?.grand ? null : estimateGrossFromLines(doc.lines ?? []);
+          const docWithTotals = { ...doc, totals: doc.totals ?? (computedGrand ? { grand: computedGrand } : doc.totals) };
+          const lifecycleRows = (Array.isArray(doc.lifecycle) ? doc.lifecycle : (doc.lifecycle as { lines?: LifecycleLine[] } | null)?.lines) ?? null;
+          const receivedByLine = new Map(
+            (lifecycleRows ?? []).map((r) => [Number((r as { lineNo: number }).lineNo), String((r as { received?: unknown }).received ?? "0")]),
+          );
           return {
           order: docWithTotals as unknown as OrderDetail["order"],
           lifecycle: (((Array.isArray(doc.lifecycle) ? doc.lifecycle : (doc.lifecycle as { lines?: LifecycleLine[] } | null)?.lines) ?? doc.lines?.map((l) => ({
@@ -386,11 +415,12 @@ export const v2 = {
             .map((l, i) => {
               const sd = (l as { scheduleDate?: string }).scheduleDate;
               if (!sd) return null;
-              const receivedQty = 0;
+              const receivedQty = receivedByLine.get(Number(l.lineNo)) ?? "0";
+              const days = daysFromTodayIst(sd);
               return {
                 batch: `Batch ${i + 1}`, qty: l.qty ?? "0", dueDate: sd,
-                receivedQty: String(receivedQty),
-                overdue: new Date(`${sd}T00:00:00`).getTime() < Date.now() && receivedQty < Number(l.qty ?? 0),
+                receivedQty,
+                overdue: days !== null && days < 0 && Number(receivedQty) < Number(l.qty ?? 0),
               };
             })
             .filter(Boolean) as OrderDetail["schedule"],
@@ -425,7 +455,7 @@ export const v2 = {
             source: "live" as const,
           },
           history: [] as OrderDetail["history"],
-          caseId: doc.caseId ?? "",
+          caseId: doc.caseId || null,
         };
         }),
 
@@ -461,7 +491,7 @@ export const v2 = {
             }).filter(([k]) => k),
           );
           return {
-            case: { id: d.id, title: d.title, status: d.status, kind: d.kind, subjectIds: d.subjectIds, entityId: d.entityId, groupId: d.groupId },
+            case: { id: d.id, title: d.title, status: d.status, kind: d.kind, subjectIds: d.subjectIds, entityId: d.entityId, groupId: d.groupId, revision: d.revision, assignee: d.assignee, priority: d.priority },
             snapshot: snap
               ? (() => {
                   const snapFindings = (Array.isArray(snap.findings) ? snap.findings : []).map((f, i) =>
@@ -808,7 +838,9 @@ export const v2 = {
     fetchJson(`/api/v2/entities/${encodeURIComponent(id)}`, { method: "PATCH", body }),
 
   entities: (): Promise<{ entities: typeof mockEntities }> =>
-    mocksEnabled() ? mock({ entities: mockEntities }) : fetchJson(`/api/v2/entities`),
+    mocksEnabled()
+      ? mock({ entities: mockEntities })
+      : fetchJson<{ items?: typeof mockEntities; entities?: typeof mockEntities }>(`/api/v2/entities`).then((d) => ({ entities: d.entities ?? d.items ?? [] })),
 };
 
 export { mockCopilotAnswer };

@@ -5,6 +5,10 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/v2/confirm-dialog";
+import { formatMoney, fromPaise, toPaise } from "@/lib/format";
 import { FileDown, Pencil, OctagonX, MessageSquare, AlertCircle, Eye, ShoppingCart, Truck, ClipboardCheck, FileText, IndianRupee, FilePlus2, Send, CheckCircle2, XCircle, FileEdit, Gavel, CircleDot } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
 import dynamic from "next/dynamic";
@@ -27,28 +31,38 @@ const STAGES = [
   { key: "paid", label: "Paid", icon: IndianRupee },
 ] as const;
 
-function StageCell({ label, icon: Icon, value, max, tone }: { label: string; icon: typeof ShoppingCart; value: string; max: string; tone?: string }) {
+function StageCell({ label, icon: Icon, value, display, max, tone }: { label: string; icon: typeof ShoppingCart; value: string; display?: React.ReactNode; max: string; tone?: string }) {
   const pct = Number(max) > 0 ? Math.min(100, (Number(value) / Number(max)) * 100) : 0;
   return (
-    <div className="min-w-0 flex-1">
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">
+    <div className="min-w-[96px] flex-1">
+      <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--muted)]">
         <Icon size={12} aria-hidden="true" /> {label}
       </div>
-      <p className="tnum mt-1 text-base font-semibold" style={{ color: tone ?? "var(--ink)" }}>{value}</p>
+      <p className="tnum mt-1 text-base font-semibold" style={{ color: tone ?? "var(--ink)" }}>{display ?? value}</p>
       <Progress value={pct} tone={tone ?? "var(--accent)"} className="mt-1.5 h-[4px]" />
-      <p className="tnum mt-1 text-[10px] text-[var(--muted)]">{Number(max) > 0 ? `${Math.round(pct)}%` : "—"}</p>
+      <p className="tnum mt-1 text-[11px] text-[var(--muted)]">{Number(max) > 0 ? `${Math.round(pct)}%` : "—"}</p>
     </div>
   );
+}
+
+/** Line gross value (qty × rate incl. GST) in paise, for value-based %s. */
+function lineGrossPaise(line: { qty?: string | null; rate?: string | null; gstRate?: string | number | null } | undefined, qty?: string): bigint {
+  if (!line) return BigInt(0);
+  const q = BigInt(Math.round(Number(qty ?? line.qty ?? 0) * 1000));
+  const taxable = (toPaise(line.rate ?? "0") * q + BigInt(500)) / BigInt(1000);
+  const gstBp = BigInt(Math.round(Number(line.gstRate ?? 0) * 100));
+  return taxable + (taxable * gstBp + BigInt(5000)) / BigInt(10000);
 }
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [previewDocId, setPreviewDocId] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<null | "amend" | "short-close">(null);
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ["order", id], queryFn: () => v2.order(id) });
-  const { data: graph } = useQuery({ queryKey: ["graph", data?.caseId], queryFn: () => v2.graph(data!.caseId), enabled: !!data?.caseId });
+  const { data: graph } = useQuery({ queryKey: ["graph", data?.caseId], queryFn: () => v2.graph(data!.caseId as string), enabled: !!data?.caseId });
   const { data: model } = useQuery({ queryKey: ["renderModel", data?.order?.id], queryFn: () => v2.renderModel(data!.order.id), enabled: !!data?.order?.id });
-  const { data: findings } = useQuery({ queryKey: ["findings", data?.caseId], queryFn: () => v2.findings({ caseId: data!.caseId }), enabled: !!data?.caseId });
+  const { data: findings } = useQuery({ queryKey: ["findings", data?.caseId], queryFn: () => v2.findings({ caseId: data!.caseId as string }), enabled: !!data?.caseId });
   const { data: activity } = useQuery({ queryKey: ["order-activity", data?.order?.id], queryFn: () => v2.orderActivity(data!.order.id), enabled: !!data?.order?.id });
 
   if (error) return <ErrorState message={error instanceof Error ? error.message : "Order not found."} onRetry={() => refetch()} />;
@@ -57,23 +71,27 @@ export default function OrderDetailPage() {
   const { order, lifecycle, schedule, documents, history, caseId } = data;
   const issueCount = findings?.items?.length ?? 0;
 
-  const sums = {
-    ordered: lifecycle.reduce((s, l) => s + Number(l.ordered ?? 0), 0),
-    received: lifecycle.reduce((s, l) => s + Number(l.received ?? 0), 0),
-    accepted: lifecycle.reduce((s, l) => s + Number(l.accepted ?? 0), 0),
-    invoiced: lifecycle.reduce((s, l) => s + Number(l.invoiced ?? 0), 0),
-    paid: lifecycle.reduce((s, l) => s + Number(l.paid ?? 0), 0),
-    open: lifecycle.reduce((s, l) => s + Number(l.open ?? 0), 0),
-  };
-  const grand = Number(order.totals?.grand ?? order.lines?.reduce((s, l) => s + Number(l.qty ?? 0) * Number(l.rate ?? 0), 0) ?? 0);
+  const units = (key: "ordered" | "received" | "accepted" | "invoiced" | "open") =>
+    lifecycle.reduce((s, l) => s + Number(l[key] ?? 0), 0);
+  const sums = { ordered: units("ordered"), received: units("received"), accepted: units("accepted"), invoiced: units("invoiced"), open: units("open") };
+  const currency = order.currency ?? "INR";
+  // Order value comes from the document's own totals (GST-inclusive).
+  const grandPaise = order.totals?.grand ? toPaise(order.totals.grand) : (order.lines ?? []).reduce((s, l) => s + lineGrossPaise(l), BigInt(0));
+  // Paid is money, never units: prefer server paidValue per line.
+  const hasPaidValue = lifecycle.some((l) => l.paidValue != null);
+  const paidPaise = hasPaidValue ? lifecycle.reduce((s, l) => s + toPaise(l.paidValue ?? "0"), BigInt(0)) : null;
   const pct = (n: number) => (sums.ordered ? Math.min(100, Math.round((n / sums.ordered) * 100)) : 0);
+  const paidPct = paidPaise !== null && grandPaise > BigInt(0) ? Math.min(100, Number((paidPaise * BigInt(100)) / grandPaise)) : null;
+  const fmtQty = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
   const kpis = [
-    { label: "Order value", value: <Money value={{ amount: String(grand), currency: order.currency ?? "INR" }} />, note: `${order.lines?.length ?? 0} line${(order.lines?.length ?? 0) === 1 ? "" : "s"} · ${sums.ordered} units`, tone: undefined as string | undefined },
-    { label: "Delivered", value: `${pct(sums.received)}%`, note: `${sums.received} of ${sums.ordered} units received`, tone: sums.received > 0 ? "var(--accent)" : undefined },
-    { label: "Invoiced", value: `${pct(sums.invoiced)}%`, note: `${sums.invoiced} units billed`, tone: sums.invoiced > sums.received ? "var(--sev-high)" : undefined },
-    { label: "Paid", value: `${pct(sums.paid)}%`, note: `${sums.paid} units settled`, tone: sums.paid > 0 ? "var(--confirmed)" : undefined },
-    { label: "Still open", value: String(sums.open), note: issueCount ? `${issueCount} issue${issueCount === 1 ? "" : "s"} to settle` : "units yet to arrive", tone: issueCount ? "var(--sev-high)" : sums.open > 0 ? "var(--sev-medium)" : "var(--confirmed)" },
+    { label: "Order value", value: <Money value={fromPaise(grandPaise)} currency={currency} />, note: `${order.lines?.length ?? 0} line${(order.lines?.length ?? 0) === 1 ? "" : "s"} · ${fmtQty(sums.ordered)} units · incl. GST`, tone: undefined as string | undefined },
+    { label: "Delivered", value: `${pct(sums.received)}%`, note: `${fmtQty(sums.received)} of ${fmtQty(sums.ordered)} units received`, tone: sums.received > 0 ? "var(--accent)" : undefined },
+    { label: "Invoiced", value: `${pct(sums.invoiced)}%`, note: `${fmtQty(sums.invoiced)} units billed${sums.invoiced > sums.received ? " — more than received" : ""}`, tone: sums.invoiced > sums.received ? "var(--sev-high)" : undefined },
+    { label: "Paid", value: paidPct === null ? "—" : `${paidPct}%`, note: paidPaise === null ? "No payment data yet" : `${formatMoney(fromPaise(paidPaise), currency)} settled`, tone: paidPaise && paidPaise > BigInt(0) ? "var(--confirmed)" : undefined },
+    { label: "Still open", value: `${fmtQty(sums.open)} units`, note: issueCount ? `${issueCount} issue${issueCount === 1 ? "" : "s"} to settle` : sums.open > 0 ? "yet to arrive" : "nothing outstanding", tone: issueCount ? "var(--sev-high)" : sums.open > 0 ? "var(--sev-medium)" : "var(--confirmed)" },
   ];
+  const canClose = ["issued", "acknowledged", "partially_fulfilled"].includes(String(order.status));
+  const canAmend = String(order.status) === "issued" || String(order.status) === "partially_fulfilled" || String(order.status) === "acknowledged";
 
   return (
     <FadeIn className="space-y-5">
@@ -81,15 +99,15 @@ export default function OrderDetailPage() {
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">Purchase order{order.fy ? ` · FY ${order.fy}` : ""}</p>
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-[var(--accent)]">Purchase order{order.fy ? ` · FY ${order.fy}` : ""}</p>
             <div className="mt-1 flex flex-wrap items-center gap-3">
               <h1 className="font-code text-xl font-semibold tracking-tight text-[var(--ink)]">{order.number}</h1>
-              {order.revision > 0 && <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-xs text-[var(--ink-2)]">R{order.revision}</span>}
+              {order.revision > 0 && <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-xs text-[var(--ink-2)]" title="Revision">Rev {order.revision}</span>}
               <StatusBadge status={order.status} />
             </div>
             <p className="mt-1.5 text-sm text-[var(--muted)]">
               {order.seller?.name} · dated <DateText value={order.date} /> ·{" "}
-              <Money value={{ amount: String(grand), currency: order.currency ?? "INR" }} />
+              <Money value={fromPaise(grandPaise)} currency={currency} />
             </p>
             {order.seller?.udyam && (
               <p className="mt-1 text-xs text-[var(--likely)]">
@@ -107,26 +125,26 @@ export default function OrderDetailPage() {
                   const { downloadDocumentPdf } = await import("@/components/v2/po-pdf");
                   await downloadDocumentPdf(m);
                 } catch {
-                  alert("The PDF could not be generated right now — try again in a moment.");
+                  toast.error("The PDF couldn’t be generated right now — try again in a moment.");
                 }
               }}
             >
               PDF
             </Btn>
-            <Btn variant="secondary" size="sm" icon={Pencil} onClick={async () => { try { await v2.documentAction(order.id, "amend"); } catch { /* mock mode — no-op */ } }}>Amend</Btn>
-            <Btn variant="secondary" size="sm" icon={OctagonX} onClick={async () => { try { await v2.documentAction(order.id, "short-close"); refetch(); } catch { /* mock mode — no-op */ } }}>Short-close</Btn>
+            {canAmend ? <Btn variant="secondary" size="sm" icon={Pencil} onClick={() => setConfirm("amend")}>Amend</Btn> : null}
+            {canClose ? <Btn variant="secondary" size="sm" icon={OctagonX} onClick={() => setConfirm("short-close")}>Short-close</Btn> : null}
             <Btn size="sm" icon={MessageSquare} onClick={() => router.push(`/app/ask?about=${encodeURIComponent(order.number)}`)}>Ask about this order</Btn>
           </div>
         </div>
       </Card>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {kpis.map((k) => (
           <Card key={k.label} pad={false} className="p-4">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted)]">{k.label}</p>
+            <p className="text-xs font-medium text-[var(--muted)]">{k.label}</p>
             <p className="tnum mt-1.5 text-xl font-semibold tracking-tight" style={{ color: k.tone ?? "var(--ink)" }}>{k.value}</p>
-            <p className="mt-0.5 text-[11px] leading-snug text-[var(--muted)]">{k.note}</p>
+            <p className="mt-1 text-xs leading-snug text-[var(--muted)]">{k.note}</p>
           </Card>
         ))}
       </div>
@@ -144,13 +162,30 @@ export default function OrderDetailPage() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-x-6 gap-y-4">
-                {STAGES.map((st) => (
-                  <StageCell
-                    key={st.key} label={st.label} icon={st.icon}
-                    value={String(line[st.key as keyof typeof line] ?? "0")} max={line.ordered}
-                    tone={st.key === "ordered" ? "var(--ink-2)" : st.key === "paid" ? "var(--confirmed)" : undefined}
-                  />
-                ))}
+                {STAGES.map((st) => {
+                  if (st.key === "paid") {
+                    // Paid is shown as money against this line's billed value.
+                    const src = order.lines?.find((l) => l.lineNo === line.lineNo);
+                    const billed = lineGrossPaise(src, line.invoiced || "0");
+                    const paid = line.paidValue != null ? toPaise(line.paidValue) : null;
+                    return (
+                      <StageCell
+                        key={st.key} label="Paid" icon={st.icon}
+                        value={paid === null ? "0" : String(paid)} max={String(billed)}
+                        display={paid === null ? "—" : <Money value={fromPaise(paid)} currency={currency} />}
+                        tone="var(--confirmed)"
+                      />
+                    );
+                  }
+                  return (
+                    <StageCell
+                      key={st.key} label={st.label} icon={st.icon}
+                      value={String(line[st.key as keyof typeof line] ?? "0")} max={line.ordered}
+                      display={<Qty value={String(line[st.key as keyof typeof line] ?? "0")} />}
+                      tone={st.key === "ordered" ? "var(--ink-2)" : st.key === "invoiced" && Number(line.invoiced) > Number(line.received) ? "var(--sev-high)" : undefined}
+                    />
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -220,14 +255,21 @@ export default function OrderDetailPage() {
         </TabsContent>
 
         <TabsContent value="graph">
-          {graph ? <MoneyTrail graph={graph} /> : <Skeleton className="h-[420px] w-full" />}
-          <p className="mt-3 text-xs text-[var(--muted)]">
-            Case <span className="font-code">{caseId}</span> · solid lines are confirmed links, dotted/dashed ones need your decision.
-          </p>
+          {!caseId ? (
+            <NoCase />
+          ) : (
+            <>
+              {graph ? <MoneyTrail graph={graph} /> : <Skeleton className="h-[420px] w-full" />}
+              <p className="mt-3 text-xs text-[var(--muted)]">
+                Solid lines are confirmed links; dotted or dashed ones need your decision.{" "}
+                <Link href={`/app/investigations/${caseId}`} className="font-medium text-[var(--accent)] hover:underline">Open the investigation</Link>
+              </p>
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="issues">
-          <IssuesList caseId={caseId} />
+          {caseId ? <IssuesList caseId={caseId} /> : <NoCase />}
         </TabsContent>
 
         <TabsContent value="activity">
@@ -236,11 +278,68 @@ export default function OrderDetailPage() {
       </Tabs>
 
       {previewDocId && <DocPreviewModal documentId={previewDocId} onClose={() => setPreviewDocId(null)} />}
+
+      <ConfirmDialog
+        open={confirm === "amend"}
+        onOpenChange={(open) => !open && setConfirm(null)}
+        title={`Amend ${order.number}?`}
+        description="This creates an amendment draft that supersedes the issued order once it is approved and issued. The original stays on record."
+        confirmLabel="Create amendment"
+        onConfirm={async () => {
+          try {
+            const amendment = (await v2.documentAction(order.id, "amend")) as { id?: string };
+            toast.success("Amendment draft created");
+            await refetch();
+            if (amendment?.id) router.push(`/app/orders/${amendment.id}`);
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : "The amendment couldn’t be created.");
+            throw err;
+          }
+        }}
+      />
+      <ConfirmDialog
+        open={confirm === "short-close"}
+        onOpenChange={(open) => !open && setConfirm(null)}
+        tone="danger"
+        requireReason
+        title={`Short-close ${order.number}?`}
+        description={
+          <>
+            Each line is closed at what has been received so far ({fmtQty(sums.received)} of {fmtQty(sums.ordered)} units). The remaining{" "}
+            {fmtQty(Math.max(0, sums.ordered - sums.received))} units will not be expected from the supplier. This can’t be undone.
+          </>
+        }
+        confirmLabel="Short-close order"
+        onConfirm={async (reason) => {
+          try {
+            await v2.documentAction(order.id, "short-close", {
+              reason,
+              lines: lifecycle.map((l) => ({ lineNo: l.lineNo, qty: l.received || "0" })),
+            });
+            toast.success("Order short-closed");
+            await refetch();
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : "The order couldn’t be short-closed.");
+            throw err;
+          }
+        }}
+      />
     </FadeIn>
   );
 }
 
 /* ---------- issues ---------- */
+
+function NoCase() {
+  return (
+    <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--line-strong)] px-6 py-10 text-center">
+      <p className="text-sm font-medium text-[var(--ink)]">No investigation for this order yet</p>
+      <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">
+        Once receipts, invoices or payments are linked, Satya opens an investigation and checks the trail here.
+      </p>
+    </div>
+  );
+}
 
 function IssuesList({ caseId }: { caseId: string }) {
   const { data } = useQuery({ queryKey: ["findings", caseId], queryFn: () => v2.findings({ caseId }) });

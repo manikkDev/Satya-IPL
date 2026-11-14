@@ -6,6 +6,8 @@
 // "Calculating…" state while waiting.
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, FileDown, CircleCheck, LoaderCircle, TriangleAlert, Plus, Trash2 } from "lucide-react";
@@ -15,13 +17,17 @@ import { v2 } from "@/lib/api/v2";
 const downloadDocumentPdf = async (...args: Parameters<typeof import("@/components/v2/po-pdf").downloadDocumentPdf>) =>
   (await import("@/components/v2/po-pdf")).downloadDocumentPdf(...args);
 import { mocksEnabled } from "@/lib/flags";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, isoDateIst } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { FadeIn } from "@/components/ui/v2";
 
 const STEPS = ["Who is buying?", "Who is the supplier?", "What are you buying?", "Commercial terms", "Tax & totals", "Approvals", "Issue & share"];
 
-type Line = { description: string; hsn: string; qty: string; uom: string; rate: string };
+type Line = { description: string; hsn: string; gstRate: string; qty: string; uom: string; rate: string };
+
+const emptyLine = (): Line => ({ description: "", hsn: "", gstRate: "", qty: "", uom: "NOS", rate: "" });
+const QTY_RE = /^\d+(\.\d{1,3})?$/;
+const RATE_RE = /^\d+(\.\d{1,2})?$/;
 
 type ComputeResult = {
   lines: { lineNo: number; taxableValue: string; gstRate: string; cgst: string; sgst: string; igst: string; lineTotal: string }[];
@@ -31,11 +37,9 @@ type ComputeResult = {
   amountInWords: string;
 };
 
-const SUPPLIERS = [
-  { ...mockSupplier, paymentTermsDays: 30 },
-  { id: "sup_kaveri", legalName: "Kaveri Valves Pvt Ltd", tradeName: "Kaveri Valves", gstin: "29AAKCK4412P1Z8", udyam: { number: "UDYAM-KA-08-0099887", category: "micro" as const }, paymentTermsDays: 45 },
-  { id: "sup_deccan", legalName: "Deccan Bearings & Tools", tradeName: "Deccan", gstin: "27AAFCD2210R1Z3", paymentTermsDays: 30 },
-];
+// Mock-mode suppliers only (NEXT_PUBLIC_USE_MOCKS=1). Real mode lists the
+// company's supplier master and never falls back to these.
+const MOCK_SUPPLIERS = [{ ...mockSupplier, paymentTermsDays: 30 }];
 
 const stateOf = (gstin?: string) => (gstin ? gstin.slice(0, 2) : undefined);
 
@@ -80,7 +84,7 @@ const inputCls = "h-9 w-full rounded-[var(--radius-sm)] border border-[var(--lin
 const labelCls = "mb-1 block text-xs font-medium text-[var(--muted)]";
 
 /** Debounced HSN picker — real /api/v2/hsn/search outside mocks, curated list inside. */
-function HsnField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function HsnField({ value, onChange, onPick }: { value: string; onChange: (v: string) => void; onPick?: (code: string, rate?: string | null) => void }) {
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState<{ code: string; description: string; rate?: string | null }[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout>>(null);
@@ -132,7 +136,7 @@ function HsnField({ value, onChange }: { value: string; onChange: (v: string) =>
                 role="option"
                 aria-selected={r.code === value}
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => { onChange(r.code); setOpen(false); }}
+                onClick={() => { onChange(r.code); onPick?.(r.code, r.rate); setOpen(false); }}
                 className="w-full px-3 py-1.5 text-left text-xs hover:bg-[var(--accent-soft)]"
               >
                 <span className="font-code font-medium text-[var(--ink)]">{r.code}</span>
@@ -151,28 +155,79 @@ export default function NewOrderPage() {
   const router = useRouter();
   const { entities, activeEntity } = useSession();
   const [step, setStep] = useState(0);
-  const [entityId, setEntityId] = useState(activeEntity?.id ?? mockEntities[0].id);
+  const [entityId, setEntityId] = useState(activeEntity?.id ?? (mocksEnabled() ? mockEntities[0].id : ""));
+  useEffect(() => {
+    if (!entityId && activeEntity?.id) setEntityId(activeEntity.id);
+  }, [activeEntity?.id, entityId]);
   const [supplierId, setSupplierId] = useState("");
   const [requiredBy, setRequiredBy] = useState("");
   const [costCentre, setCostCentre] = useState("");
-  const [lines, setLines] = useState<Line[]>([{ description: "", hsn: "", qty: "", uom: "NOS", rate: "" }]);
+  const [lines, setLines] = useState<Line[]>([emptyLine()]);
   const [terms, setTerms] = useState({ creditDays: "30", advancePct: "0", deliveryTerms: "FOR destination", inspection: "On receipt", warranty: "12" });
   const [compute, setCompute] = useState<ComputeResult | null>(null);
   const [computing, setComputing] = useState(false);
   const [issued, setIssued] = useState<{ number?: string; verifyUrl?: string } | null>(null);
   const [docId, setDocId] = useState<string | null>(null);
+  const [docRevision, setDocRevision] = useState(0);
+  const [docStatus, setDocStatus] = useState<string>("draft");
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const { data: supplierPage } = useQuery({ queryKey: ["suppliers"], queryFn: () => v2.suppliers() });
-  const supplierList = mocksEnabled() ? SUPPLIERS : supplierPage?.items?.length ? supplierPage.items : SUPPLIERS;
-  const entity = entities.find((e) => e.id === entityId) ?? mockEntities[0];
+  const { data: supplierPage, isLoading: suppliersLoading } = useQuery({ queryKey: ["suppliers", "wizard"], queryFn: () => v2.suppliers(), enabled: !mocksEnabled() });
+  const supplierList = mocksEnabled() ? MOCK_SUPPLIERS : (supplierPage?.items ?? []);
+  const entity = entities.find((e) => e.id === entityId) ?? (mocksEnabled() ? mockEntities[0] : undefined);
   const supplier = supplierList.find((s) => s.id === supplierId);
-  const intraState = supplier ? stateOf(supplier.gstin) === entity.stateCode : true;
+  const intraState = supplier && entity ? stateOf(supplier.gstin) === entity.stateCode : true;
+  const linesValid = lines.every((l) => l.description.trim() && QTY_RE.test(l.qty) && Number(l.qty) > 0 && RATE_RE.test(l.rate));
   const canNext =
-    (step === 0 && !!entityId) ||
-    (step === 1 && !!supplierId) ||
-    (step === 2 && lines.every((l) => l.description && l.qty && l.rate)) ||
+    (step === 0 && !!entity) ||
+    (step === 1 && !!supplier) ||
+    (step === 2 && linesValid) ||
     step >= 3;
+
+  // Any edit after computing invalidates the totals — they must be recomputed.
+  const inputsKey = JSON.stringify({ entityId, supplierId, lines, terms, requiredBy, costCentre });
+  const computedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (compute && computedFor.current !== inputsKey) setCompute(null);
+  }, [inputsKey, compute]);
+
+  const draftBody = () => {
+    const termsBody = {
+      creditDays: Number.parseInt(terms.creditDays || "0", 10) || 0,
+      advancePct: RATE_RE.test(terms.advancePct) ? terms.advancePct : "0",
+      deliveryTerms: terms.deliveryTerms,
+      inspection: terms.inspection,
+      warranty: terms.warranty ? `${terms.warranty} months` : undefined,
+      ...(costCentre.trim() ? { freeText: [`Cost centre: ${costCentre.trim()}`] } : {}),
+    };
+    return {
+      date: isoDateIst(),
+      seller: {
+        name: supplier!.legalName,
+        ...(supplier!.gstin ? { gstin: supplier!.gstin, stateCode: stateOf(supplier!.gstin) } : {}),
+        supplierId: supplier!.id,
+        ...(supplier!.udyam?.number && supplier!.udyam?.category ? { udyam: { number: supplier!.udyam.number, category: supplier!.udyam.category } } : {}),
+      },
+      buyer: {
+        name: entity!.legalName,
+        ...(entity!.gstin ? { gstin: entity!.gstin } : {}),
+        ...(entity!.stateCode ? { stateCode: entity!.stateCode } : {}),
+      },
+      supplierId: supplier!.id,
+      ...(entity!.stateCode ? { placeOfSupply: entity!.stateCode } : {}),
+      lines: lines.map((l, i) => ({
+        lineNo: i + 1,
+        description: l.description.trim(),
+        ...(l.hsn ? { hsn: l.hsn } : {}),
+        ...(l.gstRate ? { gstRate: l.gstRate } : {}),
+        qty: l.qty,
+        uom: l.uom,
+        rate: l.rate,
+        ...(requiredBy ? { scheduleDate: requiredBy } : {}),
+      })),
+      terms: termsBody,
+    };
+  };
 
   const runCompute = async () => {
     setComputing(true);
@@ -181,20 +236,17 @@ export default function NewOrderPage() {
       if (!mocksEnabled()) {
         // Real path: create the draft once, then compute via engine proxy.
         let id = docId;
+        const body = draftBody();
         if (!id) {
-          const draft = await v2.createDraft({
-            type: "PO", entityId, supplierId,
-            date: new Date().toISOString().slice(0, 10),
-            lines: lines.map((l, i) => ({ lineNo: i + 1, description: l.description, hsn: l.hsn || undefined, qty: l.qty, uom: l.uom, rate: l.rate })),
-            terms,
-          });
+          const draft = await v2.createDraft({ type: "PO", entityId: entity!.id, ...body });
           id = draft.id;
           setDocId(id);
+          setDocRevision(Number((draft as { revision?: number }).revision ?? 0));
         } else {
-          await v2.patchDocument(id, {
-            lines: lines.map((l, i) => ({ lineNo: i + 1, description: l.description, hsn: l.hsn || undefined, qty: l.qty, uom: l.uom, rate: l.rate })),
-            terms,
-          });
+          const { date: _date, ...patch } = body;
+          void _date;
+          const updated = await v2.patchDocument(id, { expectedRevision: docRevision, patch });
+          setDocRevision(Number((updated as { revision?: number }).revision ?? docRevision + 1));
         }
         const result = (await v2.documentAction(id, "compute")) as {
           lines?: { lineNo: number; taxableValue: string; gstRate: string; cgst: string; sgst: string; igst: string; lineTotal: string }[];
@@ -212,11 +264,13 @@ export default function NewOrderPage() {
           warnings: result.warnings ?? [],
           amountInWords: "",
         });
+        computedFor.current = inputsKey;
       } else {
         setCompute(await mockCompute(lines, intraState));
+        computedFor.current = inputsKey;
       }
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "Compute failed");
+      setActionError(error instanceof Error ? error.message : "Totals couldn’t be computed. Check the lines and try again.");
     } finally {
       setComputing(false);
     }
@@ -226,19 +280,33 @@ export default function NewOrderPage() {
     if (mocksEnabled()) { setStep(6); return; }
     if (!docId) return;
     try {
-      await v2.documentAction(docId, "submit");
+      const result = (await v2.documentAction(docId, "submit")) as { status?: string };
+      setDocStatus(result?.status ?? "submitted");
+      setActionError(null);
+      toast.success("Sent for approval");
       setStep(6);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Submit failed");
     }
   };
 
+  const refreshStatus = async () => {
+    if (!docId) return;
+    try {
+      const doc = await v2.document(docId);
+      setDocStatus(String(doc.status));
+    } catch {
+      toast.error("Couldn’t refresh the approval status.");
+    }
+  };
+
   const issuePo = async () => {
-    if (mocksEnabled()) { setIssued({ number: `${entity.code}/PO/26-27/000127` }); return; }
+    if (mocksEnabled()) { setIssued({ number: `${entity?.code ?? "DEMO"}/PO/26-27/000127` }); return; }
     if (!docId) return;
     try {
       const result = (await v2.documentAction(docId, "issue")) as { number?: string; verifyUrl?: string };
       setIssued({ number: result.number, verifyUrl: result.verifyUrl });
+      toast.success(`Issued ${result.number ?? "purchase order"}`);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Issue failed");
     }
@@ -266,7 +334,7 @@ export default function NewOrderPage() {
                 aria-current={i === step ? "step" : undefined}
                 className={cn(
                   "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all",
-                  i === step ? "border-[var(--accent)] bg-[var(--accent)] text-white" : i < step ? "border-[var(--accent)]/30 bg-[var(--accent-soft)] text-[var(--accent-strong)] cursor-pointer hover:border-[var(--accent)]/60" : "border-[var(--line)] bg-[var(--surface-2)] text-[var(--muted)]",
+                  i === step ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--on-accent)]" : i < step ? "border-[var(--accent)]/30 bg-[var(--accent-soft)] text-[var(--accent-strong)] cursor-pointer hover:border-[var(--accent)]/60" : "border-[var(--line)] bg-[var(--surface-2)] text-[var(--muted)]",
                 )}
               >
                 {i < step ? "✓ " : `${i + 1}. `}{name}
@@ -283,7 +351,8 @@ export default function NewOrderPage() {
                 <div>
                   <label className={labelCls} htmlFor="entity">Entity (billing GSTIN)</label>
                   <select id="entity" value={entityId} onChange={(e) => setEntityId(e.target.value)} className={inputCls}>
-                    {entities.map((e) => <option key={e.id} value={e.id}>{e.legalName} · {e.gstin}</option>)}
+                    {entities.length === 0 ? <option value="">Loading your entities…</option> : null}
+                    {entities.map((e) => <option key={e.id} value={e.id}>{e.legalName}{e.gstin ? ` · ${e.gstin}` : ""}</option>)}
                   </select>
                 </div>
                 <div>
@@ -305,21 +374,27 @@ export default function NewOrderPage() {
             <fieldset>
               <legend className="text-base font-semibold text-[var(--ink)]">Who is the supplier?</legend>
               <div className="mt-4 space-y-2">
+                {!mocksEnabled() && suppliersLoading ? <p className="text-sm text-[var(--muted)]">Loading your suppliers…</p> : null}
+                {!mocksEnabled() && !suppliersLoading && supplierList.length === 0 ? (
+                  <p className="rounded-[var(--radius-sm)] border border-dashed border-[var(--line-strong)] px-4 py-6 text-center text-sm text-[var(--muted)]">
+                    No suppliers in your master yet. <Link href="/app/suppliers" className="font-medium text-[var(--accent)] hover:underline">Open Suppliers</Link>
+                  </p>
+                ) : null}
                 {supplierList.map((s) => (
                   <label key={s.id} className={cn("flex cursor-pointer items-start gap-3 rounded-[var(--radius-sm)] border p-3", supplierId === s.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]")}>
                     <input type="radio" name="supplier" checked={supplierId === s.id} onChange={() => setSupplierId(s.id)} className="mt-1 accent-[var(--accent)]" />
                     <span>
                       <span className="block text-sm font-medium text-[var(--ink)]">{s.legalName}</span>
-                      <span className="mt-0.5 block font-code text-xs text-[var(--muted)]">GSTIN {s.gstin} · well-formed</span>
+                      <span className="mt-0.5 block font-code text-xs text-[var(--muted)]">{s.gstin ? `GSTIN ${s.gstin}` : "No GSTIN on file"}</span>
                       {s.udyam && (
-                        <span className="mt-1 inline-block rounded-full bg-[var(--likely-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--likely)]" title="Micro, small or medium enterprise — payment within 45 days is a legal duty.">
+                        <span className="mt-1 inline-block rounded-full bg-[var(--likely-soft)] px-2 py-0.5 text-[11px] font-medium capitalize text-[var(--likely)]" title="Micro and small enterprises must be paid within 45 days of acceptance.">
                           {s.udyam.category} enterprise (Udyam {s.udyam.number})
                         </span>
                       )}
                     </span>
                   </label>
                 ))}
-                <button type="button" className="text-xs font-medium text-[var(--accent)]">+ Add a new supplier</button>
+                <Link href="/app/suppliers" className="inline-block text-xs font-medium text-[var(--accent)] hover:underline">Manage suppliers →</Link>
                 {supplier && (
                   <p className="rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--ink-2)]">
                     {intraState ? "Same state as your entity — CGST + SGST will apply." : "Different state — IGST will apply."}
@@ -350,7 +425,8 @@ export default function NewOrderPage() {
                         <input value={line.description} onChange={(e) => setLine(i, { description: e.target.value })} placeholder="e.g. Centrifugal pump 1 kW, model CP-100" className={inputCls} />
                       </div>
                       <div>
-                        <HsnField value={line.hsn} onChange={(v) => setLine(i, { hsn: v })} />
+                        <HsnField value={line.hsn} onChange={(v) => setLine(i, { hsn: v, gstRate: "" })} onPick={(code, rate) => setLine(i, { hsn: code, gstRate: rate ?? "" })} />
+                        {line.gstRate ? <p className="mt-1 text-xs text-[var(--muted)]">GST {line.gstRate}% from the HSN master — confirm it fits your item.</p> : null}
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         <div>
@@ -371,7 +447,7 @@ export default function NewOrderPage() {
                     </div>
                   </div>
                 ))}
-                <button type="button" onClick={() => setLines((prev) => [...prev, { description: "", hsn: "", qty: "", uom: "NOS", rate: "" }])} className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)]">
+                <button type="button" onClick={() => setLines((prev) => [...prev, emptyLine()])} className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)]">
                   <Plus size={13} /> Add another item
                 </button>
               </div>
@@ -419,13 +495,13 @@ export default function NewOrderPage() {
               {!compute ? (
                 <div className="mt-4">
                   <p className="text-sm text-[var(--ink-2)]">
-                    Totals are computed by the engine (POST /documents/:id/compute) — never in the browser.
+                    Satya saves this as a draft and computes GST and totals on the server — never in the browser.
                   </p>
                   <button
                     type="button"
                     onClick={runCompute}
                     disabled={computing}
-                    className="mt-3 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    className="mt-3 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] disabled:opacity-50"
                   >
                     {computing ? <LoaderCircle size={15} className="animate-spin" /> : null}
                     {computing ? "Calculating…" : "Compute tax & totals"}
@@ -434,7 +510,7 @@ export default function NewOrderPage() {
               ) : (
                 <div className="mt-4 space-y-4">
                   <p className="text-xs text-[var(--muted)]">Supply type: <span className="font-medium text-[var(--ink)]">{compute.taxType}</span> · amounts computed by the engine</p>
-                  <table className="w-full text-sm">
+                  <div className="table-scroll"><table className="w-full text-sm">
                     <thead><tr className="text-left text-xs text-[var(--muted)]"><th className="py-1">Line</th><th>Taxable</th><th>CGST</th><th>SGST</th><th>IGST</th><th>Total</th></tr></thead>
                     <tbody className="tnum">
                       {compute.lines.map((line) => (
@@ -446,7 +522,7 @@ export default function NewOrderPage() {
                         <td className="py-2">Grand total</td><td>{formatMoney(compute.totals.taxable)}</td><td>{formatMoney(compute.totals.cgst)}</td><td>{formatMoney(compute.totals.sgst)}</td><td>{formatMoney(compute.totals.igst)}</td><td>{formatMoney(compute.totals.grand)}</td>
                       </tr>
                     </tbody>
-                  </table>
+                  </table></div>
                   <ul className="space-y-1.5">
                     {compute.warnings.map((warning) => (
                       <li key={warning.code} className="flex items-start gap-2 text-xs text-[var(--possible)]">
@@ -463,19 +539,15 @@ export default function NewOrderPage() {
             <fieldset>
               <legend className="text-base font-semibold text-[var(--ink)]">Approvals</legend>
               <div className="mt-4 rounded-[var(--radius-sm)] bg-[var(--surface-2)] p-4 text-sm text-[var(--ink-2)]">
-                {compute && Number(compute.totals.grand) > 1000000 ? (
-                  <p>Needs approval from <strong>Plant Head</strong> because value is over ₹10 lakh (your delegation rules).</p>
-                ) : (
-                  <p>Needs approval from <strong>AP Manager</strong> per your delegation rules.</p>
-                )}
-                <p className="mt-1 text-xs text-[var(--muted)]">You cannot approve a purchase order you created — another approver must sign off.</p>
+                <p>Submitting routes this order to the approver set by your company’s delegation-of-authority policy for {compute ? formatMoney(compute.totals.grand) : "this value"}.</p>
+                <p className="mt-1 text-xs text-[var(--muted)]">You can’t approve an order you created — another approver must sign off.</p>
               </div>
               {actionError && <p className="mt-3 text-xs text-[var(--sev-critical)]">{actionError}</p>}
               <button
                 type="button"
                 onClick={submitForApproval}
                 disabled={!mocksEnabled() && !docId}
-                className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] disabled:opacity-50"
               >
                 Submit for approval <ArrowRight size={15} />
               </button>
@@ -487,26 +559,43 @@ export default function NewOrderPage() {
               <legend className="text-base font-semibold text-[var(--ink)]">Issue & share</legend>
               {!issued ? (
                 <div className="mt-4">
-                  <p className="flex items-center gap-2 text-sm text-[var(--confirmed)]"><CircleCheck size={16} /> Approved by AP Manager{!mocksEnabled() ? " (submitted)" : " (demo)"}</p>
+                  {mocksEnabled() || docStatus === "approved" ? (
+                    <p className="flex items-center gap-2 text-sm text-[var(--confirmed)]"><CircleCheck size={16} /> Approved — ready to issue</p>
+                  ) : (
+                    <div className="rounded-[var(--radius-sm)] bg-[var(--possible-soft)] px-4 py-3 text-sm text-[var(--ink-2)]">
+                      <p className="font-medium text-[var(--ink)]">Waiting for approval</p>
+                      <p className="mt-1 text-xs">Status: {docStatus.replaceAll("_", " ")}. An approver reviews it from the order page; you can issue it once approved.</p>
+                      <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium">
+                        <button type="button" onClick={refreshStatus} className="text-[var(--accent)] hover:underline">Check status</button>
+                        {docId ? <Link href={`/app/orders/${docId}`} className="text-[var(--accent)] hover:underline">Open the order</Link> : null}
+                      </div>
+                    </div>
+                  )}
                   {actionError && <p className="mt-3 text-xs text-[var(--sev-critical)]">{actionError}</p>}
                   <button
                     type="button"
                     onClick={issuePo}
-                    className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white"
+                    disabled={!mocksEnabled() && docStatus !== "approved"}
+                    className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] disabled:opacity-50"
                   >
                     Issue purchase order
                   </button>
                 </div>
               ) : (
                 <div className="mt-4 space-y-3">
-                  <p className="text-sm text-[var(--ink-2)]">Issued as <span className="font-code font-medium text-[var(--ink)]">{issued.number ?? `${entity.code}/PO/26-27/000127`}</span></p>
+                  <p className="text-sm text-[var(--ink-2)]">Issued as <span className="font-code font-medium text-[var(--ink)]">{issued.number ?? "—"}</span></p>
                   {issued.verifyUrl && <p className="text-xs text-[var(--muted)]">Verify: <span className="font-code">{issued.verifyUrl}</span></p>}
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
+                      disabled={!docId}
                       onClick={async () => {
-                        const model = await v2.renderModel(docId ?? "doc_po1001");
-                        await downloadDocumentPdf(model);
+                        if (!docId) return;
+                        try {
+                          await downloadDocumentPdf(await v2.renderModel(docId));
+                        } catch {
+                          toast.error("The PDF couldn’t be generated right now.");
+                        }
                       }}
                       className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)]"
                     >
@@ -515,7 +604,7 @@ export default function NewOrderPage() {
                     {issued.verifyUrl && (
                       <button
                         type="button"
-                        onClick={() => navigator.clipboard.writeText(issued.verifyUrl!)}
+                        onClick={() => navigator.clipboard.writeText(issued.verifyUrl!).then(() => toast.success("Verify link copied"))}
                         className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)]"
                       >
                         Copy verify link
@@ -539,7 +628,7 @@ export default function NewOrderPage() {
                 type="button"
                 onClick={() => setStep((s) => s + 1)}
                 disabled={!canNext || (step === 4 && !compute)}
-                className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] disabled:opacity-50"
               >
                 Next <ArrowRight size={14} />
               </button>
@@ -553,8 +642,8 @@ export default function NewOrderPage() {
         <div className="sticky top-20 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)]">
           <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
             <div>
-              <p className="font-semibold text-[var(--ink)]">{entity.legalName}</p>
-              <p className="font-code text-[10px] text-[var(--muted)]">GSTIN {entity.gstin}</p>
+              <p className="font-semibold text-[var(--ink)]">{entity?.legalName ?? "—"}</p>
+              <p className="font-code text-[11px] text-[var(--muted)]">{entity?.gstin ? `GSTIN ${entity.gstin}` : "GSTIN not set"}</p>
             </div>
             <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Purchase order · draft</p>
           </div>
@@ -569,9 +658,9 @@ export default function NewOrderPage() {
             <tbody>
               {lines.map((line, i) => (
                 <tr key={i} className="border-b border-[var(--line)] text-[var(--ink-2)]">
-                  <td className="py-1.5">{line.description || "—"}{line.hsn ? <span className="block font-code text-[10px] text-[var(--muted)]">HSN {line.hsn}</span> : null}</td>
+                  <td className="py-1.5">{line.description || "—"}{line.hsn ? <span className="block font-code text-[11px] text-[var(--muted)]">HSN {line.hsn}{line.gstRate ? ` · ${line.gstRate}%` : ""}</span> : null}</td>
                   <td className="tnum">{line.qty || "—"} {line.uom}</td>
-                  <td className="tnum">{line.rate ? `₹${line.rate}` : "—"}</td>
+                  <td className="tnum">{line.rate ? formatMoney(line.rate) : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -582,8 +671,8 @@ export default function NewOrderPage() {
               <p className="tnum text-xl font-semibold text-[var(--ink)]">{formatMoney(compute.totals.grand)}</p>
             </div>
           )}
-          <p className="mt-4 flex items-center gap-1.5 border-t border-[var(--line)] pt-3 text-[10px] text-[var(--muted)]">
-            <Check size={11} /> Autosaves as a draft — totals always come from the engine.
+          <p className="mt-4 flex items-center gap-1.5 border-t border-[var(--line)] pt-3 text-[11px] text-[var(--muted)]">
+            <Check size={11} /> Saved as a draft when you compute totals · GST is calculated on the server.
           </p>
         </div>
       </aside>
