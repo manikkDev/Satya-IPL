@@ -23,7 +23,7 @@ import { useSession } from "@/components/v2/session";
 import { onboarding, setupDismissKey } from "@/lib/api/onboarding";
 import {
   Money, StatCard, StatCardSkeleton, DateText, ErrorState, Term, Card, CardTitle, FadeIn, Stagger, StaggerItem,
-  BtnLink, SectionHeader,
+  BtnLink, SectionHeader, InfoTip,
 } from "@/components/ui/v2";
 import { KpiDrillDown, DrillRow, HBar, IssueBreakdown, UnallocatedList, ComplianceStrip } from "@/components/v2/today-insights";
 import { BALANCE_TERMS } from "@/content/copy/vocabulary";
@@ -70,6 +70,8 @@ type Todo = {
   rank: number;
   tone: "bad" | "warn" | "info";
   title: string;
+  /** Short rule name shown in the meta line, with a plain explanation on hover. */
+  rule?: { label: string; tip: string };
   why?: string;
   amount?: string | null;
   due?: { daysLeft: number; date: string };
@@ -97,19 +99,19 @@ function buildTodos(findings: Finding[], deadlines: Deadline[]): Todo[] {
     if (d.kind === "MSME_45") {
       todos.push({
         ...base, rank: overdue ? 0 : d.daysLeft <= 7 ? 2 : 4, tone: overdue || d.daysLeft <= 3 ? "bad" : "warn",
-        title: `Pay ${d.supplier} before the MSME 45-day limit`,
-        why: "Paying a micro or small supplier late costs interest at 3× the RBI rate, and the expense can’t be deducted this year.",
+        title: `Pay ${d.supplier}`,
+        rule: { label: "MSME 45-day limit", tip: "Paying a micro or small supplier after 45 days costs interest at 3× the RBI rate, and the expense can’t be deducted from income tax this year." },
         href: "/app/compliance", action: "Plan payment",
       });
     } else if (d.kind === "RULE_37_180") {
       todos.push({
         ...base, rank: overdue ? 0 : 3, tone: overdue ? "bad" : "warn",
         title: `Pay ${d.supplier} or reverse the GST credit`,
-        why: "Bills unpaid for 180 days force you to give back the GST credit, with interest.",
+        rule: { label: "180-day GST credit rule", tip: "Bills unpaid for 180 days force you to give back the GST credit you claimed, with interest." },
         href: "/app/compliance", action: "Review",
       });
     } else if (d.kind === "EINVOICE_30") {
-      todos.push({ ...base, rank: 5, tone: "info", title: `Check the e-invoice from ${d.supplier}`, why: "Without a valid IRN the bill may never reach your GST statement.", href: "/app/compliance", action: "Check" });
+      todos.push({ ...base, rank: 5, tone: "info", title: `Check the e-invoice from ${d.supplier}`, rule: { label: "e-invoice check", tip: "Without a valid e-invoice number (IRN) the bill may never reach your GST statement, so you can’t claim the credit." }, href: "/app/compliance", action: "Check" });
     } else {
       todos.push({ ...base, rank: 6, tone: "info", title: `Delivery due from ${d.supplier}`, href: `/app/orders/${d.documentId}`, action: "Open order" });
     }
@@ -138,6 +140,12 @@ function TodoRow({ todo }: { todo: Todo }) {
           <p className="text-base font-medium leading-snug text-[var(--ink)]">{todo.title}</p>
           {todo.why ? <p className="mt-1 text-[14px] leading-relaxed text-[var(--muted)]">{todo.why}</p> : null}
           <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[14px]">
+            {todo.rule ? (
+              <span className="inline-flex items-center gap-1 text-[var(--ink-2)]">
+                {todo.rule.label}
+                <InfoTip label={`About the ${todo.rule.label}`}>{todo.rule.tip}</InfoTip>
+              </span>
+            ) : null}
             {todo.amount ? (
               <span className="text-[var(--ink-2)]">
                 At stake <span className="font-semibold text-[var(--ink)] tnum">{formatMoney(todo.amount)}</span>
