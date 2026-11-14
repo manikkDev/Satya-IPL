@@ -10,6 +10,7 @@ import { gatewayPost } from "../../services/gateway.js";
 import { fail, handle, assertPlainInput } from "./util.js";
 import { ingestConfirmSchema } from "../../lib/docSchemas.js";
 import { toPaise, fromPaise, toDecimal } from "../../lib/money.js";
+import { scheduleAutoCheck } from "../../services/autoChecks.js";
 
 const router = express.Router();
 const actor = (req) => req.user.v2id || String(req.user._id);
@@ -108,6 +109,8 @@ router.post("/drafts/:id/confirm", handle(async (req, res) => {
   draft.status = "confirmed";
   draft.confirmedDocumentId = doc.id;
   await draft.save();
+  // attach to its case, ML linking, GSTR-2B match and reconcile — in the background
+  await scheduleAutoCheck({ groupId: draft.groupId, documentIds: [doc.id], reason: "ingest:confirm" });
   // fire-and-forget: index document text for copilot RAG (C-owned endpoint)
   gatewayPost("/internal/rag/index", {
     groupId: draft.groupId, sourceType: "document_text", sourceId: doc.id,

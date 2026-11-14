@@ -15,8 +15,13 @@ import { nextNumber } from "../../services/numbering.js";
 import { contentHashOf, requiredApproversFor, lineLifecycle, ensureCaseForPo, estimateGrand } from "../../services/documents.js";
 import { SoD, sodDeny } from "../../auth/sod.js";
 import { fail, handle, assertPlainInput } from "./util.js";
+import { scheduleAutoCheck, enqueueReconcileDebounced } from "../../services/autoChecks.js";
 
 const router = express.Router();
+
+// automatic checks after a document becomes (or stops being) live evidence
+const autoCheck = (req, doc, reason) => scheduleAutoCheck({ groupId: req.scope.groupId, documentIds: [doc.id], reason });
+const recheckCase = (req, doc) => (doc.caseId ? enqueueReconcileDebounced(req.scope.groupId, doc.caseId).catch(() => {}) : null);
 
 const nowIso = () => new Date().toISOString();
 const actorOf = (req) => req.user.v2id || String(req.user._id);
@@ -195,6 +200,7 @@ router.post("/:id/issue", handle(async (req, res) => {
   doc.contentHash = contentHashOf(doc);
   await doc.save();
   if (doc.type === "PO") doc.caseId = await ensureCaseForPo(doc);
+  await autoCheck(req, doc, "document:issue");
   const verifyUrl = `${process.env.PUBLIC_APP_URL || "http://localhost:3000"}/verify/${doc.contentHash}`;
   res.json({ number: doc.number, contentHash: doc.contentHash, verifyUrl, document: view(doc) });
 }));
@@ -227,6 +233,7 @@ router.post("/:id/short-close", handle(async (req, res) => {
   doc.approvals.push({ actor: actorOf(req), action: "short_close", comment: req.body?.reason, at: nowIso() });
   doc.revision += 1;
   await doc.save();
+  await autoCheck(req, doc, "document:short-close");
   res.json(view(doc));
 }));
 
@@ -240,6 +247,7 @@ router.post("/:id/cancel", handle(async (req, res) => {
   doc.approvals.push({ actor: actorOf(req), action: "cancel", comment: req.body?.reason, at: nowIso() });
   doc.revision += 1;
   await doc.save();
+  await recheckCase(req, doc); // a cancelled document leaves its case's evidence set
   res.json(view(doc));
 }));
 
