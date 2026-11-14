@@ -11,7 +11,7 @@
 // satisfied is skipped with a recorded reason instead of failing the case.
 import { createRequire } from "node:module";
 import { fyOf, isRealDate } from "../lib/fy.js";
-import { rawAmount, toDecimal, toPaiseOrNull } from "../lib/money.js";
+import { rawAmount, toDecimal, toPaiseOrNull, mulRate, fromPaise } from "../lib/money.js";
 
 const require = createRequire(import.meta.url);
 const CONTRACT = require("../lib/engineContract.json");
@@ -177,11 +177,9 @@ export const prepareDocument = (d) => {
   const lineSum = (doc.lines || []).reduce((s, l) => {
     const v = toPaiseOrNull(l.lineTotal ?? l.taxableValue ?? l.amount);
     if (v !== null) return s + v;
-    const q = Number(rawAmount(l.qty) ?? 0);
-    const r = toPaiseOrNull(l.rate) ?? 0n;
-    return s + BigInt(Math.round(Number(r) * q));
+    return s + (toPaiseOrNull(mulRate(l.rate, String(rawAmount(l.qty) ?? "0"))) ?? 0n);
   }, 0n);
-  const sumStr = toDecimal(Number(lineSum) / 100);
+  const sumStr = fromPaise(lineSum);
   if (doc.totals || doc.lines?.length) {
     doc.totals = {
       taxable: toPaiseOrNull(t.taxable) ? moneyStr(t.taxable) : sumStr,

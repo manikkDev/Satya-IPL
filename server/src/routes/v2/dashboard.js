@@ -5,8 +5,18 @@ import Finding from "../../models/Finding.js";
 import Decision from "../../models/Decision.js";
 import Snapshot from "../../models/Snapshot.js";
 import { fail, handle } from "./util.js";
+import { toPaise, fromPaise, toDecimal, allocatedOf } from "../../lib/money.js";
 
 const router = express.Router();
+
+// totals.grand may be a decimal string, a {amount} object or a number —
+// convert exactly to Decimal128 ($toDouble errored on the object shape).
+const GRAND_DECIMAL = {
+  $convert: {
+    input: { $cond: [{ $eq: [{ $type: "$totals.grand" }, "object"] }, "$totals.grand.amount", "$totals.grand"] },
+    to: "decimal", onError: { $toDecimal: "0" }, onNull: { $toDecimal: "0" },
+  },
+};
 
 // GET /dashboard/summary?entityId — worklist-level aggregates (04 P3-B8).
 router.get("/summary", handle(async (req, res) => {
@@ -18,23 +28,23 @@ router.get("/summary", handle(async (req, res) => {
 
   const [casesByStatus, openCases, findingsBySeverity, findingsByCertainty, recentDecisions, monthly] = await Promise.all([
     Case.aggregate([{ $match: entityFilter }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
-    Case.find({ ...entityFilter, status: { $in: ["open", "in_review"] } }).lean(),
+    Case.find({ ...entityFilter, status: { $in: ["open", "in_review"] } }, { id: 1, subjectIds: 1 }).lean(),
     Finding.aggregate([{ $match: { ...entityFilter, status: "open" } }, { $group: { _id: "$severity", count: { $sum: 1 } } }]),
     Finding.aggregate([{ $match: { ...entityFilter, status: "open" } }, { $group: { _id: "$certainty", count: { $sum: 1 } } }]),
     Decision.find(entityFilter).sort({ createdAt: -1 }).limit(10).lean(),
     Document.aggregate([
       { $match: { ...entityFilter, status: { $nin: ["draft", "cancelled"] } } },
-      { $group: { _id: { $substr: ["$date", 0, 7] }, value: { $sum: { $toDouble: { $ifNull: ["$totals.grand", "0"] } } }, docs: { $sum: 1 } } },
+      { $group: { _id: { $substr: ["$date", 0, 7] }, value: { $sum: GRAND_DECIMAL }, docs: { $sum: 1 } } },
       { $sort: { _id: 1 } },
     ]),
   ]);
 
   // openValue: evidence-supported payable across the latest snapshots of open cases
-  const snaps = await Snapshot.find({ groupId: req.scope.groupId, caseId: { $in: openCases.map((c) => c.id) }, scenario: false }).lean();
+  const snaps = await Snapshot.find({ groupId: req.scope.groupId, caseId: { $in: openCases.map((c) => c.id) }, scenario: false }, { caseId: 1, createdAt: 1, "result.balances": 1 }).lean();
   const latest = new Map();
   for (const s of snaps) if (!latest.has(s.caseId) || new Date(s.createdAt) > new Date(latest.get(s.caseId).createdAt)) latest.set(s.caseId, s);
-  let openValue = 0;
-  for (const s of latest.values()) openValue += Number(s.result?.balances?.evidenceSupportedPayable || 0);
+  let openValue = 0n;
+  for (const s of latest.values()) openValue += toPaise(s.result?.balances?.evidenceSupportedPayable);
 
   // aging: open cases grouped by oldest subject-doc date buckets
   const openDocs = await Document.find({ groupId: req.scope.groupId, id: { $in: openCases.flatMap((c) => c.subjectIds) } }).select("date").lean();
@@ -48,35 +58,34 @@ router.get("/summary", handle(async (req, res) => {
 
   const spend = await Document.aggregate([
     { $match: { ...entityFilter, supplierId: { $exists: true }, type: { $in: ["PO", "INVOICE_IN"] }, status: { $nin: ["draft", "cancelled"] } } },
-    { $group: { _id: "$supplierId", value: { $sum: { $toDouble: { $ifNull: ["$totals.grand", "0"] } } }, docs: { $sum: 1 } } },
+    { $group: { _id: "$supplierId", value: { $sum: GRAND_DECIMAL }, docs: { $sum: 1 } } },
     { $sort: { value: -1 } }, { $limit: 10 },
   ]);
 
   const unallocated = await Document.find({
     ...entityFilter, type: { $in: ["PAYMENT_OUT", "PAYMENT_IN", "ADVANCE_OUT"] },
     status: { $nin: ["draft", "cancelled"] },
-  }).lean();
+  }, { id: 1, date: 1, payment: 1, seller: 1, buyer: 1 }).lean();
   const unallocatedPayments = unallocated.filter((d) => {
-    const total = Number(d.payment?.amount || 0);
-    const allocated = (d.payment?.allocations || []).reduce((s, a) => s + Number(a.amount || 0), 0);
-    return total > 0 && allocated < total - 0.01;
+    const total = toPaise(d.payment?.amount);
+    return total > 0n && toPaise(allocatedOf(d)) < total;
   }).map((d) => ({
-    documentId: d.id, amount: d.payment?.amount,
-    allocated: String((d.payment?.allocations || []).reduce((s, a) => s + Number(a.amount || 0), 0).toFixed(2)),
+    documentId: d.id, amount: toDecimal(d.payment?.amount),
+    allocated: allocatedOf(d),
     counterparty: d.seller?.name || d.buyer?.name || null,
     date: d.date || d.payment?.valueDate || null,
     utr: d.payment?.utr || null, mode: d.payment?.mode || null,
   }));
 
   res.json({
-    openValue: openValue.toFixed(2),
+    openValue: fromPaise(openValue),
     casesByStatus: Object.fromEntries(casesByStatus.map((x) => [x._id, x.count])),
     issuesBySeverity: Object.fromEntries(findingsBySeverity.map((x) => [x._id, x.count])),
     findingsByCertainty: Object.fromEntries(findingsByCertainty.map((x) => [x._id, x.count])),
     openInvestigations: openCases.length,
     aging,
-    spendBySupplier: spend.map((s) => ({ supplierId: s._id, value: s.value.toFixed(2), docs: s.docs })),
-    monthlySeries: monthly.map((m) => ({ month: m._id, value: m.value.toFixed(2), docs: m.docs })),
+    spendBySupplier: spend.map((s) => ({ supplierId: s._id, value: toDecimal(String(s.value ?? "0")), docs: s.docs })),
+    monthlySeries: monthly.map((m) => ({ month: m._id, value: toDecimal(String(m.value ?? "0")), docs: m.docs })),
     unallocatedPayments,
     recentDecisions,
   });
