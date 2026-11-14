@@ -165,7 +165,7 @@ export const STORIES = [
   {
     id: "S12", supplier: "meridian", kind: "flagship", externalRef: "PO-1001",
     title: "Flagship PO-1001 — 60 of 100 received, ₹70,800 invoice posted twice, ₹30,000 + ₹20,800 settled, ₹15,000 unallocated",
-    po: { day: 40, lines: [["PMP-IMP-CP100", "100", "1000", 15]] },
+    po: { day: 40, lines: [["PMP-IMP-CP100", "100", "1000", 46]] },
     events: [
       { type: "GRN", key: "gA", day: 31, lines: { 1: "40" }, remarks: "Lot 1 — 40 kits" },
       { type: "GRN", key: "gB", day: 27, lines: { 1: "20" }, remarks: "Lot 2 — 20 kits; balance 40 outstanding" },

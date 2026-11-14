@@ -127,7 +127,7 @@ const RAW_SUPPLIERS = [
     udyam: null, termsDays: 60, einvoice: true,
     invoicePrefix: "GEM/{FY}/", invoicePad: 5,
     contact: { name: "Anand Kulkarni", email: "ar@godavarimotors.example", phone: "+91 253 2350 418" },
-    bank: { ifsc: "ICIC0000624", accountNo: "062405003318", bank: "ICICI Bank, Satpur" },
+    bank: { ifsc: "ICIC0000624", accountNo: "062405003392", bank: "ICICI Bank, Satpur" },
   },
 ];
 
