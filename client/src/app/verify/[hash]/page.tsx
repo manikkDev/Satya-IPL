@@ -47,10 +47,10 @@ export default async function VerifyPage({ params }: { params: Promise<{ hash: s
                 <div className="flex justify-between"><dt className="text-[#6b6357]">Grand total</dt><dd className="tnum font-medium text-[#1d1a16]">₹{result.grandTotal}</dd></div>
               )}
               {result.status === "cancelled" && (
-                <p className="pt-2 text-center text-xs font-medium text-[#b91c1c]">This document was later cancelled.</p>
+                <p className="pt-2 text-center text-[13px] font-medium text-[#b91c1c]">This document was later cancelled.</p>
               )}
             </dl>
-            <p className="mt-4 text-center text-xs leading-relaxed text-[#8a8071]">
+            <p className="mt-4 text-center text-[13px] leading-relaxed text-[#8a8071]">
               Verified against the issuing company&apos;s records by Satya. If the details differ from the document
               you were sent, treat it with caution.
             </p>

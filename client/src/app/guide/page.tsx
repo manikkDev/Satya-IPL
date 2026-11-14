@@ -23,7 +23,7 @@ function Timeline() {
       <figcaption className="sr-only">Pilot timeline, weeks 0 to 8</figcaption>
       <div className="relative overflow-x-auto rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5" tabIndex={0} role="region" aria-label="Pilot timeline">
         <div className="min-w-[680px]">
-          <div className="grid grid-cols-[13rem_repeat(9,minmax(0,1fr))] gap-y-2 text-xs">
+          <div className="grid grid-cols-[13rem_repeat(9,minmax(0,1fr))] gap-y-2 text-[13px]">
             <span />
             {WEEKS.map((w) => (
               <span key={w} className="tnum border-l border-[var(--line)] pl-1.5 text-[var(--muted)]">W{w}</span>

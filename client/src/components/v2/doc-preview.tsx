@@ -48,7 +48,7 @@ export function DocPreviewModal({ documentId, onClose }: { documentId: string; o
               await downloadDocumentPdf(model);
             }}
             disabled={!model}
-            className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)] hover:border-[var(--accent)]"
+            className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-[13px] font-medium text-[var(--ink-2)] hover:border-[var(--accent)]"
           >
             <FileDown size={13} /> Download PDF
           </button>

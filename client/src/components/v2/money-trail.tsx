@@ -73,7 +73,7 @@ function ListView({ graph, onSelect }: { graph: GraphPayload; onSelect: (node: G
         if (!nodes.length) return null;
         return (
           <section key={lane.id}>
-            <h3 className="text-xs font-semiboldr text-[var(--muted)]">{lane.label}</h3>
+            <h3 className="text-[13px] font-semiboldr text-[var(--muted)]">{lane.label}</h3>
             <ul className="mt-2 space-y-1.5">
               {nodes.map((node) => (
                 <li key={node.id}>
@@ -84,9 +84,9 @@ function ListView({ graph, onSelect }: { graph: GraphPayload; onSelect: (node: G
                   >
                     <span className="min-w-0">
                       <span className="font-medium text-[var(--ink)]">{node.label}</span>
-                      {node.subtitle ? <span className="ml-2 text-xs text-[var(--muted)]">{node.subtitle}</span> : null}
+                      {node.subtitle ? <span className="ml-2 text-[13px] text-[var(--muted)]">{node.subtitle}</span> : null}
                     </span>
-                    <span className="shrink-0 text-xs text-[var(--muted)]">
+                    <span className="shrink-0 text-[13px] text-[var(--muted)]">
                       {node.amount ? formatMoney(node.amount) : node.qty ? `${node.qty} units` : ""}
                       {node.date ? ` · ${node.date}` : ""}
                     </span>
@@ -125,7 +125,7 @@ function SelectionPanel({
           {node.date ? <p><span className="text-[var(--muted)]">Date:</span> <DateText value={node.date} /></p> : null}
           {node.severity ? <p><span className="text-[var(--muted)]">Issue severity:</span> {node.severity}</p> : null}
           {node.documentId && onAsk ? (
-            <button type="button" onClick={() => onAsk(node.label)} className="mt-2 inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--accent-strong)] hover:bg-[var(--accent-soft)]">
+            <button type="button" onClick={() => onAsk(node.label)} className="mt-2 inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--accent)] px-3 py-1.5 text-[13px] font-medium text-[var(--accent-strong)] hover:bg-[var(--accent-soft)]">
               <MessageSquare size={13} aria-hidden="true" /> Ask Satya about this
             </button>
           ) : null}
@@ -137,15 +137,15 @@ function SelectionPanel({
           <p className="leading-relaxed">{edge.explanation}</p>
           {edge.amount ? <p><span className="text-[var(--muted)]">Amount:</span> <Money value={edge.amount} /></p> : null}
           {edge.qty ? <p><span className="text-[var(--muted)]">Quantity:</span> <Qty value={edge.qty} /></p> : null}
-          <p className="text-xs text-[var(--muted)]">
+          <p className="text-[13px] text-[var(--muted)]">
             {graph.nodes.find((n) => n.id === edge.source)?.label} → {graph.nodes.find((n) => n.id === edge.target)?.label}
           </p>
           {edge.certainty === "AMBIGUOUS" || edge.certainty === "POSSIBLE" ? (
             <div className="mt-3 space-y-1.5">
-              <p className="text-xs font-medium text-[var(--muted)]">Your call (recorded as a decision):</p>
+              <p className="text-[13px] font-medium text-[var(--muted)]">Your call (recorded as a decision):</p>
               <div className="flex gap-2">
-                <button type="button" className="rounded-[var(--radius-sm)] bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--on-accent)]">Confirm link</button>
-                <button type="button" className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)]">Reject link</button>
+                <button type="button" className="rounded-[var(--radius-sm)] bg-[var(--accent)] px-3 py-1.5 text-[13px] font-medium text-[var(--on-accent)]">Confirm link</button>
+                <button type="button" className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-[13px] font-medium text-[var(--ink-2)]">Reject link</button>
               </div>
             </div>
           ) : null}
@@ -404,7 +404,7 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
           onChange={(event) => setSearch(event.target.value)}
           placeholder={`Find a document — ${filtered.nodes.length} records · ${filtered.edges.length} connections`}
           aria-label="Find a document in the graph"
-          className="h-8 w-44 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--paper)] px-2.5 text-xs text-[var(--ink)] outline-none focus:border-[var(--accent)]"
+          className="h-8 w-44 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--paper)] px-2.5 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)]"
         />
         <div className="flex gap-1" role="group" aria-label="Filters">
           {([["all", "Everything"], ["payments", "Payments only"], ["issues", "Issues only"]] as [Filter, string][]).map(([key, label]) => (
@@ -414,7 +414,7 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
               onClick={() => setFilter(key)}
               aria-pressed={filter === key}
               className={cn(
-                "rounded-full px-3 py-1 text-xs font-medium",
+                "rounded-full px-3 py-1 text-[13px] font-medium",
                 filter === key ? "bg-[var(--accent)] text-[var(--on-accent)]" : "bg-[var(--surface-2)] text-[var(--ink-2)]",
               )}
             >
@@ -431,7 +431,7 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
           <button
             type="button"
             onClick={() => ask("Explain this money trail")}
-            className="ml-1 inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--accent)] px-3 text-xs font-medium text-[var(--accent-strong)] hover:bg-[var(--accent-soft)]"
+            className="ml-1 inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--accent)] px-3 text-[13px] font-medium text-[var(--accent-strong)] hover:bg-[var(--accent-soft)]"
           >
             <MessageSquare size={13} aria-hidden="true" /> Explain this graph
           </button>
@@ -439,7 +439,7 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
       </div>
 
       {graph.source === "snapshot" && (
-        <p className="border-b border-[var(--line)] bg-[var(--surface-2)] px-3 py-1.5 text-xs text-[var(--muted)]">
+        <p className="border-b border-[var(--line)] bg-[var(--surface-2)] px-3 py-1.5 text-[13px] text-[var(--muted)]">
           Showing a saved graph — the live graph service is unavailable right now.
         </p>
       )}
@@ -466,7 +466,7 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
           {timeline.length > 1 && !listView && (
             <div className="flex items-center gap-3 border-t border-[var(--line)] px-3 py-2.5">
               <Play size={14} className="text-[var(--muted)]" aria-hidden="true" />
-              <label htmlFor="replay" className="text-xs font-medium text-[var(--ink-2)]">What did we know…</label>
+              <label htmlFor="replay" className="text-[13px] font-medium text-[var(--ink-2)]">What did we know…</label>
               <input
                 id="replay"
                 type="range"
@@ -480,11 +480,11 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
                 className="w-48 accent-[var(--accent)]"
                 aria-valuetext={replay === null ? "Everything we know now" : `As of ${timeline[replay].at}`}
               />
-              <span className="text-xs text-[var(--muted)]">
+              <span className="text-[13px] text-[var(--muted)]">
                 {replay === null ? "Everything we know now" : `As of ${timeline[replay].at}`}
               </span>
               {replay !== null && (
-                <button type="button" onClick={() => setReplay(null)} className="inline-flex items-center gap-1 text-xs text-[var(--accent)]">
+                <button type="button" onClick={() => setReplay(null)} className="inline-flex items-center gap-1 text-[13px] text-[var(--accent)]">
                   <RotateCcw size={12} /> Back to now
                 </button>
               )}
@@ -499,8 +499,8 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
 
       {/* legend */}
       <details className="border-t border-[var(--line)] px-3 py-2" open>
-        <summary className="cursor-pointer text-xs font-medium text-[var(--muted)]">How to read this</summary>
-        <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5 pb-1 text-xs text-[var(--ink-2)]">
+        <summary className="cursor-pointer text-[13px] font-medium text-[var(--muted)]">How to read this</summary>
+        <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5 pb-1 text-[13px] text-[var(--ink-2)]">
           <span className="inline-flex items-center gap-1.5"><i className="inline-block h-0 w-7 border-t-2" style={{ borderColor: "#0f766e" }} /> Confirmed link</span>
           <span className="inline-flex items-center gap-1.5"><i className="inline-block h-0 w-7 border-t-2" style={{ borderColor: "#0e7490" }} /> Likely</span>
           <span className="inline-flex items-center gap-1.5"><i className="inline-block h-0 w-7 border-t-2 border-dashed" style={{ borderColor: "#a16207" }} /> Possible</span>

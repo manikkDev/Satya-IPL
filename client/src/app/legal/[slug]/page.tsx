@@ -40,7 +40,7 @@ export default async function LegalPage({ params }: { params: Promise<{ slug: st
           <span className="font-medium text-[var(--ink)]">Prototype.</span> Satya is a student project with fictional demo data — not a
           commercial service. Please don’t upload real business or personal data.
         </p>
-        <p className="text-xs text-[var(--muted)]">
+        <p className="text-[13px] text-[var(--muted)]">
           Last updated: {page.updated} · {page.version}
         </p>
         <h1 className="type-page-title mt-3 sm:text-[34px]">{page.title}</h1>

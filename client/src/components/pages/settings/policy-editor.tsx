@@ -47,7 +47,7 @@ const inputCls =
   "h-9 w-full rounded-[var(--radius-sm)] border bg-[var(--surface)] px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] disabled:cursor-not-allowed disabled:bg-[var(--surface-2)] disabled:text-[var(--muted)]";
 
 function FieldError({ id, message }: { id: string; message?: string }) {
-  return message ? <p id={id} className="mt-1 text-xs text-[var(--sev-critical)]">{message}</p> : null;
+  return message ? <p id={id} className="mt-1 text-[13px] text-[var(--sev-critical)]">{message}</p> : null;
 }
 
 function Editor({ entityId, entityName, server }: { entityId: string; entityName: string; server: PolicyRecord }) {
@@ -145,13 +145,13 @@ function Editor({ entityId, entityName, server }: { entityId: string; entityName
         <p className="mt-1 text-sm text-[var(--muted)]">An invoice price that differs from the order by more than this is flagged for review.</p>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label htmlFor="pol-pct" className="mb-1 block text-xs font-medium text-[var(--muted)]">Price difference allowed (%)</label>
+            <label htmlFor="pol-pct" className="mb-1 block text-[13px] font-medium text-[var(--muted)]">Price difference allowed (%)</label>
             <input id="pol-pct" className={cn(inputCls, "tnum", showErr("pricePct") ? "border-[var(--sev-critical)]" : "border-[var(--line)]")} inputMode="decimal" disabled={!canEdit}
               value={form.pricePct} onChange={(e) => set({ pricePct: e.target.value })} aria-invalid={Boolean(showErr("pricePct"))} aria-describedby="pol-pct-err" />
             <FieldError id="pol-pct-err" message={showErr("pricePct")} />
           </div>
           <div>
-            <label htmlFor="pol-abs" className="mb-1 block text-xs font-medium text-[var(--muted)]">Or up to this much per line (₹)</label>
+            <label htmlFor="pol-abs" className="mb-1 block text-[13px] font-medium text-[var(--muted)]">Or up to this much per line (₹)</label>
             <input id="pol-abs" className={cn(inputCls, "tnum", showErr("priceAbs") ? "border-[var(--sev-critical)]" : "border-[var(--line)]")} inputMode="decimal" disabled={!canEdit}
               value={form.priceAbs} onChange={(e) => set({ priceAbs: e.target.value })} aria-invalid={Boolean(showErr("priceAbs"))} aria-describedby="pol-abs-err" />
             <FieldError id="pol-abs-err" message={showErr("priceAbs")} />
@@ -163,7 +163,7 @@ function Editor({ entityId, entityName, server }: { entityId: string; entityName
         <h3 className="text-sm font-semibold text-[var(--ink)]">MSME payment deadline</h3>
         <p className="mt-1 text-sm text-[var(--muted)]">Micro and small suppliers must be paid within this many days of acceptance (45 at most).</p>
         <div className="mt-3 sm:w-48">
-          <label htmlFor="pol-msme" className="mb-1 block text-xs font-medium text-[var(--muted)]">Days</label>
+          <label htmlFor="pol-msme" className="mb-1 block text-[13px] font-medium text-[var(--muted)]">Days</label>
           <input id="pol-msme" className={cn(inputCls, "tnum", showErr("msmeDays") ? "border-[var(--sev-critical)]" : "border-[var(--line)]")} inputMode="numeric" disabled={!canEdit}
             value={form.msmeDays} onChange={(e) => set({ msmeDays: e.target.value })} aria-invalid={Boolean(showErr("msmeDays"))} aria-describedby="pol-msme-err" />
         </div>

@@ -55,25 +55,25 @@ export function PitchFooter() {
         </div>
         <div className="flex flex-wrap gap-x-12 gap-y-6 text-sm text-[var(--muted)]">
           <div className="flex flex-col gap-2.5">
-            <span className="text-xs font-medium uppercase tracking-[0.1em] text-[var(--ink-2)]">About</span>
+            <span className="text-[13px] font-medium uppercase tracking-[0.1em] text-[var(--ink-2)]">About</span>
             {PITCH_PAGES.map((p) => (
               <Link key={p.href} href={p.href} className="hover:text-[var(--ink)]">{p.label}</Link>
             ))}
           </div>
           <div className="flex flex-col gap-2.5">
-            <span className="text-xs font-medium uppercase tracking-[0.1em] text-[var(--ink-2)]">Product</span>
+            <span className="text-[13px] font-medium uppercase tracking-[0.1em] text-[var(--ink-2)]">Product</span>
             <Link href="/app" className="hover:text-[var(--ink)]">Demo workspace</Link>
             <Link href="/login" className="hover:text-[var(--ink)]">Sign in</Link>
           </div>
           <div className="flex flex-col gap-2.5">
-            <span className="text-xs font-medium uppercase tracking-[0.1em] text-[var(--ink-2)]">Legal</span>
+            <span className="text-[13px] font-medium uppercase tracking-[0.1em] text-[var(--ink-2)]">Legal</span>
             <Link href="/legal/privacy" className="hover:text-[var(--ink)]">Privacy</Link>
             <Link href="/legal/terms" className="hover:text-[var(--ink)]">Terms</Link>
             <Link href="/legal/ai" className="hover:text-[var(--ink)]">AI transparency</Link>
           </div>
         </div>
       </div>
-      <div className="border-t border-[var(--line)] px-4 py-5 text-center text-xs leading-relaxed text-[var(--muted)]">
+      <div className="border-t border-[var(--line)] px-4 py-5 text-center text-[13px] leading-relaxed text-[var(--muted)]">
         Satya is a prototype decision-support tool. It does not file returns or move money. External figures are cited to
         their sources; verify important figures with your accountant or tax adviser.
       </div>
@@ -104,7 +104,7 @@ export function PitchPage({
 export function PitchHero({ eyebrow, title, children }: { eyebrow: string; title: string; children?: React.ReactNode }) {
   return (
     <header className="max-w-[72ch]">
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">{eyebrow}</p>
+      <p className="text-[13px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">{eyebrow}</p>
       <h1 className="mt-3 text-[32px] font-semibold leading-[1.15] tracking-[-0.025em] text-[var(--ink)] sm:text-[40px]">{title}</h1>
       {children ? <div className="mt-5 space-y-4 text-[17px] leading-[1.65] text-[var(--ink-2)]">{children}</div> : null}
     </header>
@@ -128,7 +128,7 @@ export function Section({
 }) {
   return (
     <section id={id} aria-labelledby={`${id}-h`} className={cn("mt-16 sm:mt-20", className)}>
-      {kicker ? <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">{kicker}</p> : null}
+      {kicker ? <p className="text-[13px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">{kicker}</p> : null}
       <h2 id={`${id}-h`} className="mt-1.5 max-w-[60ch] text-2xl font-semibold leading-tight tracking-[-0.02em] text-[var(--ink)] sm:text-[28px]">
         {title}
       </h2>
@@ -213,7 +213,7 @@ export function DataTable({
         <thead>
           <tr className="border-b border-[var(--line)] bg-[var(--surface-2)]">
             {head.map((h, i) => (
-              <th key={i} scope="col" className="px-4 py-3 align-bottom text-xs font-semibold uppercase tracking-[0.06em] text-[var(--muted)]">
+              <th key={i} scope="col" className="px-4 py-3 align-bottom text-[13px] font-semibold uppercase tracking-[0.06em] text-[var(--muted)]">
                 {h}
               </th>
             ))}

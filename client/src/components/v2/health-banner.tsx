@@ -69,7 +69,7 @@ export function HealthBanner() {
     <div
       role="status"
       aria-live="polite"
-      className="mb-4 flex items-start gap-2.5 rounded-[var(--radius-sm)] border border-[var(--possible)] bg-[var(--possible-soft)] px-3.5 py-2.5 text-xs leading-relaxed text-[var(--ink-2)]"
+      className="mb-4 flex items-start gap-2.5 rounded-[var(--radius-sm)] border border-[var(--possible)] bg-[var(--possible-soft)] px-3.5 py-2.5 text-[13px] leading-relaxed text-[var(--ink-2)]"
     >
       {state === "waking" ? (
         <LoaderCircle size={15} className="mt-0.5 shrink-0 animate-spin text-[var(--possible)]" aria-hidden="true" />

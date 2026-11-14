@@ -47,11 +47,11 @@ export default function OnePager() {
               statutory clock and an evidence trail on each link.
             </p>
           </div>
-          <p className="text-xs text-[var(--muted)]">Prototype · Nov 2026</p>
+          <p className="text-[13px] text-[var(--muted)]">Prototype · Nov 2026</p>
         </header>
 
         <section className="mt-5">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">The problem</h2>
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">The problem</h2>
           <ul className="mt-2 grid gap-3 sm:grid-cols-4 print:grid-cols-4">
             {STATS.map((s) => (
               <li key={s.v}>
@@ -69,14 +69,14 @@ export default function OnePager() {
 
         <div className="mt-5 grid gap-6 sm:grid-cols-2 print:grid-cols-2">
           <section>
-            <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">The gap no tool closes</h2>
+            <h2 className="text-[13px] font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">The gap no tool closes</h2>
             <p className="mt-2 text-[13px] text-[var(--ink-2)]">Tools we reviewed each cover one or two of these five. None covers all five:</p>
             <ol className="mt-2 list-[lower-alpha] space-y-1 pl-5 text-[13px]">
               {CAPABILITIES.map((c) => <li key={c}>{c}</li>)}
             </ol>
           </section>
           <section>
-            <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">How we prove it</h2>
+            <h2 className="text-[13px] font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">How we prove it</h2>
             <ul className="mt-2 space-y-1.5 text-[13px]">
               <li>Exact rules and decimal arithmetic first; calibrated ML in the middle; abstain when unsure.</li>
               <li>A public model card with data provenance, sample sizes and 95% intervals. No real-customer accuracy is claimed until a pilot measures it.</li>
@@ -87,7 +87,7 @@ export default function OnePager() {
         </div>
 
         <section className="mt-5">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">An 8-week pilot on your data</h2>
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">An 8-week pilot on your data</h2>
           <table className="mt-2 w-full border-collapse text-left text-[13px]">
             <tbody>
               {PILOT.map(([w, t]) => (

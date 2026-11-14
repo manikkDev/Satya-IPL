@@ -74,7 +74,7 @@ function DropZone({ accept, file, onFile, disabled }: { accept: string; file: Fi
           <p className="mt-3 text-[15px] font-medium text-[var(--ink)]">Drop the file here</p>
           <p className="mt-1 text-[13px] text-[var(--muted)]">or</p>
           <Btn variant="secondary" className="mt-2" onClick={() => input.current?.click()} disabled={disabled}>Choose a file</Btn>
-          <p className="mt-3 text-xs text-[var(--muted)]">{accept.replaceAll(",", " · ")} · up to {MAX_MB} MB</p>
+          <p className="mt-3 text-[13px] text-[var(--muted)]">{accept.replaceAll(",", " · ")} · up to {MAX_MB} MB</p>
         </>
       )}
       <input ref={input} type="file" accept={accept} className="hidden" onChange={(e) => { take(e.target.files?.[0]); e.target.value = ""; }} />
@@ -153,7 +153,7 @@ function RowsTable({ rows, bank }: { rows: ImportRow[]; bank: boolean }) {
           {!shown.length ? <li className="px-4 py-6 text-center text-sm text-[var(--muted)]">Nothing in this view.</li> : null}
         </ul>
       </div>
-      {rows.length >= 200 ? <p className="mt-2 text-xs text-[var(--muted)]">Showing the first 200 records; the import covers the whole file.</p> : null}
+      {rows.length >= 200 ? <p className="mt-2 text-[13px] text-[var(--muted)]">Showing the first 200 records; the import covers the whole file.</p> : null}
     </div>
   );
 }
