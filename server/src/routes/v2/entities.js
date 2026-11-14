@@ -27,6 +27,12 @@ const entitySchema = z.object({
   addresses: z.object({ billing: z.record(z.string(), z.any()).optional(), shipping: z.array(z.record(z.string(), z.any())).max(10).optional() }).optional(),
   aatoBand: z.enum(["<5cr", "5-10cr", ">=10cr"]).optional(),
   einvoiceApplicable: z.boolean().optional(),
+  lut: z.array(z.object({
+    arn: z.string().trim().min(4).max(40),
+    fy: z.string().regex(/^\d{4}-\d{2}$/),
+    validFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    validTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  })).max(25).optional(),
   parentEntityId: z.string().optional(),
 }).strict();
 

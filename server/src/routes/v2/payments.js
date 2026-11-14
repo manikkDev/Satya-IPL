@@ -70,14 +70,19 @@ const loadPayment = async (req, id) => {
 };
 
 // open (not fully settled) INVOICE_IN/OUT in the same entity + unapplied credit
-// notes, ranked so the engine's 20-candidate subset-sum cap gets the likeliest
-// matches: same counterparty first, then closest open amount to the payment.
+// notes, ranked so the engine's subset-sum cap gets the likeliest matches: same
+// counterparty first, then closest open amount to the payment. The engine
+// counts invoices AND credits together against MAX_ITEMS (20), so credits
+// consume part of the budget rather than overflowing it.
 const openTargets = async (req, payment, limit = 20) => {
   const direction = payment.type.endsWith("IN") ? "INVOICE_OUT" : "INVOICE_IN";
   const invoices = await Document.find({ groupId: req.scope.groupId, entityId: payment.entityId, type: direction, status: { $in: ["issued", "posted"] } }).lean();
   const settles = await DocumentLink.find({ groupId: req.scope.groupId, kind: "SETTLES" }).lean();
   const settledAmt = {};
   for (const l of settles) settledAmt[l.toId] = (settledAmt[l.toId] || 0) + Number(l.amount?.amount || l.amount || 0);
+  const credits = await Document.find({ groupId: req.scope.groupId, entityId: payment.entityId, type: { $in: ["CREDIT_NOTE_IN", "CREDIT_NOTE_OUT"] }, status: { $in: ["issued", "posted"] } }).lean();
+  const applied = new Set(settles.map((l) => l.fromId));
+  const creditList = credits.filter((c) => !applied.has(c.id)).map((c) => ({ id: c.id, amount: c.totals?.grand || "0", date: c.date })).slice(0, 10);
   const payAmount = Number(payment.payment?.amount || 0);
   const cp = (payment.seller?.gstin || payment.seller?.supplierId || payment.seller?.name || "").toLowerCase();
   const open = invoices.map((inv) => {
@@ -91,13 +96,11 @@ const openTargets = async (req, payment, limit = 20) => {
       seller: inv.seller?.name, dueDate: inv.terms?.dueDate || null,
       _score: (sameCounterparty ? 0 : 1) * 1e12 + Math.abs(open - payAmount),
     };
-  }).filter(Boolean).sort((a, b) => a._score - b._score).slice(0, limit)
+  }).filter(Boolean).sort((a, b) => a._score - b._score).slice(0, Math.max(0, limit - creditList.length))
     .map(({ _score, ...rest }) => rest);
-  const credits = await Document.find({ groupId: req.scope.groupId, entityId: payment.entityId, type: { $in: ["CREDIT_NOTE_IN", "CREDIT_NOTE_OUT"] }, status: { $in: ["issued", "posted"] } }).lean();
-  const applied = new Set(settles.map((l) => l.fromId));
   return {
     openInvoices: open,
-    credits: credits.filter((c) => !applied.has(c.id)).map((c) => ({ id: c.id, amount: c.totals?.grand || "0", date: c.date })).slice(0, 10),
+    credits: creditList,
   };
 };
 

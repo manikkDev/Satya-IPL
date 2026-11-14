@@ -54,6 +54,7 @@ router.post("/gstr2b", handle(async (req, res) => {
   canImport(req);
   const { entityId, gstr2b } = req.body;
   if (!entityId || !gstr2b) throw fail(422, "VALIDATION_FAILED", "entityId and gstr2b payload required");
+  const period = String(req.body.period || gstr2b.period || "").slice(0, 7) || null;
 
   const flat = [];
   const b2b = gstr2b?.data?.doc_det?.b2b || gstr2b?.doc_det?.b2b || [];
@@ -78,6 +79,7 @@ router.post("/gstr2b", handle(async (req, res) => {
       number: inv.number, externalRef, date, fy: fyOf(date), status: "posted", revision: 0,
       seller: { name: inv.gstin, gstin: inv.gstin }, buyer: { name: "Own entity" },
       currency: "INR", lines: [],
+      gst: { gstr2bPeriod: period || date.slice(0, 7) },
       totals: { taxable: Number(inv.taxable || 0).toFixed(2), cgst: Number(inv.cgst || 0).toFixed(2), sgst: Number(inv.sgst || 0).toFixed(2), igst: Number(inv.igst || 0).toFixed(2), cess: "0.00", roundOff: "0.00", grand: Number(inv.total || 0).toFixed(2) },
       source: { channel: "gstr2b_json" }, provenance: "SYSTEM_GENERATED",
       observedAt: new Date().toISOString(), createdBy: actor(req),

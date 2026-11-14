@@ -3,6 +3,8 @@ import Document from "../../models/Document.js";
 import DocumentLink from "../../models/DocumentLink.js";
 import Entity from "../../models/Entity.js";
 import Supplier from "../../models/Supplier.js";
+import Audit from "../../models/Audit.js";
+import Decision from "../../models/Decision.js";
 import { newId } from "../../lib/ids.js";
 import { fyOf } from "../../lib/fy.js";
 import { amountInWords } from "../../lib/words.js";
@@ -247,6 +249,46 @@ router.get("/:id", handle(async (req, res) => {
   res.json({ ...view(doc), links, lifecycle, caseId: doc.caseId || null });
 }));
 
+// GET /:id/activity — the decision + audit trail for one document: its
+// approval events, every audited mutation against it, decisions taken on
+// its case, and the amendment chain (supersedes links both ways).
+router.get("/:id/activity", handle(async (req, res) => {
+  const doc = await loadDoc(req);
+  const [auditRows, decisions, amendments] = await Promise.all([
+    Audit.find({
+      groupId: req.scope.groupId,
+      $or: [{ "target.id": doc.id }, { action: { $regex: doc.id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") } }],
+    }).sort({ createdAt: 1 }).limit(200).lean(),
+    doc.caseId
+      ? Decision.find({ groupId: req.scope.groupId, caseId: doc.caseId }).sort({ createdAt: -1 }).lean()
+      : [],
+    Document.find({
+      groupId: req.scope.groupId,
+      $or: [{ supersedes: doc.id }, ...(doc.supersedes ? [{ id: doc.supersedes }] : [])],
+    }, { id: 1, number: 1, type: 1, status: 1, revision: 1, date: 1, supersedes: 1 }).lean(),
+  ]);
+  const eventOf = (a) => {
+    const m = String(a.action || "").match(/(?:POST|PATCH|PUT|DELETE)\s+\S+\/(\w[\w-]*)$/);
+    return m ? m[1].replaceAll("-", " ") : a.action;
+  };
+  res.json({
+    approvals: doc.approvals ?? [],
+    audit: auditRows.map((a) => ({
+      id: a.id, action: a.action, event: eventOf(a), actor: a.actor, actorRole: a.actorRole,
+      at: a.at ?? a.createdAt, statusCode: a.statusCode,
+    })),
+    decisions: decisions.map((d) => ({
+      id: d.id, action: d.action, reason: d.reason, scope: d.scope, findingId: d.findingId,
+      actor: d.actor, actorRole: d.actorRole, createdAt: d.createdAt,
+    })),
+    amendments,
+    meta: {
+      createdBy: doc.createdBy, createdAt: doc.createdAt, issuedAt: doc.issuedAt ?? null,
+      revision: doc.revision, status: doc.status, contentHash: doc.contentHash ?? null,
+    },
+  });
+}));
+
 router.get("/:id/render-model", handle(async (req, res) => {
   const doc = await loadDoc(req);
   const [entity, supplier] = await Promise.all([
@@ -256,8 +298,13 @@ router.get("/:id/render-model", handle(async (req, res) => {
   const verifyUrl = doc.contentHash ? `${process.env.PUBLIC_APP_URL || "http://localhost:3000"}/verify/${doc.contentHash}` : null;
   res.json({
     document: view(doc),
-    entity: entity ? { legalName: entity.legalName, tradeName: entity.tradeName, code: entity.code, gstin: entity.gstin, pan: entity.pan, cin: entity.cin, stateCode: entity.stateCode, addresses: entity.addresses, letterhead: entity.letterhead } : null,
-    supplier: supplier ? { id: supplier.id, legalName: supplier.legalName, gstins: supplier.gstins, contacts: supplier.contacts } : null,
+    entity: entity ? { legalName: entity.legalName, tradeName: entity.tradeName, code: entity.code, gstin: entity.gstin ?? entity.gstins?.[0]?.gstin, pan: entity.pan, cin: entity.cin, stateCode: entity.stateCode, addresses: entity.addresses, letterhead: entity.letterhead } : null,
+    supplier: supplier ? {
+      id: supplier.id, legalName: supplier.legalName, gstins: supplier.gstins,
+      contacts: supplier.contacts, addresses: supplier.addresses, pan: supplier.pan,
+      udyam: supplier.udyam, paymentTermsDays: supplier.paymentTermsDays,
+      bankAccounts: (supplier.bankAccounts ?? []).map((b) => ({ masked: b.masked, ifsc: b.ifsc })),
+    } : null,
     taxSummary: doc.taxSummary || [],
     amountInWords: doc.totals?.grand ? amountInWords(doc.totals.grand) : null,
     terms: doc.terms || null,

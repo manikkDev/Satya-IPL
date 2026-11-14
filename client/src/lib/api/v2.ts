@@ -151,11 +151,47 @@ export type ItemRow = { id: string; code: string; description: string; hsn?: str
 
 export type IngestDraft = {
   id: string; fileId: string; status: "queued" | "parsing" | "extracting" | "needs_review" | "confirmed" | "failed";
-  detectedType?: string; fields?: Record<string, { value?: string; confidence?: "high" | "check" | "low"; source?: string; quote?: string } | string>;
+  detectedType?: string; method?: string; createdAt?: string;
+  fields?: Record<string, { value?: unknown; confidence?: "high" | "check" | "low" | number; source?: string; quote?: string } | string>;
   lines?: { lineNo: number; description: string; qty?: string; uom?: string; rate?: string; amount?: string }[];
-  issues?: { code?: string; message: string }[]; suggestions?: { supplierId?: string; supplierName?: string; poId?: string; poNumber?: string };
+  issues?: { code?: string; severity?: string; message: string }[];
+  suggestions?: { supplierId?: string; supplierName?: string; supplierMatch?: { supplierId?: string; name?: string }; poId?: string; poNumber?: string };
   confirmedDocumentId?: string; edits?: { actor: string; at: string; changed: string[] }[];
 };
+
+/** Engine confidence arrives as 0..1 or a label — normalise to the UI's three chips. */
+const confidenceOf = (c: unknown): "high" | "check" | "low" =>
+  typeof c === "number"
+    ? c >= 0.85 ? "high" : c >= 0.5 ? "check" : "low"
+    : c === "high" || c === "check" || c === "low" ? c : "check";
+
+/** Group raw engine field names into review-friendly sections. */
+const DRAFT_FIELD_GROUPS: [string, RegExp][] = [
+  ["Supplier", /^(seller|supplier)/i],
+  ["Buyer", /^buyer/i],
+  ["Document", /^(number|date|externalRef|placeOfSupply|currency|type|irn|fy|dueDate)/i],
+  ["Amounts & tax", /^(totals|charges|tax|gst|cgst|sgst|igst|cess|tds|amount|subtotal|roundOff)/i],
+];
+const draftFieldGroup = (name: string): string =>
+  DRAFT_FIELD_GROUPS.find(([, re]) => re.test(name))?.[0] ?? "Other details";
+
+const draftFieldLabel = (name: string): string => {
+  const last = name.split(".").pop() ?? name;
+  return last
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replace(/^\w/, (c) => c.toUpperCase());
+};
+
+const draftFieldSource = (source: unknown, quote: string | undefined): string =>
+  source === "vision_llm"
+    ? quote ? "Read by AI — quote found" : "Read by AI — please check"
+    : source === "einvoice_qr" || source === "qr"
+      ? "Verified e-invoice QR"
+      : source === "text_layer"
+        ? quote ? "Read from PDF text — quote found" : "Read from PDF text"
+        : source ? String(source) : "Extracted";
 
 /** Real findings arrive as {code,severity,certainty,status,data:{message,evidence,amount}};
  *  UI expects {title,explanation,evidence[],calculation[],whatResolvesIt,exposure}.
@@ -529,40 +565,50 @@ export const v2 = {
   draft: (id: string): Promise<DraftDetail> =>
     mocksEnabled()
       ? mock(mockDraftDetail)
-      : fetchJson<IngestDraft>(`/api/v2/ingest/drafts/${encodeURIComponent(id)}`).then((draft) => ({
-          draft: {
-            id: draft.id,
-            filename: `file ${draft.fileId?.slice(-8) ?? draft.id}`,
-            detectedType: draft.detectedType,
-            status: draft.status,
-            uploadedAt: "",
-            method: "vision_llm" as const,
-            issue: draft.issues?.[0]?.message,
-          },
-          fields: [{
-            group: "Extracted fields",
-            items: Object.entries(draft.fields ?? {}).map(([name, field]) => {
-              const f = typeof field === "object" && field !== null ? field : { value: String(field) };
-              return {
-                name,
-                label: name.replaceAll("_", " "),
-                value: String(f.value ?? ""),
-                confidence: (f.confidence === "high" || f.confidence === "check" || f.confidence === "low" ? f.confidence : "check") as "high" | "check" | "low",
-                source: f.source ?? "extraction",
-                quote: f.quote ?? "",
-              };
-            }),
-          }],
-          lines: (draft.lines ?? []).map((line) => ({
-            lineNo: line.lineNo, description: line.description,
-            qty: line.qty ?? "", rate: line.rate ?? "", amount: line.amount ?? "",
-          })),
-          issues: (draft.issues ?? []).map((issue) => ({ severity: "medium", message: issue.message })),
-          suggestions: {
-            supplier: draft.suggestions?.supplierName,
-            po: draft.suggestions?.poNumber,
-          },
-        })),
+      : fetchJson<IngestDraft>(`/api/v2/ingest/drafts/${encodeURIComponent(id)}`).then((draft) => {
+          const items = Object.entries(draft.fields ?? {}).map(([name, field]) => {
+            const f = typeof field === "object" && field !== null ? field : { value: field };
+            const rawValue = (f as { value?: unknown }).value;
+            return {
+              name,
+              label: draftFieldLabel(name),
+              value: typeof rawValue === "object" && rawValue !== null ? JSON.stringify(rawValue) : String(rawValue ?? ""),
+              confidence: confidenceOf((f as { confidence?: unknown }).confidence),
+              source: draftFieldSource((f as { source?: unknown }).source, (f as { quote?: string }).quote),
+              quote: (f as { quote?: string }).quote ?? "",
+            };
+          });
+          const groups = [...DRAFT_FIELD_GROUPS.map(([g]) => g), "Other details"]
+            .map((group) => ({ group, items: items.filter((item) => draftFieldGroup(item.name) === group) }))
+            .filter((g) => g.items.length > 0);
+          return {
+            draft: {
+              id: draft.id,
+              filename: `file ${draft.fileId?.slice(-8) ?? draft.id}`,
+              fileId: draft.fileId,
+              detectedType: draft.detectedType,
+              status: draft.status,
+              uploadedAt: draft.createdAt ?? "",
+              method: draft.method,
+              issue: draft.issues?.[0]?.message,
+              confirmedDocumentId: draft.confirmedDocumentId,
+            },
+            fields: groups,
+            lines: (draft.lines ?? []).map((line) => ({
+              lineNo: line.lineNo, description: line.description,
+              qty: line.qty ?? "", rate: line.rate ?? "", amount: line.amount ?? "",
+            })),
+            issues: (draft.issues ?? []).map((issue) => ({
+              severity: issue.severity === "error" ? "error" : "warning",
+              code: issue.code,
+              message: issue.message,
+            })),
+            suggestions: {
+              supplier: draft.suggestions?.supplierName ?? draft.suggestions?.supplierMatch?.name,
+              po: draft.suggestions?.poNumber ?? draft.suggestions?.poId,
+            },
+          } as DraftDetail;
+        }),
 
   payments: (params: Record<string, string> = {}): Promise<PaymentsPage> =>
     mocksEnabled() ? mock(mockPayments) : fetchJson(`/api/v2/payments${qs(params)}`),
@@ -683,6 +729,26 @@ export const v2 = {
 
   extractFile: (fileId: string): Promise<{ draftId: string; status: string; draft: IngestDraft }> =>
     fetchJson(`/api/v2/ingest/files/${encodeURIComponent(fileId)}/extract`, { method: "POST" }),
+
+  fileMeta: (id: string): Promise<{ id: string; filename?: string; mime?: string; size?: number; pages?: number; uploadedAt?: string } | null> =>
+    mocksEnabled()
+      ? Promise.resolve(null)
+      : fetchJson<{ id: string; filename?: string; mime?: string; size?: number; pages?: number; createdAt?: string }>(
+          `/api/v2/files/${encodeURIComponent(id)}?meta=1`,
+        )
+          .then((f) => ({ ...f, uploadedAt: f.createdAt }))
+          .catch(() => null),
+
+  /** Streamed file bytes (Bearer-authed) — used for the draft-review preview pane. */
+  fileBlob: async (id: string): Promise<Blob> => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const response = await fetch(`${SERVER_URL}/api/v2/files/${encodeURIComponent(id)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) throw new Error(`Could not load the file (${response.status})`);
+    return response.blob();
+  },
 
   ingestDrafts: (params: Record<string, string> = {}): Promise<{ items: IngestDraft[]; nextCursor: string | null }> =>
     fetchJson(`/api/v2/ingest/drafts${qs(params)}`),

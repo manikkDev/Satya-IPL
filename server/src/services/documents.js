@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import Document from "../models/Document.js";
+import DocumentLink from "../models/DocumentLink.js";
 import Case from "../models/Case.js";
 import { ensurePolicy } from "./policies.js";
 import { newId } from "../lib/ids.js";
@@ -72,6 +73,16 @@ export const lineLifecycle = async (po) => {
     }
   }
   const lines = [...perLine.values()].map((l) => ({ ...l, open: Math.max(0, l.ordered - l.received) }));
+  // Paid qty per line: SETTLES links carry {amount} against this PO; spread
+  // the settled ratio across each line's invoiced qty (approximate by
+  // design — payments settle invoice value, not specific units).
+  const settles = await DocumentLink.find({ groupId: po.groupId, toId: po.id, kind: "SETTLES" }).lean();
+  const paidTotal = settles.reduce((s, l) => s + Number(l.amount?.amount ?? l.amount ?? 0), 0);
+  const invoicedTotal = lines.reduce((s, l) => s + Number(l.invoicedValue ?? 0), 0);
+  if (paidTotal > 0 && invoicedTotal > 0) {
+    const ratio = Math.min(1, paidTotal / invoicedTotal);
+    for (const l of lines) l.paid = +(l.invoiced * ratio).toFixed(2);
+  }
   return { lines, approximate };
 };
 

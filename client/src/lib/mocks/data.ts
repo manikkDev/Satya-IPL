@@ -103,6 +103,7 @@ export type Draft = {
   id: string; filename: string; uploadedAt: string;
   status: "queued" | "parsing" | "extracting" | "needs_review" | "confirmed" | "failed";
   detectedType?: string; method?: string; issue?: string;
+  fileId?: string; confirmedDocumentId?: string;
 };
 
 export const mockDrafts: Draft[] = [
@@ -117,7 +118,7 @@ export type DraftDetail = {
   draft: Draft;
   fields: { group: string; items: { name: string; label: string; value: string; confidence: "high" | "check" | "low"; source: string; quote?: string }[] }[];
   lines: { lineNo: number; description: string; qty: string; rate: string; amount: string }[];
-  issues: { severity: string; message: string }[];
+  issues: { severity: string; message: string; code?: string }[];
   suggestions: { supplier?: string; po?: string };
 };
 
@@ -151,8 +152,8 @@ export const mockDraftDetail: DraftDetail = {
     { lineNo: 1, description: "Centrifugal pump 1 kW CP-100", qty: "60", rate: "1000.00", amount: "60000.00" },
   ],
   issues: [
-    { severity: "medium", message: "Same invoice number as INV-041 already in your records — possible duplicate." },
-    { severity: "low", message: "IGST charged but both parties are in Maharashtra (CGST+SGST expected)." },
+    { severity: "warning", code: "DUPLICATE_NUMBER", message: "Same invoice number as INV-041 already in your records — possible duplicate." },
+    { severity: "warning", code: "TAX_TYPE_MISMATCH", message: "IGST charged but both parties are in Maharashtra (CGST+SGST expected)." },
   ],
   suggestions: { supplier: "Mehta Engineering Works", po: "PO-1001" },
 };
@@ -178,30 +179,119 @@ export const mockPaymentWorkbench = {
   ],
 };
 
-export const mockSuppliers: Page<{
-  id: string; name: string; gstin: string; msme?: string;
+export type MockSupplier = {
+  id: string; name: string; legalName?: string; tradeNames?: string[]; gstin: string;
+  msme?: string; msmeFlag?: boolean;
+  pan?: string; udyam?: { number: string; category: string; verifiedAt?: string };
+  paymentTermsDays?: number;
+  gstins?: { gstin: string; stateCode?: string; status?: string }[];
+  bankAccounts?: { id?: string; masked?: string; accountMasked?: string; ifsc?: string; holderName?: string; status?: string }[];
+  contacts?: { name?: string; email?: string; phone?: string }[];
+  addresses?: { label?: string; line1?: string; city?: string; stateCode?: string; pin?: string }[];
+  tags?: string[];
   openValue: { amount: string; currency: string }; overdue?: { amount: string; currency: string }; issueCount: number;
-}> = {
+};
+
+export const mockSuppliers: Page<MockSupplier> = {
   items: [
-    { id: "sup_mehta", name: "Mehta Engineering Works", gstin: "27AABCM5678K1Z1", msme: "small", openValue: { amount: "38000.00", currency: INR }, overdue: { amount: "18000.00", currency: INR }, issueCount: 3 },
-    { id: "sup_kaveri", name: "Kaveri Valves Pvt Ltd", gstin: "29AAKCK4412P1Z8", msme: "micro", openValue: { amount: "31200.00", currency: INR }, issueCount: 1 },
-    { id: "sup_deccan", name: "Deccan Bearings & Tools", gstin: "27AAFCD2210R1Z3", openValue: { amount: "84900.00", currency: INR }, issueCount: 0 },
+    {
+      id: "sup_mehta", name: "Mehta Engineering Works", legalName: "Mehta Engineering Works",
+      tradeNames: ["Mehta Engg."], gstin: "27AABCM5678K1Z1",
+      pan: "AABCM5678K", msme: "small", msmeFlag: true,
+      udyam: { number: "UDYAM-MH-19-0012345", category: "small", verifiedAt: "2026-04-12" },
+      paymentTermsDays: 30,
+      gstins: [{ gstin: "27AABCM5678K1Z1", stateCode: "27", status: "active" }],
+      bankAccounts: [
+        { id: "acc_m1", masked: "••••4821", accountMasked: "••••4821", ifsc: "HDFC0001088", holderName: "Mehta Engineering Works", status: "active" },
+        { id: "acc_m2", masked: "••••7740", accountMasked: "••••7740", ifsc: "ICIC0002311", holderName: "Mehta Engineering Works", status: "pending_change" },
+      ],
+      contacts: [
+        { name: "Ramesh Mehta", email: "ramesh@mehtaengg.in", phone: "+91 98220 11223" },
+        { name: "Accounts desk", email: "accounts@mehtaengg.in" },
+      ],
+      addresses: [{ label: "Registered office", line1: "Plot 14, MIDC Bhosari", city: "Pune", stateCode: "27", pin: "411026" }],
+      tags: ["pumps", "machined parts"],
+      openValue: { amount: "38000.00", currency: INR }, overdue: { amount: "18000.00", currency: INR }, issueCount: 3,
+    },
+    {
+      id: "sup_kaveri", name: "Kaveri Valves Pvt Ltd", legalName: "Kaveri Valves Pvt Ltd",
+      gstin: "29AAKCK4412P1Z8",
+      pan: "AAKCK4412P", msme: "micro", msmeFlag: true,
+      udyam: { number: "UDYAM-KR-03-0009871", category: "micro", verifiedAt: "2025-11-02" },
+      paymentTermsDays: 45,
+      gstins: [{ gstin: "29AAKCK4412P1Z8", stateCode: "29", status: "active" }],
+      bankAccounts: [
+        { id: "acc_k1", masked: "••••2217", accountMasked: "••••2217", ifsc: "ICIC0000441", holderName: "Kaveri Valves Pvt Ltd", status: "active" },
+      ],
+      contacts: [{ name: "Suma Kaveri", email: "sales@kaverivalves.com", phone: "+91 99451 88776" }],
+      addresses: [{ label: "Works", line1: "81, Peenya Industrial Area, Phase II", city: "Bengaluru", stateCode: "29", pin: "560058" }],
+      tags: ["valves", "fittings"],
+      openValue: { amount: "31200.00", currency: INR }, issueCount: 1,
+    },
+    {
+      id: "sup_deccan", name: "Deccan Bearings & Tools", legalName: "Deccan Bearings & Tools",
+      gstin: "27AAFCD2210R1Z3",
+      pan: "AAFCD2210R", paymentTermsDays: 30,
+      gstins: [{ gstin: "27AAFCD2210R1Z3", stateCode: "27", status: "active" }],
+      bankAccounts: [
+        { id: "acc_d1", masked: "••••9035", accountMasked: "••••9035", ifsc: "SBIN0060421", holderName: "Deccan Bearings & Tools", status: "active" },
+      ],
+      contacts: [{ name: "Imran Shaikh", phone: "+91 98500 44210" }],
+      addresses: [{ label: "Godown", line1: "Gat No. 212, Chakan MIDC", city: "Pune", stateCode: "27", pin: "410501" }],
+      tags: ["bearings", "cutting tools"],
+      openValue: { amount: "84900.00", currency: INR }, issueCount: 0,
+    },
   ],
   nextCursor: null, total: 3,
 };
 
 export const mockCompliance = {
-  msme: [
-    { documentId: "doc_inv042", supplier: "Mehta Engineering Works", category: "small", invoice: "INV-042", amount: { amount: "18000.00", currency: INR }, dueDate: "2026-11-03", daysLeft: 5, note: "Pay or resolve the dispute before day 45 — interest runs at 3× the RBI rate." },
-    { documentId: "doc_inv033", supplier: "Kaveri Valves Pvt Ltd", category: "micro", invoice: "INV-033", amount: { amount: "31200.00", currency: INR }, dueDate: "2026-11-25", daysLeft: 27, note: "Within the 45-day window." },
-  ],
+  msme: {
+    items: [
+      { documentId: "doc_inv042", invoice: "INV-042", date: "2026-09-19", supplier: "Mehta Engineering Works", supplierId: "sup_mehta", category: "small", supplierEmail: "accounts@mehta.example.in", amount: { amount: "18000.00", currency: INR }, paidSoFar: { amount: "0.00", currency: INR }, outstanding: { amount: "18000.00", currency: INR }, amountRecorded: true, agreedDays: 45, dueDate: "2026-11-03", daysLeft: 5, status: "due_soon", note: "Pay within 45 days of acceptance (45-day terms agreed)" },
+      { documentId: "doc_inv033", invoice: "INV-033", date: "2026-10-11", supplier: "Kaveri Valves Pvt Ltd", supplierId: "sup_kaveri", category: "micro", supplierEmail: null, amount: { amount: "31200.00", currency: INR }, paidSoFar: { amount: "0.00", currency: INR }, outstanding: { amount: "31200.00", currency: INR }, amountRecorded: true, agreedDays: 45, dueDate: "2026-11-25", daysLeft: 27, status: "upcoming", note: "Pay within 45 days of acceptance (45-day terms agreed)" },
+    ],
+    summary: { open: 2, overdue: 0, dueThisWeek: 1, outstanding: { amount: "49200.00", currency: INR }, overdueAmount: { amount: "0.00", currency: INR } },
+    note: "Paid in full or allocated payments are excluded. The deadline counts from the invoice date; acceptance dates from delivery records can move it.",
+  },
   gstr2b: {
+    estimated: false,
     period: "2026-10",
+    periods: ["2026-10"],
     matched: 14,
-    missingIn2B: [{ invoice: "INV-041", supplier: "Mehta Engineering Works", amount: { amount: "70800.00", currency: INR }, tax: { amount: "10800.00", currency: INR } }],
-    missingInBooks: [] as { invoice: string; supplier: string; amount: { amount: string; currency: string } }[],
-    mismatched: [] as { invoice: string; supplier: string; issue: string }[],
+    missingIn2B: [{ documentId: "doc_inv041", invoice: "INV-041", date: "2026-10-12", supplier: "Mehta Engineering Works", supplierEmail: "accounts@mehta.example.in", amount: { amount: "70800.00", currency: INR }, tax: { amount: "10800.00", currency: INR }, period: null }],
+    missingInBooks: [] as { documentId: string; invoice: string; supplier: string; amount: { amount: string; currency: string } }[],
+    mismatched: [] as { documentId: string; invoice: string; supplier: string; reportedValue: { amount: string; currency: string }; difference: { amount: string; currency: string } }[],
     itcAtRisk: { amount: "10800.00", currency: INR },
+    note: "Matched on supplier GSTIN + invoice number from your imported GSTR-2B.",
+  },
+  rule37: {
+    items: [
+      { documentId: "doc_inv028", invoice: "INV-028", date: "2026-03-14", supplier: "Deccan Bearings & Tools", supplierEmail: null, daysWaiting: 230, daysToBreach: 0, state: "breached", itc: { amount: "9180.00", currency: INR }, paidSoFar: { amount: "0.00", currency: INR }, outstanding: { amount: "60180.00", currency: INR }, interestEstimate: { amount: "226.00", currency: INR }, reversedAt: null, reversedBy: null, reversalNote: null },
+      { documentId: "doc_inv031", invoice: "INV-031", date: "2026-06-02", supplier: "Mehta Engineering Works", supplierEmail: "accounts@mehta.example.in", daysWaiting: 150, daysToBreach: 30, state: "approaching", itc: { amount: "5400.00", currency: INR }, paidSoFar: { amount: "10000.00", currency: INR }, outstanding: { amount: "25400.00", currency: INR }, interestEstimate: null, reversedAt: null, reversedBy: null, reversalNote: null },
+    ],
+    summary: { breached: 1, approaching: 1, reversed: 0, itcAtRisk: { amount: "14580.00", currency: INR }, interestAccruing: { amount: "226.00", currency: INR } },
+    note: "Rule 37: ITC claimed on an invoice unpaid after 180 days is added back to your output tax with 18% interest.",
+  },
+  tds: {
+    items: [
+      { documentId: "doc_pay03", payment: "doc_pay03", date: "2026-10-27", utr: null, supplier: "Mehta Engineering Works", amount: { amount: "15000.00", currency: INR }, status: "check", fyPaidToSupplier: { amount: "65800.00", currency: INR }, note: "Payment over ₹2.5 lakh — confirm whether a TDS section applies" },
+      { documentId: "doc_pay04", payment: "doc_pay04", date: "2026-10-29", utr: "N31820261029", supplier: "Kaveri Valves Pvt Ltd", amount: { amount: "13200.00", currency: INR }, status: "waived", note: "Marked N/A — below threshold" },
+    ],
+    recorded: [{ documentId: "doc_tds01", section: "194C", amount: { amount: "300.00", currency: INR }, rate: "1", date: "2026-10-25", paymentId: "doc_pay01", note: null }],
+    summary: { paymentsScanned: 4, needsDecision: 1, recorded: 1, waived: 1, tdsDeducted: { amount: "300.00", currency: INR } },
+    note: "Satya flags payments that commonly need a TDS check (194C works, 194J professional, 194Q goods over ₹50L/year per supplier).",
+  },
+  eway: {
+    einvoice: { withIrn: 3, waived: 0, pct: 42.9, checks: [{ documentId: "doc_inv041", invoice: "INV-041", date: "2026-10-12", supplier: "Mehta Engineering Works", supplierEmail: "accounts@mehta.example.in", amount: { amount: "70800.00", currency: INR }, irn: null, ewb: null, reason: "High-value invoice with no IRN — if the supplier crosses the e-invoice turnover band, the invoice needs an IRN for your credit to be safe." }] },
+    eway: { withEwb: 2, waived: 0, goodsInvoices: 6, checks: [{ documentId: "doc_inv042", invoice: "INV-042", date: "2026-09-19", supplier: "Mehta Engineering Works", supplierEmail: "accounts@mehta.example.in", amount: { amount: "18000.00", currency: INR }, irn: null, ewb: null, reason: "Goods over ₹50,000 need an e-way bill for the movement — confirm the supplier or transporter generated one." }] },
+    note: "IRN/e-way details recorded here are supplier-supplied values — Satya does not verify them against the GST portal.",
+  },
+  lut: {
+    entities: [{ entityId: "ent_vppl", code: "VPPL", legalName: "Vishwas Pumps Pvt Ltd", status: "expiring", currentArn: "AD270426000123F", validTo: "2026-11-20", luts: [{ arn: "AD270426000123F", fy: "2026-27", validFrom: "2026-04-01", validTo: "2026-11-20", daysLeft: 21, status: "expiring" }] }],
+    exportInvoices: [] as { documentId: string; invoice: string; buyer: string; amount: { amount: string; currency: string }; covered: boolean }[],
+    summary: { entities: 1, covered: 1, uncoveredExports: 0 },
+    note: "A LUT is filed per entity per financial year (GST RFD-11). Export/SEZ supplies without IGST are only valid while a LUT covers the invoice date.",
   },
 };
 

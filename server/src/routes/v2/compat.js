@@ -121,53 +121,6 @@ router.get("/graph/case/:id", handle(async (req, res) => {
   res.json(graph);
 }));
 
-// GET /compliance/:section (gstr2b|msme) — slices of compliance data.
-router.get("/compliance/:section", handle(async (req, res) => {
-  const f = scopeFilter(req, req.query.entityId);
-  const section = req.params.section;
-  const invoices = await Document.find({ ...f, type: "INVOICE_IN", status: { $nin: ["draft", "cancelled", "reversed"] } }).lean();
-  const days = (d) => Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
-  if (section === "msme") {
-    const suppliers = await Supplier.find({ groupId: req.scope.groupId }).lean();
-    const byName = new Map(suppliers.map((s) => [s.legalName, s]));
-    const msmeNames = new Set(suppliers.filter((s) => s.udyam?.category || s.msme).map((s) => s.legalName));
-    const rows = invoices.filter((d) => msmeNames.has(d.seller?.name))
-      .map((d) => {
-        const sup = byName.get(d.seller?.name);
-        const termDays = sup?.paymentTermsDays ?? 45;
-        const due = new Date(new Date(d.date).getTime() + termDays * 86400000);
-        const daysLeft = Math.ceil((due.getTime() - Date.now()) / 86400000);
-        return {
-          documentId: d.id, invoice: d.number ?? d.externalRef ?? d.id, supplier: sup?.legalName ?? d.seller?.name ?? "Supplier",
-          note: daysLeft < 0 ? `Overdue by ${-daysLeft} days — interest accrues` : `Pay within ${termDays} days of acceptance`,
-          amount: money(Number(d.totals?.grand?.amount ?? d.totals?.grand ?? 0)),
-          daysLeft, dueDate: due.toISOString().slice(0, 10),
-        };
-      })
-      .sort((a, b) => a.daysLeft - b.daysLeft);
-    return res.json(rows);
-  }
-  if (section === "gstr2b") {
-    const taxOf = (d) => ["cgst", "sgst", "igst"].reduce((s, k) => s + Number(d?.totals?.[k]?.amount ?? d?.totals?.[k] ?? 0), 0);
-    const findings = await Finding.find({ ...f, status: "open" }).lean();
-    const flagged = new Set(findings.flatMap((x) => (x.data?.evidence ?? []).map((e) => e.documentId)));
-    const flaggedInv = invoices.filter((d) => flagged.has(d.id));
-    const period = new Date().toISOString().slice(0, 7);
-    return res.json({
-      matched: invoices.length - flaggedInv.length,
-      missingIn2B: flaggedInv.slice(0, 20).map((d) => ({
-        invoice: d.number ?? d.externalRef ?? d.id, supplier: d.seller?.name ?? "Supplier",
-        amount: money(Number(d.totals?.grand?.amount ?? d.totals?.grand ?? 0)), tax: money(taxOf(d)),
-      })),
-      missingInBooks: [],
-      itcAtRisk: money(flaggedInv.reduce((s, d) => s + taxOf(d), 0)),
-      period,
-      note: "GSTR-2B feed not connected — manual import via /import/gstr2b",
-    });
-  }
-  throw fail(404, "NOT_FOUND", `Unknown compliance section ${section}`);
-}));
-
 // GET /orders — PO worklist with computed value + fulfilment percentages.
 // Raw documents have no totals stored; value = sum(qty*rate). Delivered/
 // invoiced/paid percentages come from RECEIVES/BILLS/SETTLES links.
