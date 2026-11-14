@@ -48,7 +48,14 @@ function useModelCard() {
       const body = json && typeof json === "object" && "data" in json && (json as { data?: unknown }).data ? (json as { data: unknown }).data : json;
       setState({ status: "ready", card: normalizeModelCard(body), sample: false });
     } catch (e) {
-      const message = e instanceof Error && e.name === "TimeoutError" ? "The model-card service took too long to answer." : e instanceof Error ? e.message : "Network error.";
+      const message =
+        e instanceof Error && e.name === "TimeoutError"
+          ? "The model-card service took too long to answer."
+          : e instanceof TypeError
+            ? "The evaluation service can't be reached right now."
+            : e instanceof Error
+              ? e.message
+              : "Network error.";
       setState({ status: "error", notYet: false, message });
     }
   }, []);
