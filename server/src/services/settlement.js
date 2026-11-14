@@ -14,7 +14,14 @@ export const PAYMENT_TYPES = ["PAYMENT_OUT", "PAYMENT_IN", "ADVANCE_OUT", "ADVAN
 export const settledPaiseFor = async (groupId, targetIds) => {
   const ids = [...new Set((targetIds || []).filter(Boolean))];
   const settled = new Map();
+  // payers per target, for callers that must not count the same payment
+  // twice (e.g. a payment linked to both an invoice and its PO)
+  settled.payers = new Map();
   if (!ids.length) return settled;
+  const addPayer = (target, payer) => {
+    if (!settled.payers.has(target)) settled.payers.set(target, new Set());
+    settled.payers.get(target).add(payer);
+  };
   const [payments, links] = await Promise.all([
     Document.find(
       { groupId, type: { $in: PAYMENT_TYPES }, status: { $nin: ["draft", "cancelled", "reversed"] }, "payment.allocations.documentId": { $in: ids } },
@@ -28,12 +35,14 @@ export const settledPaiseFor = async (groupId, targetIds) => {
     for (const a of p.payment?.allocations || []) {
       if (!wanted.has(a.documentId)) continue;
       seenPairs.add(`${p.id}|${a.documentId}`);
+      addPayer(a.documentId, p.id);
       settled.set(a.documentId, (settled.get(a.documentId) || 0n) + toPaise(a.amount));
     }
   }
   for (const l of links) {
     if (seenPairs.has(`${l.fromId}|${l.toId}`)) continue;
     seenPairs.add(`${l.fromId}|${l.toId}`);
+    addPayer(l.toId, l.fromId);
     settled.set(l.toId, (settled.get(l.toId) || 0n) + toPaise(l.amount));
   }
   return settled;
