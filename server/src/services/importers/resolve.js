@@ -18,9 +18,10 @@ import Document from "../../models/Document.js";
 import Supplier from "../../models/Supplier.js";
 import Item from "../../models/Item.js";
 import Entity from "../../models/Entity.js";
+import DocumentLink from "../../models/DocumentLink.js";
 import { newId } from "../../lib/ids.js";
 import { fyOf } from "../../lib/fy.js";
-import { toPaise, fromPaise, mulRate } from "../../lib/money.js";
+import { toPaise, fromPaise, mulRate, grandOf } from "../../lib/money.js";
 import { maskAccount, accountHash } from "../bankAccounts.js";
 import { normInvNo, normName, checkGstin } from "./normalize.js";
 
@@ -441,6 +442,16 @@ const writeDocument = async (ctx, rec, plan) => {
   }
 };
 
+/**
+ * A note that names its invoice is applied to it: SETTLES link for the note's
+ * value (settlement counts each note/invoice pair once, so this never doubles
+ * the line reference).
+ */
+export const applyNoteToInvoice = async (groupId, note, invoiceId, actor) => {
+  const id = `lnk_note_${note.id}_${invoiceId}`;
+  await DocumentLink.updateOne({ groupId, id }, { $setOnInsert: { groupId, id, fromId: note.id, toId: invoiceId, kind: "SETTLES", certainty: "CONFIRMED", basis: "reference", amount: { amount: grandOf(note), currency: "INR" }, createdBy: actor } }, { upsert: true });
+};
+
 /** QC document for GRN lines that carry accepted/rejected quantities. */
 const writeQcFor = async (ctx, grn) => {
   const lines = (grn.lines || []).filter((l) => l.acceptedQty !== undefined || l.rejectedQty !== undefined);
@@ -504,6 +515,7 @@ export const commitRecords = async (ctx, records) => {
           const idx = await indexFor(ctx, rec.type);
           addToIndex(idx, doc);
           if (p.pending) summary.pendingRefs++;
+          if (["CREDIT_NOTE_IN", "DEBIT_NOTE_OUT"].includes(doc.type) && p.invoice?.id) await applyNoteToInvoice(ctx.groupId, doc, p.invoice.id, ctx.actor);
           if (doc.type === "GRN") {
             const qc = await writeQcFor(ctx, doc);
             if (qc) { created.push(qc); summary.byType.QC = summary.byType.QC || { create: 0 }; summary.byType.QC.create++; }

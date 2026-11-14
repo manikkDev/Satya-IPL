@@ -114,13 +114,23 @@ router.post("/runs/:id/commit", handle(async (req, res) => {
   res.status(committed.idempotent ? 200 : 201).json(runView(committed));
 }));
 
+// open findings an import raised: on its own documents, or new in the cases
+// it touched since it was committed (e.g. a PO-line finding after an invoice)
+const runFindingFilter = (groupId, run) => ({
+  groupId, status: "open",
+  $or: [
+    { "data.evidence.documentId": { $in: (run.createdDocumentIds || []).slice(0, 2000) } },
+    ...(run.caseIds?.length && run.committedAt ? [{ caseId: { $in: run.caseIds.slice(0, 500) }, createdAt: { $gte: run.committedAt } }] : []),
+  ],
+});
+
 // live follow-up numbers for a committed run: open findings on the imported
 // documents, payments waiting for allocation review, link suggestions
 const liveStats = async (groupId, run) => {
   if (run.status !== "committed") return null;
   const ids = run.createdDocumentIds || [];
   const [findings, pendingJobs, review] = await Promise.all([
-    ids.length ? Finding.countDocuments({ groupId, status: "open", "data.evidence.documentId": { $in: ids.slice(0, 2000) } }) : 0,
+    Finding.countDocuments(runFindingFilter(groupId, run)),
     Job.countDocuments({ groupId, status: { $in: ["queued", "running"] }, kind: { $in: ["autocheck", "bankallocate", "reconcile"] } }),
     ids.length ? Document.countDocuments({ groupId, id: { $in: ids.slice(0, 2000) }, $or: [{ "source.review.status": "needs_review" }, { "source.pendingRefs": true }] }) : 0,
   ]);
@@ -146,7 +156,7 @@ router.get("/runs/:id", handle(async (req, res) => {
   const ids = (run.createdDocumentIds || []).slice(0, 500);
   const [docs, findings] = await Promise.all([
     ids.length ? Document.find({ groupId: req.scope.groupId, id: { $in: ids } }, { id: 1, type: 1, number: 1, date: 1, "seller.name": 1, caseId: 1, "totals.grand": 1, "payment.amount": 1, "payment.allocations": 1, "source.review": 1, "source.pendingRefs": 1, "gst.gstr2b.status": 1, "gst.match.status": 1 }).lean() : [],
-    ids.length ? Finding.find({ groupId: req.scope.groupId, status: "open", "data.evidence.documentId": { $in: ids } }, { id: 1, caseId: 1, code: 1, title: 1, severity: 1, "data.message": 1, "data.evidence": 1 }).limit(100).lean() : [],
+    run.status === "committed" ? Finding.find(runFindingFilter(req.scope.groupId, run), { id: 1, caseId: 1, code: 1, title: 1, severity: 1, "data.message": 1, "data.evidence": 1 }).sort({ severity: 1 }).limit(100).lean() : [],
   ]);
   res.json({
     ...runView(run), live,

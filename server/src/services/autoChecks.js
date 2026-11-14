@@ -20,6 +20,7 @@ import ImportRun from "../models/ImportRun.js";
 import { newId } from "../lib/ids.js";
 import { ensureCaseForPo } from "./documents.js";
 import { runGstr2bMatch } from "./gstr2bMatch.js";
+import { applyNoteToInvoice } from "./importers/resolve.js";
 
 const CHUNK = 200;
 const LIVE_PO = ["issued", "acknowledged", "partially_fulfilled", "fulfilled", "short_closed"];
@@ -76,7 +77,7 @@ export const scheduleAutoCheck = async ({ groupId, documentIds = [], reason = "c
 };
 
 // ---------- 1. late binding of references ----------
-const PENDING_FIELDS = { id: 1, type: 1, lines: 1, seller: 1, supplierId: 1, source: 1 };
+const PENDING_FIELDS = { id: 1, type: 1, lines: 1, seller: 1, supplierId: 1, source: 1, totals: 1, charges: 1 };
 export const bindPendingRefs = async (groupId, newDocs) => {
   const targets = newDocs.filter((d) => ["PO", "GRN", "INVOICE_IN"].includes(d.type) && d.number);
   if (!targets.length) return [];
@@ -112,6 +113,8 @@ export const bindPendingRefs = async (groupId, newDocs) => {
     if (!changed) continue;
     const stillPending = lines.some((l) => l.refs?.poNumber || l.refs?.grnNumber || l.refs?.invoiceNumber);
     await Document.updateOne({ groupId, id: d.id }, { $set: { lines, "source.pendingRefs": stillPending, "source.boundAt": new Date().toISOString() } });
+    const boundInvoice = ["CREDIT_NOTE_IN", "DEBIT_NOTE_OUT"].includes(d.type) ? lines.map((l) => l.refs?.invoiceId).find(Boolean) : null;
+    if (boundInvoice) await applyNoteToInvoice(groupId, d, boundInvoice, "satya:autocheck");
     updated.push(d.id);
   }
   return updated;

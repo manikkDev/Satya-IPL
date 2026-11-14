@@ -254,7 +254,7 @@ export const commitImport = async ({ groupId, runId, actor, options: overrides =
     } else {
       const out = await commitRecords(ctx, parsed.records);
       createdIds = out.createdDocumentIds;
-      result = { ...out.summary, rows: undefined };
+      result = { ...out.summary };
       after.rows = out.rows;
       after.issues = out.issues;
       if (createdIds.length) await scheduleAutoCheck({ groupId, documentIds: createdIds, reason: `import:${run.source}`, importRunId: run.id });

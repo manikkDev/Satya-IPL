@@ -111,16 +111,18 @@ export const exactMatch = ({ payment, supplier, openInvoices, narration }) => {
 };
 
 /** Engine subset-sum suggestion (advisory; never throws). */
-export const engineSuggestion = async (payment, targets, supplier) => {
+export const engineSuggestion = async (payment, targets) => {
   const remaining = fromPaise(toPaise(payment.payment?.amount) - toPaise(allocatedOf(payment)));
   if (!(targets.openInvoices.length || targets.credits.length) || toPaise(remaining) <= 0n) return { suggestion: null };
-  const tds = tdsRateFor(supplier);
   try {
     const suggestion = await enginePost("/v2/allocate/payment", {
       payment: { id: payment.id, amount: { amount: remaining, currency: payment.currency || "INR" }, date: payment.date, utr: payment.payment?.utr },
       openInvoices: targets.openInvoices.slice(0, 20 - Math.min(targets.credits.length, 10)).map(({ id, number, date, openAmount, dueDate }) => ({ id, number, date, openAmount: { amount: openAmount, currency: "INR" }, dueDate })),
       credits: targets.credits.map((c) => ({ id: c.id, amount: { amount: c.amount, currency: "INR" }, date: c.date })),
-      ...(tds ? { tdsPolicy: { deductOnPayment: true, rate: tds.rate } } : {}),
+      // tdsPolicy deliberately not sent: the engine's TDS model grosses up the
+      // whole payment (TDS on GST-inclusive value) and currently 500s on
+      // fractional rates such as 194Q's 0.1%; the strict rule above handles
+      // TDS on the taxable value itself.
     });
     return { suggestion };
   } catch (error) {
@@ -175,7 +177,7 @@ export const processNewPayments = async ({ groupId, paymentIds, autoAllocate = t
     const narration = [payment.source?.narration, payment.number, payment.payment?.utr].filter(Boolean).join(" ");
     const all = supplier ? await openTargetsFor(groupId, payment, Infinity, { sameCounterpartyOnly: true }) : { openInvoices: [] };
     const match = autoAllocate ? exactMatch({ payment, supplier, openInvoices: all.openInvoices, narration }) : { reason: "automatic allocation is switched off" };
-    const { suggestion, error } = await engineSuggestion(payment, targets, supplier);
+    const { suggestion, error } = await engineSuggestion(payment, targets);
     if (error) out.engineUnavailable++;
     const solutions = suggestion?.solutions?.length || 0;
     if (match.invoice) {
@@ -184,7 +186,7 @@ export const processNewPayments = async ({ groupId, paymentIds, autoAllocate = t
       if (applied) {
         out.autoAllocated++;
         await Document.updateOne({ groupId, id }, { $set: { "source.review": { status: "auto_allocated", rule: match.rule, invoiceId: match.invoice.id, at: new Date().toISOString() } } });
-        out.details.push({ paymentId: id, status: "auto_allocated", invoice: match.invoice.number, amount: match.amount, rule: match.rule });
+        out.details.push({ paymentId: id, status: "auto_allocated", invoice: match.invoice.number, amount: match.amount, rule: match.rule, ...(error ? { engineError: error.message } : {}) });
         continue;
       }
     }
