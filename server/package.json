@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "sync:copilot-eval": "cp ../chatbot-backend/eval-report.json assets/copilot-eval-report.json"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

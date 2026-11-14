@@ -16,14 +16,21 @@ const TTL_MS = 10 * 60 * 1000;
 let cache = { at: 0, body: null };
 
 const here = dirname(fileURLToPath(import.meta.url));
-const COPILOT_REPORT = process.env.COPILOT_EVAL_REPORT_PATH || join(here, "../../../../chatbot-backend/eval-report.json");
+// The API image only contains server/, so a copy of the copilot evaluation is
+// bundled in server/assets (refresh it with `npm run sync:copilot-eval`).
+const COPILOT_REPORTS = [
+  process.env.COPILOT_EVAL_REPORT_PATH,
+  join(here, "../../../../chatbot-backend/eval-report.json"),
+  join(here, "../../../assets/copilot-eval-report.json"),
+].filter(Boolean);
 
 const readCopilot = async () => {
-  try {
-    return JSON.parse(await readFile(COPILOT_REPORT, "utf8"));
-  } catch {
-    return null;
+  for (const path of COPILOT_REPORTS) {
+    try {
+      return JSON.parse(await readFile(path, "utf8"));
+    } catch { /* try next */ }
   }
+  return null;
 };
 
 export const buildModelCard = async () => {

@@ -1,0 +1,827 @@
+{
+  "total": 135,
+  "results": [
+    {
+      "id": "g001",
+      "ms": 4,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g002",
+      "ms": 1,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g003",
+      "ms": 1,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g004",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g005",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g006",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g007",
+      "ms": 1,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g008",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g009",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g010",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g011",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g012",
+      "ms": 1,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g013",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g014",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g015",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g016",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g017",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g018",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g019",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g020",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g021",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g022",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g023",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g024",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g025",
+      "ms": 1,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g026",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g027",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g028",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g029",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g030",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g031",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g032",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g033",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g034",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g035",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g036",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g037",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g038",
+      "ms": 1,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g039",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g040",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g041",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g042",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g043",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g044",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g045",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g046",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g047",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g048",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g049",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g050",
+      "ms": 1,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g051",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g052",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g053",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g054",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g055",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g056",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g057",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g058",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g059",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g060",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g061",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g062",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g063",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g064",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g065",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g066",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g067",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g068",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g069",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g070",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g071",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g072",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g073",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g074",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g075",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g076",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g077",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g078",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g079",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g080",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g081",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g082",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g083",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g084",
+      "ms": 1,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g085",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g086",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g087",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g088",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g089",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g090",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g091",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g092",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g093",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g094",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g095",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g096",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g097",
+      "ms": 1,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g098",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g099",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g100",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g101",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g102",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g103",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g104",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g105",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g106",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g107",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g108",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g109",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g110",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g111",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g112",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g113",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g114",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g115",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g116",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g117",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g118",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g119",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g120",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g121",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g122",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g123",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g124",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g125",
+      "ms": 1,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g126",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g127",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g128",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g129",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g130",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g131",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g132",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g133",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g134",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    },
+    {
+      "id": "g135",
+      "ms": 0,
+      "pass": true,
+      "notes": []
+    }
+  ],
+  "metrics": {
+    "factAccuracy": null,
+    "citationValid": null,
+    "clarificationCorrect": 10,
+    "clarificationTotal": 10,
+    "refusalCorrect": 10,
+    "refusalTotal": 10,
+    "fabricatedNumbers": 0,
+    "fallbackRate": 30,
+    "passed": 135
+  },
+  "live": false
+}
