@@ -80,7 +80,7 @@ export default function ReportsPage() {
   });
 
   const suppliers = useMemo<SupplierInfo[]>(
-    () => (suppliersQ.data?.items ?? []).map((s) => ({ id: s.id, name: s.legalName ?? s.name, msme: Boolean(s.msmeFlag ?? s.msme), category: s.msme })),
+    () => (suppliersQ.data?.items ?? []).map((s) => ({ id: s.id, name: s.legalName ?? s.name, msme: s.msme ? s.msme === "micro" || s.msme === "small" : Boolean(s.msmeFlag), category: s.msme })),
     [suppliersQ.data],
   );
 
@@ -254,8 +254,8 @@ export default function ReportsPage() {
                   <span className="tnum text-xs text-[var(--muted)]">{i + 1}</span>
                   <span className="min-w-0">
                     {g.supplierId ? (
-                      <Link href={`/app/suppliers/${g.supplierId}`} className="block truncate text-sm font-medium text-[var(--ink)] hover:text-[var(--accent)] hover:underline">{g.name}</Link>
-                    ) : <span className="block truncate text-sm font-medium text-[var(--ink)]">{g.name}</span>}
+                      <Link href={`/app/suppliers/${g.supplierId}`} className="line-clamp-2 break-words text-sm font-medium text-[var(--ink)] hover:text-[var(--accent)] hover:underline">{g.name}</Link>
+                    ) : <span className="line-clamp-2 break-words text-sm font-medium text-[var(--ink)]">{g.name}</span>}
                     <span className="flex items-center gap-2 text-xs text-[var(--muted)]">
                       <span><span className="tnum">{g.count}</span> invoice{g.count === 1 ? "" : "s"}</span>
                       {g.msme ? <span className="inline-flex items-center gap-1 font-medium text-[var(--likely)]"><BadgeCheck size={12} aria-hidden="true" /> MSME</span> : null}

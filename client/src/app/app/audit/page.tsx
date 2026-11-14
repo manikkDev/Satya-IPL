@@ -56,7 +56,7 @@ function ChainBanner() {
     return (
       <div className={cn(base, "border-[var(--line)] bg-[var(--surface)] text-[var(--ink-2)]")}>
         <ShieldQuestion size={16} className="text-[var(--muted)]" aria-hidden="true" />
-        <span className="min-w-0 flex-1">
+        <span className="min-w-[14rem] flex-1">
           {forbidden ? "Your role cannot run the integrity check." : `Integrity check unavailable — ${error instanceof Error ? error.message : "try again"}.`}
         </span>
         {!forbidden ? <Btn size="sm" variant="ghost" icon={RotateCcw} onClick={() => refetch()}>Retry</Btn> : null}
@@ -67,7 +67,7 @@ function ChainBanner() {
     return (
       <div className={cn(base, "border-[color-mix(in_srgb,var(--confirmed)_35%,transparent)] bg-[var(--confirmed-soft)]")} role="status">
         <ShieldCheck size={16} className="text-[var(--confirmed)]" aria-hidden="true" />
-        <span className="min-w-0 flex-1 text-[var(--ink)]">
+        <span className="min-w-[14rem] flex-1 text-[var(--ink)]">
           <strong className="font-semibold text-[var(--confirmed)]">Chain verified</strong> — all{" "}
           <span className="tnum">{data.checked ?? 0}</span> entries link up; nothing has been edited or removed.
         </span>
@@ -79,7 +79,7 @@ function ChainBanner() {
   return (
     <div className={cn(base, "border-[color-mix(in_srgb,var(--sev-critical)_40%,transparent)] bg-[var(--sev-critical-soft)]")} role="alert">
       <ShieldAlert size={16} className="text-[var(--sev-critical)]" aria-hidden="true" />
-      <span className="min-w-0 flex-1 text-[var(--ink)]">
+      <span className="min-w-[14rem] flex-1 text-[var(--ink)]">
         <strong className="font-semibold text-[var(--sev-critical)]">Chain broken</strong>
         {position ? <> at entry <span className="tnum">#{position}</span></> : null}
         {data?.brokenAt ? <> (<span className="font-code text-xs">{data.brokenAt}</span>)</> : null} — an entry from that point no

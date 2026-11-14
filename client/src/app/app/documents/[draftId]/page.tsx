@@ -304,7 +304,7 @@ function DraftReview({ draftId }: { draftId: string }) {
   const methodLabel = draft.method ? METHOD_LABEL[draft.method] ?? draft.method.replaceAll("_", " ") : "extraction";
   const canRetry = Boolean(draft.fileId) && !mocksEnabled() && (draft.status === "failed" || issues.some((i) => i.code === "LLM_UNAVAILABLE"));
   const confirmedDocId = savedId;
-  const displayName = fileMetaQ.data?.filename ?? draft.filename;
+  const displayName = fileMetaQ.data?.filename ?? "This upload";
 
   /* ---------- still reading ---------- */
   if (["queued", "parsing", "extracting"].includes(draft.status)) {

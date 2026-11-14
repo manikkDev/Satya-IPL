@@ -54,10 +54,10 @@ function DraftRow({ draft }: { draft: DraftListRow }) {
     <li>
       <Link
         href={`/app/documents/${draft.id}`}
-        className="flex w-full items-center gap-3 border-b border-[var(--line)] px-4 py-3 text-left transition-colors last:border-0 hover:bg-[var(--surface-2)]/60 focus-visible:bg-[var(--surface-2)] focus-visible:outline-none"
+        className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-[var(--line)] px-4 py-3 text-left transition-colors last:border-0 hover:bg-[var(--surface-2)]/60 focus-visible:bg-[var(--surface-2)] focus-visible:outline-none"
       >
         <FileText size={18} className="shrink-0 text-[var(--muted)]" aria-hidden="true" />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-[calc(100%-2.5rem)] sm:basis-0">
           <p className="truncate text-sm font-medium text-[var(--ink)]" title={name}>{name}</p>
           <p className="mt-0.5 truncate text-xs text-[var(--muted)]">
             {draft.detectedType ? `${docTypeLabel(draft.detectedType)} · ` : ""}
@@ -66,7 +66,7 @@ function DraftRow({ draft }: { draft: DraftListRow }) {
           </p>
           {issue ? <p className="mt-1 line-clamp-2 text-xs text-[var(--ink-2)]">{issue}</p> : null}
         </div>
-        <StatusWord status={draft.status} />
+        <span className="pl-[30px] sm:pl-0"><StatusWord status={draft.status} /></span>
         <ArrowRight size={14} className="hidden shrink-0 text-[var(--muted)] sm:block" aria-hidden="true" />
       </Link>
     </li>
@@ -335,7 +335,7 @@ export default function DocumentsPage() {
       ) : (
         <Tabs value={tab ?? (needsReview.length ? "review" : "uploads")} onValueChange={setTab}>
           <div className="-mx-1 overflow-x-auto px-1">
-            <TabsList>
+            <TabsList className="w-max [&>button]:whitespace-nowrap">
               <TabsTrigger value="review">Needs review{needsReview.length ? ` (${needsReview.length})` : ""}</TabsTrigger>
               <TabsTrigger value="uploads">All uploads</TabsTrigger>
               <TabsTrigger value="saved">Saved{saved.length ? ` (${saved.length})` : ""}</TabsTrigger>

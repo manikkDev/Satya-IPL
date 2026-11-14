@@ -19,6 +19,7 @@ import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/
 import { Money, DateText, CertaintyBadge, ErrorState, Btn, Progress } from "@/components/ui/v2";
 import type { Certainty } from "@/content/copy/vocabulary";
 import { cn } from "@/lib/utils";
+import { formatDate } from "@/lib/format";
 
 type Target = { id: string; label: string; sub: string; cap: bigint; credit: boolean };
 
@@ -45,11 +46,11 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
     return [
       ...wb.openInvoices.map((inv) => ({
         id: inv.id, label: inv.number || inv.id, credit: false, cap: paiseOf(inv.openAmount),
-        sub: [inv.seller, inv.date].filter(Boolean).join(" · "),
+        sub: [inv.seller, inv.date ? formatDate(inv.date) : null].filter(Boolean).join(" · "),
       })),
       ...wb.credits.map((c) => ({
         id: c.id, label: c.number || c.id, credit: true, cap: paiseOf(c.amount),
-        sub: ["Credit note", c.date].filter(Boolean).join(" · "),
+        sub: ["Credit note", c.date ? formatDate(c.date) : null].filter(Boolean).join(" · "),
       })),
     ];
   }, [wb]);
@@ -257,12 +258,12 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
                           checked={on}
                           onChange={(e) => toggle(t, e.target.checked)}
                         />
-                        <label htmlFor={`pick-${t.id}`} className="min-w-0 flex-1 cursor-pointer">
+                        <label htmlFor={`pick-${t.id}`} className="min-w-0 flex-1 basis-[calc(100%-2rem)] cursor-pointer sm:basis-0">
                           <span className="block truncate font-code text-xs text-[var(--ink)]">{t.label}</span>
                           <span className={cn("block truncate text-xs", t.credit ? "text-[var(--accent)]" : "text-[var(--muted)]")}>{t.sub || "—"}</span>
                         </label>
-                        <span className="text-xs text-[var(--muted)]">open <Money value={paiseToDecimal(t.cap)} /></span>
-                        <div className="flex flex-col items-end">
+                        <span className="ml-7 text-xs text-[var(--muted)] sm:ml-0">open <Money value={paiseToDecimal(t.cap)} /></span>
+                        <div className="ml-auto flex flex-col items-end">
                           <label htmlFor={inputId} className="sr-only">Amount for {t.label}</label>
                           <input
                             id={inputId}

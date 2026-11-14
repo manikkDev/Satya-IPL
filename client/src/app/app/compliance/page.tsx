@@ -126,13 +126,14 @@ function Modal({ title, description, onClose, children, wide }: { title: string;
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent
         showCloseButton={false}
+        {...(description ? {} : { "aria-describedby": undefined })}
         className={cn("gap-0 overflow-hidden rounded-[var(--radius-lg)] border-[var(--line)] bg-[var(--paper)] p-0 text-[var(--ink)] shadow-[var(--shadow-3)]", wide ? "sm:max-w-2xl" : "sm:max-w-lg")}
       >
         <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-3">
           <DialogTitle className="text-sm font-semibold text-[var(--ink)]">{title}</DialogTitle>
           <button type="button" onClick={onClose} aria-label="Close" className="rounded-[var(--radius-sm)] p-1 text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60"><X size={16} aria-hidden="true" /></button>
         </div>
-        {description ? <DialogDescription className="sr-only">{description}</DialogDescription> : <DialogDescription className="sr-only">{title}</DialogDescription>}
+        {description ? <DialogDescription className="sr-only">{description}</DialogDescription> : null}
         <div className="max-h-[80vh] overflow-y-auto p-5">{children}</div>
       </DialogContent>
     </Dialog>
