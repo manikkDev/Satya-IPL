@@ -191,7 +191,7 @@ router.post("/:id/allocate", handle(async (req, res) => {
   const updated = await Document.findOneAndUpdate(
     { _id: payment._id, revision: payment.revision },
     { $set: { "payment.allocations": [...(payment.payment?.allocations || []), ...newRows] }, $inc: { revision: 1 } },
-    { new: true },
+    { returnDocument: "after" },
   ).lean();
   if (!updated) throw fail(409, "CONFLICT", "This payment changed while you were allocating — reload and try again");
 

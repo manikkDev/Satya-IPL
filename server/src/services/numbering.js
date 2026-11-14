@@ -23,7 +23,7 @@ export const nextNumber = async (entityId, groupId, entityCode, docType, fy, att
   const updated = await Policy.findOneAndUpdate(
     { entityId, numbering: { $elemMatch: { docType, fy } } },
     { $inc: { "numbering.$.nextSeq": 1 } },
-    { new: true }
+    { returnDocument: "after" }
   );
   if (updated) {
     const series = updated.numbering.find((n) => n.docType === docType && n.fy === fy);

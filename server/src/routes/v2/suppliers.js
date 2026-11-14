@@ -84,7 +84,7 @@ router.patch("/:id", requirePermission("master.manage"), handle(async (req, res)
   const supplier = await Supplier.findOneAndUpdate(
     { id: req.params.id, groupId: req.scope.groupId },
     { $set: parsed.data },
-    { new: true }
+    { returnDocument: "after" }
   ).lean();
   if (!supplier) throw fail(404, "NOT_FOUND", "Supplier not found");
   res.json(view(supplier));

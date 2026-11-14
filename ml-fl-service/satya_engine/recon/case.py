@@ -158,9 +158,14 @@ def reconcile_case(request):
                                    policy=request.entityPolicy, master=_master())
                 if f["code"] not in suppressed]
     ambiguities = _ambiguities(docs, links)
+    # Content-addressed: a revised document (new allocation, corrected qty)
+    # under the same id must yield a NEW snapshot, otherwise callers that
+    # store snapshots by id keep serving the stale result.
+    content = hashlib.sha256(json.dumps({"docs": sorted(docs, key=lambda d: d["id"]), "links": links},
+                                        sort_keys=True, default=str).encode()).hexdigest()
     snapshot_input = {"caseId": request.caseId, "docs": sorted(d["id"] for d in docs),
                       "links": len(links), "knowledgeTime": knowledge,
-                      "suppressed": sorted(suppressed)}
+                      "suppressed": sorted(suppressed), "content": content}
     snapshot_id = "snap-" + hashlib.sha256(json.dumps(snapshot_input, sort_keys=True, default=str).encode()).hexdigest()[:20]
     return {
         "snapshotId": snapshot_id, "caseId": request.caseId,
