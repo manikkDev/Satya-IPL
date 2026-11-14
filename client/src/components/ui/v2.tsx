@@ -249,7 +249,7 @@ export function Chip({ active, children, ...props }: React.ButtonHTMLAttributes<
       className={cn(
         "rounded-full px-3 py-1 text-xs font-medium transition-colors",
         active
-          ? "bg-[var(--accent)] text-white dark:text-[#06231c]"
+          ? "bg-[var(--accent)] text-[var(--on-accent)]"
           : "bg-[var(--surface-2)] text-[var(--ink-2)] hover:bg-[var(--surface-3)] hover:text-[var(--ink)]",
       )}
       {...props}
@@ -262,7 +262,7 @@ export function Chip({ active, children, ...props }: React.ButtonHTMLAttributes<
 /* ---------- actions ---------- */
 
 const ACTION_STYLE: Record<Action, { icon: LucideIcon; classes: string }> = {
-  APPROVE: { icon: Check, classes: "bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)] dark:text-[#06231c] shadow-[0_1px_0_rgb(0_0_0/0.2)]" },
+  APPROVE: { icon: Check, classes: "bg-[var(--accent)] text-[var(--on-accent)] hover:bg-[var(--accent-strong)] dark:text-[#06231c] shadow-[0_1px_0_rgb(0_0_0/0.2)]" },
   REQUEST_CLARIFICATION: { icon: MessageCircleQuestion, classes: "border border-[var(--accent)]/45 text-[var(--accent-strong)] bg-transparent hover:bg-[var(--accent-soft)]" },
   ESCALATE: { icon: CircleArrowUp, classes: "border border-[var(--sev-high)]/50 text-[var(--sev-high)] bg-transparent hover:bg-[var(--sev-high-soft)]" },
   PLACE_ON_HOLD: { icon: PauseCircle, classes: "border border-[var(--sev-critical)]/50 text-[var(--sev-critical)] bg-transparent hover:bg-[var(--sev-critical-soft)]" },

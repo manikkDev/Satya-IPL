@@ -31,7 +31,7 @@ export function DataTable<T>({
 
   return (
     <div className="overflow-x-auto rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-1)]">
-      <table className="w-full text-sm" aria-label={ariaLabel}>
+      <table className="w-full min-w-[720px] text-sm" aria-label={ariaLabel}>
         <thead className="sticky top-0 bg-[var(--surface-2)]/70 backdrop-blur">
           {table.getHeaderGroups().map((group) => (
             <tr key={group.id} className="border-b border-[var(--line)]">

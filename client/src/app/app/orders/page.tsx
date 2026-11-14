@@ -70,7 +70,7 @@ function Pagination({ page, total, size, onPage }: { page: number; total: number
             <span key={`gap-${i}`} className="px-1 text-xs text-[var(--muted)]">…</span>
           ) : (
             <button key={it} type="button" onClick={() => onPage(it)} aria-current={it === page ? "page" : undefined}
-              className={cn(btn, it === page ? "bg-[var(--accent)] text-white dark:text-[#06231c]" : "border border-[var(--line)] text-[var(--ink-2)] hover:border-[var(--accent)]")}>
+              className={cn(btn, it === page ? "bg-[var(--accent)] text-[var(--on-accent)]" : "border border-[var(--line)] text-[var(--ink-2)] hover:border-[var(--accent)]")}>
               {it}
             </button>
           ),
@@ -113,10 +113,10 @@ export default function OrdersPage() {
 
   const columns = useMemo<ColumnDef<OrderListRow, unknown>[]>(
     () => [
-      { accessorKey: "number", header: "PO number", cell: ({ row }) => <Link href={`/app/orders/${row.original.id}`} className="font-code text-xs font-medium text-[var(--accent-strong)] underline-offset-2 hover:underline">{row.original.number}</Link> },
-      { accessorKey: "supplier", header: "Supplier" },
-      { accessorKey: "date", header: "Dated", cell: ({ row }) => <DateText value={row.original.date} /> },
-      { accessorKey: "value", header: "Value", cell: ({ row }) => <Money value={row.original.value} /> },
+      { accessorKey: "number", header: "PO number", cell: ({ row }) => <Link href={`/app/orders/${row.original.id}`} className="whitespace-nowrap font-code text-xs font-medium text-[var(--accent-strong)] underline-offset-2 hover:underline">{row.original.number}</Link> },
+      { accessorKey: "supplier", header: "Supplier", cell: ({ row }) => <span className="line-clamp-2 min-w-40 text-[var(--ink)]">{row.original.supplier}</span> },
+      { accessorKey: "date", header: "Dated", cell: ({ row }) => <DateText value={row.original.date} className="whitespace-nowrap" /> },
+      { accessorKey: "value", header: "Value", cell: ({ row }) => <Money value={row.original.value} className="whitespace-nowrap font-medium text-[var(--ink)]" /> },
       { accessorKey: "deliveredPct", header: "Delivered", cell: ({ row }) => <ProgressCell pct={row.original.deliveredPct} /> },
       { accessorKey: "invoicedPct", header: "Invoiced", cell: ({ row }) => <ProgressCell pct={row.original.invoicedPct} /> },
       { accessorKey: "paidPct", header: "Paid", cell: ({ row }) => <ProgressCell pct={row.original.paidPct} /> },
@@ -137,7 +137,7 @@ export default function OrdersPage() {
         actions={
           <Link
             href="/app/orders/new"
-            className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-strong)]"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] transition-colors hover:bg-[var(--accent-strong)]"
           >
             <Plus size={16} aria-hidden="true" /> New purchase order
           </Link>

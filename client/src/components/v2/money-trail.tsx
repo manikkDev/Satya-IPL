@@ -144,7 +144,7 @@ function SelectionPanel({
             <div className="mt-3 space-y-1.5">
               <p className="text-xs font-medium text-[var(--muted)]">Your call (recorded as a decision):</p>
               <div className="flex gap-2">
-                <button type="button" className="rounded-[var(--radius-sm)] bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white">Confirm link</button>
+                <button type="button" className="rounded-[var(--radius-sm)] bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--on-accent)]">Confirm link</button>
                 <button type="button" className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)]">Reject link</button>
               </div>
             </div>
@@ -415,7 +415,7 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
               aria-pressed={filter === key}
               className={cn(
                 "rounded-full px-3 py-1 text-xs font-medium",
-                filter === key ? "bg-[var(--accent)] text-white" : "bg-[var(--surface-2)] text-[var(--ink-2)]",
+                filter === key ? "bg-[var(--accent)] text-[var(--on-accent)]" : "bg-[var(--surface-2)] text-[var(--ink-2)]",
               )}
             >
               {label}

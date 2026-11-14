@@ -293,7 +293,7 @@ function ShellInner({ children }: { children: ReactNode }) {
     <div className="v2 min-h-screen bg-[var(--paper)]">
       <a
         href="#app-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-3 focus:rounded-md focus:bg-[var(--accent)] focus:px-4 focus:py-2 focus:text-white"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-3 focus:rounded-md focus:bg-[var(--accent)] focus:px-4 focus:py-2 focus:text-[var(--on-accent)]"
       >
         Skip to content
       </a>

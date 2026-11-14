@@ -155,7 +155,7 @@ export default function InvestigationsPage() {
                 {Array.from({ length: pages }, (_, i) => i + 1).slice(Math.max(0, page - 3), Math.max(0, page - 3) + Math.min(5, pages)).map((n) => (
                   <button key={n} type="button" onClick={() => setPage(n)} aria-current={n === page ? "page" : undefined}
                     className={cn("h-8 min-w-8 rounded-[var(--radius-sm)] border px-2 text-xs font-medium transition-colors",
-                      n === page ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--line)] text-[var(--ink-2)] hover:border-[var(--accent)]/50")}>
+                      n === page ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--on-accent)]" : "border-[var(--line)] text-[var(--ink-2)] hover:border-[var(--accent)]/50")}>
                     {n}
                   </button>
                 ))}

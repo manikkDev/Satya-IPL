@@ -278,7 +278,7 @@ export default function InvestigationDetailPage() {
             <button
               type="button"
               onClick={runCheck}
-              className="mt-1 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-strong)]"
+              className="mt-1 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] transition-colors hover:bg-[var(--accent-strong)]"
             >
               Run check
             </button>

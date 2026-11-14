@@ -38,7 +38,7 @@ function CitationChip({ citation, onOpen }: { citation: NonNullable<Answer["cita
     <button
       type="button"
       onClick={() => onOpen(citation)}
-      className="mx-0.5 inline-flex h-5 w-6 items-center justify-center rounded bg-[var(--accent-soft)] text-[11px] font-semibold text-[var(--accent-strong)] hover:bg-[var(--accent)] hover:text-white"
+      className="mx-0.5 inline-flex h-5 w-6 items-center justify-center rounded bg-[var(--accent-soft)] text-[11px] font-semibold text-[var(--accent-strong)] hover:bg-[var(--accent)] hover:text-[var(--on-accent)]"
       aria-label={`Source ${citation.n}: ${citation.label}`}
       title={citation.label}
     >
@@ -359,7 +359,30 @@ function Copilot() {
   };
 
   return (
-    <FadeIn className="flex gap-5">
+    <FadeIn className="flex flex-col gap-4 lg:flex-row lg:gap-5">
+      {/* mobile — conversation switcher (the left rail is desktop-only) */}
+      <div className="flex items-center gap-2 lg:hidden">
+        <select
+          aria-label="Conversation"
+          value={activeConvo}
+          onChange={(e) => {
+            const next = convos.find((c) => c.id === e.target.value);
+            if (next) openConvo(next);
+          }}
+          className="h-9 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-sm text-[var(--ink)]"
+        >
+          {convos.map((c) => (
+            <option key={c.id} value={c.id}>{c.title}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={newConvo}
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--accent)]/50 px-3 text-sm font-medium text-[var(--accent-strong)]"
+        >
+          <Plus size={15} aria-hidden="true" /> New
+        </button>
+      </div>
       {/* left rail — conversations */}
       <aside className="hidden w-52 shrink-0 lg:block" aria-label="Conversations">
         <button
@@ -395,7 +418,7 @@ function Copilot() {
                       return rest.length ? rest : [{ id: "c0", title: "New conversation", turns: [] }];
                     });
                   }}
-                  className="hidden shrink-0 rounded p-1 text-[var(--muted)] hover:text-[var(--sev-critical)] group-hover:block"
+                  className="shrink-0 rounded p-1 text-[var(--muted)] opacity-0 transition-opacity hover:text-[var(--sev-critical)] focus-visible:opacity-100 group-hover:opacity-100"
                 >
                   <Trash2 size={13} />
                 </button>
@@ -451,7 +474,7 @@ function Copilot() {
 
           {convo.turns.map((turn) => (
             <div key={turn.id} className="space-y-3">
-              <p className="ml-auto w-fit max-w-[85%] rounded-[var(--radius-md)] bg-[var(--accent)] px-4 py-2.5 text-sm text-white">
+              <p className="ml-auto w-fit max-w-[85%] rounded-[var(--radius-md)] bg-[var(--accent)] px-4 py-2.5 text-sm text-[var(--on-accent)]">
                 <span className="sr-only">You asked: </span>{turn.prompt}
               </p>
               {turn.answer ? (
@@ -506,7 +529,7 @@ function Copilot() {
             <button
               type="submit"
               disabled={busy || !question.trim()}
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius-sm)] bg-[var(--accent)] text-white transition-colors hover:bg-[var(--accent-strong)] disabled:opacity-50"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius-sm)] bg-[var(--accent)] text-[var(--on-accent)] transition-colors hover:bg-[var(--accent-strong)] disabled:opacity-50"
               aria-label={busy ? "Waiting for answer" : "Send question"}
             >
               <Send size={16} />
