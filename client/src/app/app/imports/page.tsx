@@ -16,6 +16,7 @@ import { NewImport } from "./_components/new-import";
 import { ImportHistory } from "./_components/history";
 import { Gstr2bTab } from "./_components/gstr2b-tab";
 import { KeysTab } from "./_components/keys-tab";
+import { pageTabsList, pageTabsTrigger } from "@/components/pages/shared/page-tabs";
 
 export default function ImportsPage() {
   const { activeEntity, hasPermission } = useSession();
@@ -24,21 +25,18 @@ export default function ImportsPage() {
   const [tab, setTab] = useState("new");
 
   return (
-    <FadeIn className="mx-auto w-full max-w-[1100px] text-[15px]">
+    <FadeIn className="w-full text-[15px]">
       <PageHeader
-        eyebrow="Data"
-        title="Import hub"
-        description="Bring in data from Tally, your bank, the GST portal or a spreadsheet. We check every file before anything is saved, skip what is already here, and run the checks automatically afterwards."
+        title="Import data"
+        description="Bring in records from Tally, your bank, the GST portal or a spreadsheet. Every file is checked before anything is saved, and duplicates are skipped."
       />
       <Tabs value={tab} onValueChange={setTab}>
-        <div className="-mx-4 mb-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-          <TabsList className="h-auto">
-            <TabsTrigger value="new" className="px-3.5 py-1.5 text-[14px]">New import</TabsTrigger>
-            <TabsTrigger value="history" className="px-3.5 py-1.5 text-[14px]">History</TabsTrigger>
-            <TabsTrigger value="gstr2b" className="px-3.5 py-1.5 text-[14px]">GSTR-2B match</TabsTrigger>
-            <TabsTrigger value="keys" className="px-3.5 py-1.5 text-[14px]">Connector keys</TabsTrigger>
-          </TabsList>
-        </div>
+        <TabsList className={`${pageTabsList} mb-6`}>
+          <TabsTrigger value="new" className={pageTabsTrigger}>New import</TabsTrigger>
+          <TabsTrigger value="history" className={pageTabsTrigger}>Past imports</TabsTrigger>
+          <TabsTrigger value="gstr2b" className={pageTabsTrigger}>GSTR-2B match</TabsTrigger>
+          <TabsTrigger value="keys" className={pageTabsTrigger}>Automatic sync (Tally)</TabsTrigger>
+        </TabsList>
         <TabsContent value="new"><NewImport entityId={entityId} canImport={canImport} /></TabsContent>
         <TabsContent value="history"><ImportHistory /></TabsContent>
         <TabsContent value="gstr2b"><Gstr2bTab entityId={entityId} canImport={canImport} /></TabsContent>

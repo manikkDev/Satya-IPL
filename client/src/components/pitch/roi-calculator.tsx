@@ -166,7 +166,7 @@ export function RoiCalculator() {
         <section aria-labelledby="roi-out" className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 sm:p-6">
           <div className="flex items-baseline justify-between gap-3">
             <h2 id="roi-out" className="text-base font-semibold text-[var(--ink)]">Estimated annual value</h2>
-            <span className="text-xs capitalize text-[var(--muted)]">{scenario} scenario</span>
+            <span className="text-[13px] capitalize text-[var(--muted)]">{scenario} scenario</span>
           </div>
           <p className="tnum mt-3 text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--ink)]" aria-live="polite">{rupees(r.totalPerYear)}</p>
           <p className="mt-1 text-[13px] leading-relaxed text-[var(--muted)]">
@@ -176,14 +176,14 @@ export function RoiCalculator() {
           <dl className="mt-5 divide-y divide-[var(--line)] border-t border-[var(--line)]">
             {outputs.map((o) => (
               <div key={o.label} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-3">
-                <dt className="text-sm text-[var(--ink-2)]">{o.label}<span className="block text-xs text-[var(--muted)]">{o.sub}</span></dt>
+                <dt className="text-sm text-[var(--ink-2)]">{o.label}<span className="block text-[13px] text-[var(--muted)]">{o.sub}</span></dt>
                 <dd className="tnum text-base font-semibold text-[var(--ink)]">{o.value}</dd>
               </div>
             ))}
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-3">
               <dt className="text-sm text-[var(--ink-2)]">
                 43B(h) deduction kept in the year
-                <span className="block text-xs text-[var(--muted)]">Tax timing worth {rupees(r.taxTimingBenefit)}. Not added to the total: it is deferred, not lost.</span>
+                <span className="block text-[13px] text-[var(--muted)]">Tax timing worth {rupees(r.taxTimingBenefit)}. Not added to the total: it is deferred, not lost.</span>
               </dt>
               <dd className="tnum text-base font-semibold text-[var(--ink)]">{rupees(r.deductionProtected)}</dd>
             </div>

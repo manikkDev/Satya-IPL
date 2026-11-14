@@ -41,7 +41,7 @@ export function Pill({ tone, children, icon: Icon }: { tone: keyof typeof ACTION
   const meta = tone === "accent" ? { color: "var(--accent)", bg: "var(--accent-soft)" } : ACTION_META[tone];
   return (
     <span
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-xs font-medium leading-none"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[13px] font-medium leading-none"
       style={{ color: meta.color, background: meta.bg, borderColor: `color-mix(in srgb, ${meta.color} 30%, transparent)` }}
     >
       {Icon ? <Icon size={12} aria-hidden="true" /> : null}
@@ -62,7 +62,7 @@ export function Count({ label, value, tone, hint }: { label: string; value: numb
     <div className="min-w-0 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface-2)]/50 px-4 py-3">
       <p className="text-[13px] text-[var(--muted)]">{label}</p>
       <p className="mt-1 text-2xl font-semibold tnum tracking-tight" style={{ color }}>{value}</p>
-      {hint ? <p className="mt-0.5 text-xs text-[var(--muted)]">{hint}</p> : null}
+      {hint ? <p className="mt-0.5 text-[13px] text-[var(--muted)]">{hint}</p> : null}
     </div>
   );
 }
@@ -71,7 +71,7 @@ export function Section({ step, title, children, className }: { step?: number; t
   return (
     <section className={cn("rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)] sm:p-6", className)}>
       <h2 className="mb-4 flex items-center gap-2.5 text-base font-semibold tracking-tight text-[var(--ink)]">
-        {step ? <span className="grid h-6 w-6 place-items-center rounded-full bg-[var(--accent-soft)] text-xs font-semibold text-[var(--accent-strong)]">{step}</span> : null}
+        {step ? <span className="grid h-6 w-6 place-items-center rounded-full bg-[var(--accent-soft)] text-[13px] font-semibold text-[var(--accent-strong)]">{step}</span> : null}
         {title}
       </h2>
       {children}

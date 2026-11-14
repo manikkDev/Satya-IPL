@@ -1,29 +1,44 @@
 "use client";
 
-// Review history (/app/audit) — docs/plan/06 §5.12. Every recorded change in
-// the group, newest first, from GET /api/v2/audit, with the hash-chain
-// integrity check from GET /api/v2/audit/verify. Read-only.
+// Activity log (/app/audit) — "Who changed what, and when?" Every recorded
+// change, newest first and grouped by day, in plain sentences with people's
+// names (never internal ids). The hash-chain integrity check from
+// GET /api/v2/audit/verify sits on top. Read-only.
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { ShieldCheck, ShieldAlert, ShieldQuestion, Loader2, RotateCcw, ArrowUpRight, History, FilterX, CircleCheck, CircleX, Ban } from "lucide-react";
+import { ShieldCheck, ShieldAlert, ShieldQuestion, Loader2, RotateCcw, ArrowUpRight, History, FilterX, CircleCheck, CircleX, Ban, Download } from "lucide-react";
 import { auditApi, accountApi, isoDateIst, downloadCsv, type AuditRow } from "@/lib/api/v2-pages";
 import { ApiError } from "@/lib/api/client";
 import { mocksEnabled } from "@/lib/flags";
 import { describeAudit, actionRegex, OBJECT_TYPES, ACTION_KINDS } from "@/components/pages/audit/describe";
-import { DateText, ErrorState, EmptyState, PageHeader, FadeIn, Btn, Card } from "@/components/ui/v2";
+import { workflow } from "@/lib/api/workflow";
+import { roleLabel } from "@/content/copy/vocabulary";
+import { formatDate, isoDateIst as isoDay } from "@/lib/format";
+import { ErrorState, EmptyState, PageHeader, FadeIn, Btn, Card } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
 
 const selectCls =
-  "h-10 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-2.5 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)]";
-const labelCls = "mb-1 block text-xs font-medium text-[var(--muted)]";
+  "h-10 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-2.5 text-[15px] text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)]";
+const labelCls = "mb-1.5 block text-[14px] font-medium text-[var(--ink-2)]";
 
-const shortId = (id?: string | null) => (id ? (id.length > 14 ? `…${id.slice(-8)}` : id) : "—");
-const roleWord = (role?: string | null) => (!role || role === "*" ? null : role.replaceAll("_", " "));
+const roleWord = (role?: string | null) => (!role || role === "*" || role === "system" ? null : roleLabel(role));
+/** A person's name, "You", or "Satya" for system rows — never a raw id. */
+const personName = (actor: string | null | undefined, meId: string | undefined, names: Map<string, string>) =>
+  !actor ? "Satya" : actor === meId ? "You" : names.get(actor) ?? (/^(system|svc)[:_]/i.test(actor) ? "Satya" : "A team member");
+
+/** "Today" / "Yesterday" / "12 Nov 2026" for a timestamp, in IST. */
+function dayLabel(iso?: string | null): string {
+  if (!iso) return "Undated";
+  const day = isoDay(new Date(iso));
+  const today = isoDay();
+  const yesterday = isoDay(new Date(Date.now() - 86_400_000));
+  return day === today ? "Today" : day === yesterday ? "Yesterday" : formatDate(day);
+}
 
 /* ---------- chain integrity banner ---------- */
 
@@ -35,7 +50,7 @@ function ChainBanner() {
     staleTime: 60_000,
   });
 
-  const base = "flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[var(--radius-md)] border px-4 py-3 text-sm";
+  const base = "flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[var(--radius-md)] border px-4 py-3 text-[15px]";
 
   if (mocksEnabled()) {
     return (
@@ -68,8 +83,8 @@ function ChainBanner() {
       <div className={cn(base, "border-[color-mix(in_srgb,var(--confirmed)_35%,transparent)] bg-[var(--confirmed-soft)]")} role="status">
         <ShieldCheck size={16} className="text-[var(--confirmed)]" aria-hidden="true" />
         <span className="min-w-[14rem] flex-1 text-[var(--ink)]">
-          <strong className="font-semibold text-[var(--confirmed)]">Chain verified</strong> — all{" "}
-          <span className="tnum">{data.checked ?? 0}</span> entries link up; nothing has been edited or removed.
+          <strong className="font-semibold text-[var(--confirmed)]">History intact</strong> — all{" "}
+          <span className="tnum">{data.checked ?? 0}</span> entries check out; nothing has been edited or removed.
         </span>
         <Btn size="sm" variant="ghost" icon={isFetching ? Loader2 : RotateCcw} disabled={isFetching} onClick={() => refetch()}>Re-check</Btn>
       </div>
@@ -80,9 +95,9 @@ function ChainBanner() {
     <div className={cn(base, "border-[color-mix(in_srgb,var(--sev-critical)_40%,transparent)] bg-[var(--sev-critical-soft)]")} role="alert">
       <ShieldAlert size={16} className="text-[var(--sev-critical)]" aria-hidden="true" />
       <span className="min-w-[14rem] flex-1 text-[var(--ink)]">
-        <strong className="font-semibold text-[var(--sev-critical)]">Chain broken</strong>
+        <strong className="font-semibold text-[var(--sev-critical)]">History may have been altered</strong>
         {position ? <> at entry <span className="tnum">#{position}</span></> : null}
-        {data?.brokenAt ? <> (<span className="font-code text-xs">{data.brokenAt}</span>)</> : null} — an entry from that point no
+         — an entry from that point no
         longer matches its recorded fingerprint. Entries after it cannot be trusted until an administrator investigates.
       </span>
       <Btn size="sm" variant="ghost" icon={isFetching ? Loader2 : RotateCcw} disabled={isFetching} onClick={() => refetch()}>Re-check</Btn>
@@ -92,51 +107,47 @@ function ChainBanner() {
 
 /* ---------- one entry ---------- */
 
-function Entry({ row, meId, broken }: { row: AuditRow; meId?: string; broken: boolean }) {
+function Entry({ row, meId, names, broken }: { row: AuditRow; meId?: string; names: Map<string, string>; broken: boolean }) {
   const d = describeAudit(row);
   const when = row.at ?? row.createdAt;
-  const who = row.actor && row.actor === meId ? "You" : row.actor ? `User ${shortId(row.actor)}` : "System";
+  const who = personName(row.actor, meId, names);
   const role = roleWord(row.actorRole);
   const StatusIcon = d.denied ? Ban : d.ok ? CircleCheck : CircleX;
+  const objectText = d.object.kind && d.object.kind !== "record" ? d.object.kind : null;
   return (
     <li
-      className={cn(
-        "grid grid-cols-1 gap-x-4 gap-y-1.5 border-b border-[var(--line)] px-4 py-3.5 last:border-0 sm:grid-cols-[170px_minmax(0,1fr)_minmax(0,200px)] sm:items-center",
-        broken && "bg-[var(--sev-critical-soft)]",
-      )}
+      className="grid grid-cols-[64px_minmax(0,1fr)] gap-x-4 gap-y-1 border-b border-[var(--line)] px-4 py-3.5 last:border-0 sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center"
+      style={broken ? { boxShadow: "inset 3px 0 0 var(--sev-critical)" } : undefined}
+      title={row.action}
     >
-      <p className="text-xs text-[var(--muted)]"><DateText value={when} withTime /></p>
+      <p className="tnum text-[14px] text-[var(--muted)]">
+        {when ? new Date(when).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", hour12: true }) : "—"}
+      </p>
       <div className="min-w-0">
-        <p className="text-sm text-[var(--ink)]">
-          <span className="font-medium">{who}</span>
-          {role ? <span className="text-[var(--muted)]"> · {role}</span> : null}{" "}
+        <p className="text-[15px] text-[var(--ink)]">
+          <span className="font-medium">{who}</span>{" "}
           <span className="text-[var(--ink-2)]">{d.verb.charAt(0).toLowerCase() + d.verb.slice(1)}</span>
         </p>
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--muted)]">
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 font-medium",
-              d.denied ? "text-[var(--sev-high)]" : d.ok ? "text-[var(--confirmed)]" : "text-[var(--sev-critical)]",
-            )}
-          >
-            <StatusIcon size={12} aria-hidden="true" />
-            {d.denied ? "Blocked" : d.ok ? "Done" : "Failed"}
-          </span>
-          <span className="font-code truncate" title={row.action}>{row.action}</span>
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-[var(--muted)]">
+          {role ? <span>{role}</span> : null}
+          {!d.ok || d.denied ? (
+            <span className={cn("inline-flex items-center gap-1 font-medium", d.denied ? "text-[var(--sev-high)]" : "text-[var(--sev-critical)]")}>
+              <StatusIcon size={13} aria-hidden="true" />
+              {d.denied ? "Blocked — not allowed for this role" : "Failed"}
+            </span>
+          ) : null}
         </p>
       </div>
-      <div className="min-w-0 sm:text-right">
-        {d.object.href ? (
-          <Link
-            href={d.object.href}
-            className="inline-flex max-w-full items-center gap-1 rounded-[var(--radius-sm)] text-xs font-medium text-[var(--accent)] hover:text-[var(--accent-strong)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60"
-          >
-            <span className="truncate">{d.object.kind}{d.object.id ? <> · <span className="font-code">{shortId(d.object.id)}</span></> : null}</span>
-            <ArrowUpRight size={12} className="shrink-0" aria-hidden="true" />
-          </Link>
-        ) : (
-          <span className="text-xs text-[var(--muted)]">{d.object.kind}{d.object.id ? <> · <span className="font-code">{shortId(d.object.id)}</span></> : null}</span>
-        )}
+      <div className="col-start-2 min-w-0 sm:col-start-auto sm:text-right">
+        {objectText ? (
+          d.object.href ? (
+            <Link href={d.object.href} className="inline-flex max-w-full items-center gap-1 text-[14px] font-medium text-[var(--accent-strong)] hover:underline dark:text-[var(--accent)]">
+              Open {objectText.toLowerCase()} <ArrowUpRight size={14} className="shrink-0" aria-hidden="true" />
+            </Link>
+          ) : (
+            <span className="text-[14px] text-[var(--muted)]">{objectText}</span>
+          )
+        ) : null}
       </div>
     </li>
   );
@@ -147,8 +158,8 @@ function ListSkeleton() {
     <Card pad={false}>
       <ul aria-hidden="true">
         {Array.from({ length: 8 }, (_, i) => (
-          <li key={i} className="grid grid-cols-1 gap-2 border-b border-[var(--line)] px-4 py-3.5 last:border-0 sm:grid-cols-[170px_minmax(0,1fr)_200px] sm:items-center">
-            <Skeleton className="h-3.5 w-32" />
+          <li key={i} className="grid grid-cols-[64px_minmax(0,1fr)] gap-x-4 gap-y-2 border-b border-[var(--line)] px-4 py-3.5 last:border-0 sm:grid-cols-[72px_minmax(0,1fr)_200px] sm:items-center">
+            <Skeleton className="h-3.5 w-14" />
             <div className="space-y-1.5"><Skeleton className="h-4 w-3/5" /><Skeleton className="h-3 w-2/5" /></div>
             <Skeleton className="h-3.5 w-28 sm:ml-auto" />
           </li>
@@ -170,6 +181,8 @@ export default function AuditPage() {
 
   const meQ = useQuery({ queryKey: ["me-full"], queryFn: () => accountApi.me(), enabled: !mocksEnabled(), staleTime: 5 * 60_000 });
   const meId = meQ.data?.user.id;
+  const peopleQ = useQuery({ queryKey: ["assignees"], queryFn: workflow.assignees, enabled: !mocksEnabled(), staleTime: 5 * 60_000, retry: 0 });
+  const names = useMemo(() => new Map((peopleQ.data?.items ?? []).map((p) => [p.id, p.name])), [peopleQ.data]);
 
   const serverParams = useMemo(() => {
     const action = actionRegex(filters.kind, filters.objectType);
@@ -220,6 +233,17 @@ export default function AuditPage() {
     });
   }, [query.data, filters.actor, meId]);
 
+  const groups = useMemo(() => {
+    const out: { label: string; rows: AuditRow[] }[] = [];
+    for (const r of rows) {
+      const label = dayLabel(r.at ?? r.createdAt);
+      const last = out[out.length - 1];
+      if (last && last.label === label) last.rows.push(r);
+      else out.push({ label, rows: [r] });
+    }
+    return out;
+  }, [rows]);
+
   const actorOptions = useMemo(() => {
     const ids = new Set((query.data?.pages ?? []).flatMap((p) => p.items.map((r) => r.actor)).filter((a): a is string => Boolean(a) && a !== meId));
     if (filters.actor && filters.actor !== "me") ids.add(filters.actor);
@@ -235,7 +259,7 @@ export default function AuditPage() {
         const when = r.at ?? r.createdAt;
         return [
           when ? new Date(when).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "",
-          r.actor === meId ? "You" : r.actor ?? "",
+          personName(r.actor, meId, names),
           roleWord(r.actorRole) ?? "",
           d.verb, d.object.kind, d.object.id ?? "",
           d.denied ? "Blocked" : d.ok ? "Done" : "Failed",
@@ -249,14 +273,14 @@ export default function AuditPage() {
     <FadeIn className="space-y-5">
       <PageHeader
         title="Activity log"
-        description="Every change and decision in Satya — who did it and when, newest first. Each entry is linked to the one before it, so any later edit shows up."
-        actions={rows.length ? <Btn variant="secondary" size="sm" onClick={exportCsv}>Export CSV</Btn> : undefined}
+        description="Every change and decision in Satya — who did it and when. Entries are chained together, so any later edit would show up."
+        actions={rows.length ? <Btn variant="secondary" icon={Download} onClick={exportCsv}>Export CSV</Btn> : undefined}
       />
 
       <ChainBanner />
 
       {/* filters */}
-      <Card className="p-4">
+      <Card className="p-4 sm:p-5">
         <form
           className="grid grid-cols-2 gap-3 md:grid-cols-[repeat(5,minmax(0,1fr))_auto] md:items-end"
           onSubmit={(e) => e.preventDefault()}
@@ -267,18 +291,18 @@ export default function AuditPage() {
             <select id="f-actor" className={selectCls} value={filters.actor} onChange={(e) => set({ actor: e.target.value })}>
               <option value="">Anyone</option>
               {meId ? <option value="me">You</option> : null}
-              {actorOptions.map((a) => <option key={a} value={a}>User {shortId(a)}</option>)}
+              {actorOptions.map((a) => <option key={a} value={a}>{personName(a, meId, names)}</option>)}
             </select>
           </div>
           <div className="col-span-2 sm:col-span-1">
-            <label htmlFor="f-kind" className={labelCls}>Action</label>
+            <label htmlFor="f-kind" className={labelCls}>Kind of change</label>
             <select id="f-kind" className={selectCls} value={filters.kind} onChange={(e) => set({ kind: e.target.value })}>
               <option value="">Any action</option>
               {ACTION_KINDS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
             </select>
           </div>
           <div className="col-span-2 sm:col-span-1">
-            <label htmlFor="f-object" className={labelCls}>Object</label>
+            <label htmlFor="f-object" className={labelCls}>About</label>
             <select id="f-object" className={selectCls} value={filters.objectType} onChange={(e) => set({ objectType: e.target.value })}>
               <option value="">Anything</option>
               {OBJECT_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -320,23 +344,25 @@ export default function AuditPage() {
           <EmptyState icon={History} title="Nothing recorded yet" body="As people create orders, confirm documents or record decisions, each step is logged here automatically." />
         )
       ) : (
-        <div className="space-y-3">
-          <Card pad={false} className="overflow-hidden">
-            <div className="hidden grid-cols-[170px_minmax(0,1fr)_minmax(0,200px)] gap-x-4 border-b border-[var(--line)] bg-[var(--surface-2)]/60 px-4 py-2.5 text-[13px] font-semibold text-[var(--muted)] sm:grid">
-              <span>When (IST)</span><span>Who · what</span><span className="text-right">Object</span>
-            </div>
-            <ol aria-label="Review history entries">
-              {rows.map((row) => <Entry key={row.id} row={row} meId={meId} broken={row.id === brokenAt} />)}
-            </ol>
-          </Card>
+        <div className="space-y-6">
+          {groups.map((g) => (
+            <section key={g.label} aria-label={g.label}>
+              <h2 className="mb-2 text-[14px] font-semibold text-[var(--muted)]">{g.label}</h2>
+              <Card pad={false} className="overflow-hidden">
+                <ol>
+                  {g.rows.map((row) => <Entry key={row.id} row={row} meId={meId} names={names} broken={row.id === brokenAt} />)}
+                </ol>
+              </Card>
+            </section>
+          ))}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-[var(--muted)]"><span className="tnum">{rows.length}</span> entr{rows.length === 1 ? "y" : "ies"} shown</p>
+            <p className="text-[14px] text-[var(--muted)]"><span className="tnum">{rows.length}</span> entr{rows.length === 1 ? "y" : "ies"} shown</p>
             {query.hasNextPage ? (
               <Btn variant="secondary" size="sm" icon={query.isFetchingNextPage ? Loader2 : undefined} disabled={query.isFetchingNextPage} onClick={() => query.fetchNextPage()}>
                 {query.isFetchingNextPage ? "Loading…" : "Load older entries"}
               </Btn>
             ) : (
-              <p className="text-xs text-[var(--muted)]">That is the beginning of the history{filtered ? " for these filters" : ""}.</p>
+              <p className="text-[14px] text-[var(--muted)]">That is the beginning of the history{filtered ? " for these filters" : ""}.</p>
             )}
           </div>
         </div>

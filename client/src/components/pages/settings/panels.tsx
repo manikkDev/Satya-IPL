@@ -42,7 +42,7 @@ const addressLine = (a?: { line1?: string; city?: string; state?: string; pin?: 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-1 gap-0.5 py-2 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4">
-      <dt className="text-xs text-[var(--muted)] sm:text-sm">{label}</dt>
+      <dt className="text-[13px] text-[var(--muted)] sm:text-sm">{label}</dt>
       <dd className="min-w-0 break-words text-sm text-[var(--ink)]">{children}</dd>
     </div>
   );
@@ -90,7 +90,7 @@ export function EntitiesPanel() {
                     {e.lut.map((l) => (
                       <span key={l.arn} className="inline-flex items-center gap-1">
                         <BadgeCheck size={13} className="text-[var(--confirmed)]" aria-hidden="true" />
-                        <span className="font-code text-xs">{l.arn}</span> <span className="text-[var(--muted)]">FY {l.fy}, to <DateText value={l.validTo} /></span>
+                        <span className="font-code text-[13px]">{l.arn}</span> <span className="text-[var(--muted)]">FY {l.fy}, to <DateText value={l.validTo} /></span>
                       </span>
                     ))}
                   </span>
@@ -239,8 +239,8 @@ export function NumberingPanel() {
                 {series.map((n) => (
                   <tr key={n.docType} className="border-b border-[var(--line)] last:border-0">
                     <td className="px-5 py-2.5 text-[var(--ink)]">{docTypeLabel(n.docType)}</td>
-                    <td className="font-code px-5 py-2.5 text-xs text-[var(--ink-2)]">{n.pattern}</td>
-                    <td className="font-code px-5 py-2.5 text-xs text-[var(--ink)]">{previewNumber(n.pattern, code, n.fy ?? currentFy, n.nextSeq ?? 1)}</td>
+                    <td className="font-code px-5 py-2.5 text-[13px] text-[var(--ink-2)]">{n.pattern}</td>
+                    <td className="font-code px-5 py-2.5 text-[13px] text-[var(--ink)]">{previewNumber(n.pattern, code, n.fy ?? currentFy, n.nextSeq ?? 1)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -332,9 +332,9 @@ export function SuppliersPanel() {
               <Link href={`/app/suppliers/${s.id}`} className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] px-4 py-3 transition-colors last:border-0 hover:bg-[var(--surface-2)]/60">
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium text-[var(--ink)]">{s.legalName ?? s.name}</span>
-                  <span className="font-code mt-0.5 block text-xs text-[var(--muted)]">{s.gstin || "No GSTIN"}</span>
+                  <span className="font-code mt-0.5 block text-[13px] text-[var(--muted)]">{s.gstin || "No GSTIN"}</span>
                 </span>
-                <span className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                <span className="flex items-center gap-2 text-[13px] text-[var(--muted)]">
                   {s.msme ? <span className="inline-flex items-center gap-1 rounded-full bg-[var(--likely-soft)] px-2 py-0.5 font-medium text-[var(--likely)]"><BadgeCheck size={12} aria-hidden="true" /> MSME · {s.msme}</span> : null}
                   {s.paymentTermsDays != null ? <span className="tnum">{s.paymentTermsDays}-day terms</span> : null}
                 </span>
@@ -376,9 +376,9 @@ export function ItemsPanel() {
           <tbody>
             {items.map((item) => (
               <tr key={item.id} className="border-b border-[var(--line)] last:border-0 text-[var(--ink-2)]">
-                <td className="font-code px-4 py-2.5 text-xs text-[var(--ink)]">{item.code}</td>
+                <td className="font-code px-4 py-2.5 text-[13px] text-[var(--ink)]">{item.code}</td>
                 <td className="px-4 py-2.5">{item.description}</td>
-                <td className="font-code px-4 py-2.5 text-xs">{item.hsn ?? "—"}</td>
+                <td className="font-code px-4 py-2.5 text-[13px]">{item.hsn ?? "—"}</td>
                 <td className="px-4 py-2.5">{item.uom ?? "—"}</td>
                 <td className="tnum px-4 py-2.5 text-right">{item.gstRate ? `${item.gstRate}%` : "—"}</td>
               </tr>

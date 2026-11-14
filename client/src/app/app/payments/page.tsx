@@ -1,61 +1,60 @@
 "use client";
 
-// Payments (/app/payments) — allocation workbench per 06 §5.9.
-// Live rows from GET /api/v2/payments (search + status + sort + numbered
-// paging server-side, scoped to the active entity). "Resolve" opens the
-// allocation sheet: engine subset-sum options or hand-picked invoices →
-// reason → POST /payments/:id/allocate with expectedRevision.
-// Bank CSV → column-mapped /import/bank-csv.
+// Payments (/app/payments) — "Which money left the bank without a bill to
+// show for it?" Unmatched money is surfaced first with a one-click way into
+// the allocation sheet (engine exact-sum options or hand-picked bills →
+// reason → POST /payments/:id/allocate with expectedRevision). Status chips
+// carry counts; the table keeps money right-aligned. Bank CSV →
+// column-mapped /import/bank-csv.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  UploadCloud, X, CheckCircle2, Search, ChevronLeft, ChevronRight, ArrowDownUp, Landmark,
+  UploadCloud, X, CheckCircle2, Search, Landmark, Link2, Building2, Eye, MessageSquare,
   CircleCheck, CircleDot, CircleDashed, CircleHelp, CircleAlert, Wallet, Loader2, type LucideIcon,
 } from "lucide-react";
+import { Pager } from "@/components/pages/shared/pager";
 import { v2 } from "@/lib/api/v2";
 import { mocksEnabled } from "@/lib/flags";
 import { useSession } from "@/components/v2/session";
-import { Money, DateText, ErrorState, EmptyState, PageHeader, FadeIn, Card, Btn } from "@/components/ui/v2";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Money, DateText, ErrorState, EmptyState, PageHeader, FadeIn, Card, Btn, Callout, FilterChips, ResponsiveTable, RowActions, TableSkeleton, type Column } from "@/components/ui/v2";
 import { AllocationSheet } from "@/components/pages/payments/allocation-sheet";
+import { SearchField, ListToolbar } from "@/components/pages/shared/search-field";
+import { fromPaise, sumMoney, toPaise } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /* ---------- row normalization — mock + live shapes ---------- */
 type Row = {
   id: string; amount?: string | { amount: string; currency: string }; utr?: string; date?: string;
   counterparty?: string; supplier?: string; status?: string; allocatedTotal?: string; mode?: string; number?: string | null;
+  supplierId?: string | null;
 };
 const amt = (r: Row): string => (typeof r.amount === "string" ? r.amount : r.amount?.amount ?? "");
 const who = (r: Row): string => r.counterparty || r.supplier || "Counterparty not recorded";
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string; icon: LucideIcon }> = {
-  allocated: { label: "Fully allocated", color: "var(--confirmed)", bg: "var(--confirmed-soft)", icon: CircleCheck },
-  linked: { label: "Linked", color: "var(--confirmed)", bg: "var(--confirmed-soft)", icon: CircleCheck },
-  partial: { label: "Part allocated", color: "var(--likely)", bg: "var(--likely-soft)", icon: CircleDot },
-  unallocated: { label: "Not allocated", color: "var(--possible)", bg: "var(--possible-soft)", icon: CircleAlert },
+  allocated: { label: "Matched", color: "var(--confirmed)", bg: "var(--confirmed-soft)", icon: CircleCheck },
+  linked: { label: "Matched", color: "var(--confirmed)", bg: "var(--confirmed-soft)", icon: CircleCheck },
+  partial: { label: "Part matched", color: "var(--likely)", bg: "var(--likely-soft)", icon: CircleDot },
+  unallocated: { label: "Not matched", color: "var(--possible)", bg: "var(--possible-soft)", icon: CircleAlert },
   needs_evidence: { label: "Needs evidence", color: "var(--missing)", bg: "var(--missing-soft)", icon: CircleDashed },
   not_linked: { label: "Not linked", color: "var(--missing)", bg: "var(--missing-soft)", icon: CircleDashed },
   unclear: { label: "Needs your call", color: "var(--unclear)", bg: "var(--unclear-soft)", icon: CircleHelp },
 };
-const STATUS_FILTERS = [
-  ["", "All"], ["needs_evidence", "Needs evidence"], ["unallocated", "Not allocated"],
-  ["partial", "Part allocated"], ["allocated", "Fully allocated"],
-];
 const OPEN_STATUSES = new Set(["unallocated", "partial", "needs_evidence", "unclear", "not_linked"]);
 const SORTS = [["date_desc", "Newest first"], ["date_asc", "Oldest first"], ["amount_desc", "Largest first"], ["amount_asc", "Smallest first"]];
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 15;
 
 function StatusPill({ status }: { status?: string }) {
   const meta = STATUS_META[status || ""] ?? STATUS_META.not_linked;
   const Icon = meta.icon;
   return (
     <span
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[13px] font-medium leading-none"
+      className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[13px] font-medium leading-none"
       style={{ color: meta.color, background: meta.bg, borderColor: `color-mix(in srgb, ${meta.color} 32%, transparent)` }}
     >
-      <Icon size={12} aria-hidden="true" /> {meta.label}
+      <Icon size={14} aria-hidden="true" /> {meta.label}
     </span>
   );
 }
@@ -135,12 +134,12 @@ function ImportCsv({ entityId, onDone }: { entityId: string; onDone: () => void 
     }
   };
 
-  const FIELD_LABEL: Record<string, string> = { date: "Date", utr: "UTR / reference", amount: "Amount", payeeName: "Payee", mode: "Mode" };
+  const FIELD_LABEL: Record<string, string> = { date: "Date", utr: "Bank reference (UTR)", amount: "Amount", payeeName: "Paid to", mode: "Mode" };
 
   return (
     <Card className="rise">
       <div className="flex items-start justify-between gap-3">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]"><Landmark size={15} aria-hidden="true" /> Import a bank statement</h2>
+        <h2 className="flex items-center gap-2 text-[17px] font-semibold text-[var(--ink)]"><Landmark size={18} className="text-[var(--muted)]" aria-hidden="true" /> Import a bank statement</h2>
         <button type="button" onClick={onDone} aria-label="Close bank statement import" className="rounded-[var(--radius-sm)] p-1 text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60">
           <X size={15} aria-hidden="true" />
         </button>
@@ -149,23 +148,23 @@ function ImportCsv({ entityId, onDone }: { entityId: string; onDone: () => void 
         <button
           type="button"
           onClick={() => input.current?.click()}
-          className="mt-3 flex w-full flex-col items-center rounded-[var(--radius-sm)] border-2 border-dashed border-[var(--line-strong)] px-4 py-8 text-sm text-[var(--muted)] transition-colors hover:border-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60"
+          className="mt-4 flex w-full flex-col items-center rounded-[var(--radius-sm)] border-2 border-dashed border-[var(--line-strong)] px-4 py-8 text-[15px] text-[var(--muted)] transition-colors hover:border-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60"
         >
           <UploadCloud size={20} className="text-[var(--accent)]" aria-hidden="true" />
-          <span className="mt-2">Choose a bank statement CSV — up to 2 MB</span>
+          <span className="mt-2">Choose your bank’s statement export (CSV, up to 2 MB)</span>
         </button>
       )}
       {stage === "map" && (
         <div className="mt-3 space-y-3">
-          <p className="text-sm leading-relaxed text-[var(--muted)]"><span className="tnum">{rows.length}</span> rows found. Tell Satya which columns mean what — unreadable rows are reported, never silently dropped.</p>
+          <p className="text-[15px] leading-relaxed text-[var(--ink-2)]"><span className="tnum font-medium">{rows.length}</span> rows found. Tell Satya which column is which — rows it can’t read are reported, never silently dropped.</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
             {(["date", "utr", "amount", "payeeName", "mode"] as const).map((field) => (
-              <label key={field} className="text-xs text-[var(--muted)]">
+              <label key={field} className="text-[14px] font-medium text-[var(--ink-2)]">
                 {FIELD_LABEL[field]}{field === "date" || field === "utr" || field === "amount" ? " *" : ""}
                 <select
                   value={mapping[field]}
                   onChange={(e) => setMapping((m) => ({ ...m, [field]: e.target.value }))}
-                  className="mt-1 h-10 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]"
+                  className="mt-1.5 h-10 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-2 text-[15px] text-[var(--ink)] outline-none focus:border-[var(--accent)]"
                 >
                   <option value="">— skip —</option>
                   {headers.map((h) => <option key={h} value={h}>{h}</option>)}
@@ -173,13 +172,13 @@ function ImportCsv({ entityId, onDone }: { entityId: string; onDone: () => void 
               </label>
             ))}
           </div>
-          <Btn size="sm" onClick={submit} icon={busy ? Loader2 : undefined} disabled={busy || !mapping.date || !mapping.utr || !mapping.amount}>
+          <Btn onClick={submit} icon={busy ? Loader2 : undefined} disabled={busy || !mapping.date || !mapping.utr || !mapping.amount}>
             {busy ? "Importing…" : `Import ${rows.length} rows`}
           </Btn>
         </div>
       )}
       {stage === "result" && result && (
-        <p className="mt-3 flex items-start gap-2 text-sm text-[var(--ink-2)]" role="status">
+        <p className="mt-3 flex items-start gap-2 text-[15px] text-[var(--ink-2)]" role="status">
           <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-[var(--confirmed)]" aria-hidden="true" />
           <span>
             {result.created} payment{result.created === 1 ? "" : "s"} imported
@@ -193,168 +192,200 @@ function ImportCsv({ entityId, onDone }: { entityId: string; onDone: () => void 
   );
 }
 
-function ListSkeleton() {
-  return (
-    <ul className="space-y-2" aria-hidden="true">
-      {[0, 1, 2, 3, 4].map((i) => (
-        <li key={i} className="flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] px-4 py-3.5">
-          <div className="flex-1 space-y-1.5"><Skeleton className="h-4 w-2/5" /><Skeleton className="h-3 w-1/3" /></div>
-          <Skeleton className="h-5 w-24 rounded-full" />
-          <Skeleton className="hidden h-8 w-20 sm:block" />
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 /* ---------- page ---------- */
+type FilterKey = "" | "unallocated" | "partial" | "needs_evidence" | "unclear" | "allocated";
+const FILTERS: { value: FilterKey; label: string; tone?: "warn" | "critical"; always?: boolean }[] = [
+  { value: "unallocated", label: "Not matched", tone: "warn", always: true },
+  { value: "partial", label: "Part matched", tone: "warn" },
+  { value: "needs_evidence", label: "Needs evidence", tone: "warn" },
+  { value: "unclear", label: "Needs your call", tone: "warn" },
+  { value: "allocated", label: "Matched", always: true },
+  { value: "", label: "All", always: true },
+];
+
 export default function PaymentsPage() {
   const { activeEntity } = useSession();
   const entityId = activeEntity?.id ?? "";
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<FilterKey | null>(null);
   const [sort, setSort] = useState("date_desc");
   const [page, setPage] = useState(1);
   const [workbench, setWorkbench] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(query.trim()), 350);
+    const t = setTimeout(() => setDebounced(query.trim()), 300);
     return () => clearTimeout(t);
   }, [query]);
   useEffect(() => setPage(1), [debounced, status, sort, entityId]);
 
   const mocks = mocksEnabled();
+  const scope: Record<string, string> = entityId ? { entityId } : {};
+
+  // Unmatched money: every open payment (the list API caps at 500 rows).
+  const open = useQuery({
+    queryKey: ["payments", entityId, "open-summary"],
+    queryFn: async () => {
+      const pages = await Promise.all(
+        [...OPEN_STATUSES].map((s) => v2.payments({ status: s, pageSize: "50", ...scope }).catch(() => ({ items: [], total: 0 }))),
+      );
+      const rows = pages.flatMap((p) => (p.items ?? []) as Row[]);
+      const left = sumMoney(rows.map((r) => fromPaise(toPaise(amt(r)) - toPaise(r.allocatedTotal ?? "0"))));
+      return { rows, left, total: pages.reduce((n, p) => n + ((p as { total?: number }).total ?? 0), 0) };
+    },
+    staleTime: 30_000,
+  });
+  const counts = useQuery({
+    queryKey: ["payments", entityId, "counts", debounced],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        FILTERS.map(async (f) => {
+          const r = (await v2.payments({ status: f.value, q: debounced, pageSize: "1", ...scope })) as { total?: number };
+          return [f.value, r.total ?? 0] as const;
+        }),
+      );
+      return Object.fromEntries(entries) as Record<FilterKey, number>;
+    },
+    staleTime: 30_000,
+  });
+  const activeStatus: FilterKey = status ?? ((counts.data?.unallocated ?? 0) > 0 ? "unallocated" : "");
+
   const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ["payments", entityId, { q: debounced, status, sort, page }],
-    queryFn: () => v2.payments({ q: debounced, status, sort, page: String(page), pageSize: String(PAGE_SIZE), ...(entityId ? { entityId } : {}) }),
+    queryKey: ["payments", entityId, { q: debounced, status: activeStatus, sort, page }],
+    queryFn: () => v2.payments({ q: debounced, status: activeStatus, sort, page: String(page), pageSize: String(PAGE_SIZE), ...scope }),
     placeholderData: (prev) => prev,
+    enabled: status !== null || counts.isFetched || mocks,
   });
   const items = useMemo(() => (data?.items ?? []) as Row[], [data]);
   const total = (data as { total?: number })?.total ?? items.length;
   const pages = (data as { pages?: number })?.pages ?? 1;
-  const windowStart = Math.max(1, Math.min(page - 2, pages - 4));
-  const pageNumbers = Array.from({ length: Math.min(5, pages) }, (_, i) => windowStart + i);
+  const filtered = !!debounced || activeStatus !== "";
+
+  const columns: Column<Row>[] = [
+    {
+      key: "who", header: "Paid to", primary: true, className: "min-w-[220px]",
+      cell: (r) => (
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-[var(--ink)]">{who(r)}</p>
+          <p className="mt-0.5 truncate text-[13px] text-[var(--muted)] tnum">{r.utr ? `UTR ${r.utr}` : "No bank reference"}{r.mode ? ` · ${r.mode}` : ""}</p>
+        </div>
+      ),
+    },
+    { key: "date", header: "Date", cell: (r) => (r.date ? <DateText value={r.date} className="whitespace-nowrap" /> : <span className="text-[var(--muted)]">—</span>) },
+    { key: "amount", header: "Amount", align: "right", cell: (r) => <Money value={amt(r)} className="font-semibold text-[var(--ink)]" /> },
+    {
+      key: "left", header: "Not yet matched", align: "right",
+      cell: (r) => {
+        const left = toPaise(amt(r)) - toPaise(r.allocatedTotal ?? "0");
+        return left > BigInt(0) ? <Money value={fromPaise(left)} className="font-medium text-[var(--sev-high)]" /> : <span className="text-[var(--muted)]">—</span>;
+      },
+    },
+    { key: "status", header: "Status", cell: (r) => <StatusPill status={r.status} /> },
+  ];
+
+  const unmatchedCount = open.data?.total ?? 0;
+  const oldestOpen = [...(open.data?.rows ?? [])].sort((a, b) => String(a.date ?? "").localeCompare(String(b.date ?? "")))[0];
 
   return (
-    <FadeIn className="space-y-5">
+    <FadeIn className="space-y-6">
       <PageHeader
         title="Payments"
-        description="Money that left your bank, matched to the bills it paid. When a payment could belong to more than one bill, it waits for you to decide."
-        actions={<Btn variant="secondary" icon={UploadCloud} onClick={() => setImporting((v) => !v)} aria-expanded={importing}>Import bank CSV</Btn>}
+        description="Money that left your bank, and the bills it paid. Anything not matched to a bill waits here for you."
+        actions={<Btn variant="secondary" icon={UploadCloud} onClick={() => setImporting((v) => !v)} aria-expanded={importing}>Import bank statement</Btn>}
       />
 
       {importing ? (
         mocks
-          ? <Card><p className="text-sm text-[var(--muted)]">Demo mode — bank import is disabled.</p></Card>
+          ? <Card><p className="text-[15px] text-[var(--muted)]">Demo mode — bank import is disabled.</p></Card>
           : <ImportCsv entityId={entityId} onDone={() => { void queryClient.invalidateQueries({ queryKey: ["payments"] }); setImporting(false); }} />
       ) : null}
 
-      {/* filter bar */}
-      <div className="flex flex-col gap-2.5 md:flex-row md:flex-wrap md:items-center">
-        <div className="relative md:w-64">
-          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" aria-hidden="true" />
-          <input
-            type="search" value={query} onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search supplier, UTR, number…" aria-label="Search payments"
-            className="h-10 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] pl-9 pr-3 text-sm text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
-          />
-        </div>
-        <div className="-mx-1 overflow-x-auto px-1">
-          <div role="group" aria-label="Filter by status" className="flex w-max items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-1">
-            {STATUS_FILTERS.map(([value, label]) => (
-              <button
-                key={value} type="button" aria-pressed={status === value} onClick={() => setStatus(value)}
-                className={cn(
-                  "whitespace-nowrap rounded-[calc(var(--radius-sm)-3px)] px-3 py-1.5 text-[14px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60",
-                  status === value ? "bg-[var(--ink)] text-[var(--paper)]" : "text-[var(--ink-2)] hover:text-[var(--ink)]",
-                )}
-              >
-                {label}
-              </button>
-            ))}
+      {/* unmatched money — the one thing this page exists to resolve */}
+      {open.data && unmatchedCount > 0 ? (
+        <section aria-labelledby="unmatched-title" className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)] sm:p-6" style={{ boxShadow: "inset 3px 0 0 var(--sev-medium), var(--shadow-1)" }}>
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-[13px] font-semibold text-[var(--sev-medium)]">Unmatched money</p>
+              <h2 id="unmatched-title" className="mt-1 text-[21px] font-semibold tracking-[-0.01em] text-[var(--ink)]">
+                <Money value={open.data.left} /> paid out but not linked to a bill
+              </h2>
+              <p className="mt-1 text-[15px] text-[var(--ink-2)]">
+                {unmatchedCount === 1 ? "1 payment" : `${unmatchedCount} payments`}. Until each is matched, the supplier’s balance and any duplicate-payment checks can’t be trusted.
+              </p>
+            </div>
+            {oldestOpen ? (
+              <Btn className="shrink-0" icon={Link2} onClick={() => setWorkbench(oldestOpen.id)}>
+                Match {unmatchedCount > 1 ? "the oldest" : "it"} now
+              </Btn>
+            ) : null}
           </div>
-        </div>
-        <div className="flex items-center gap-1.5 md:ml-auto">
-          <ArrowDownUp size={13} className="text-[var(--muted)]" aria-hidden="true" />
-          <select
-            value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort payments"
-            className="h-10 rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-2 text-sm text-[var(--ink-2)] outline-none transition-colors focus:border-[var(--accent)]"
-          >
-            {SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-        </div>
-      </div>
+        </section>
+      ) : open.data && !open.isFetching && !mocks ? (
+        <Callout tone="success" title="Every payment is matched to a bill">
+          <p className="text-[15px]">Import your latest bank statement to keep it that way.</p>
+        </Callout>
+      ) : null}
+
+      <ListToolbar
+        search={
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <select
+              value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort payments"
+              className="h-10 rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-[15px] text-[var(--ink-2)] outline-none focus:border-[var(--accent)]"
+            >
+              {SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+            <SearchField value={query} onChange={setQuery} placeholder="Search supplier, UTR or number" className="sm:w-64" />
+          </div>
+        }
+      >
+        <FilterChips
+          label="Filter payments"
+          value={activeStatus}
+          onChange={(v) => setStatus(v)}
+          options={FILTERS.filter((f) => f.always || f.value === activeStatus || (counts.data?.[f.value] ?? 0) > 0).map((f) => ({
+            value: f.value, label: f.label, count: counts.data?.[f.value], tone: f.tone,
+          }))}
+        />
+      </ListToolbar>
 
       {error ? (
         <ErrorState message={error instanceof Error ? error.message : "Something went wrong."} onRetry={() => refetch()} />
-      ) : isLoading ? (
-        <ListSkeleton />
+      ) : isLoading || (!data && !mocks) ? (
+        <TableSkeleton rows={6} columns={7} />
       ) : items.length === 0 ? (
-        debounced || status ? (
-          <EmptyState icon={Search} title="No payments match these filters" body="Try a different search or status." actionLabel="Clear filters" onAction={() => { setQuery(""); setStatus(""); }} />
+        filtered ? (
+          <EmptyState icon={Search} title={debounced ? "No payments match your search" : "Nothing in this group"} body="Try another search, or pick a different filter above." actionLabel="Show all payments" onAction={() => { setQuery(""); setStatus(""); }} />
         ) : (
-          <EmptyState icon={Wallet} title="No payments yet" body="Import a bank statement CSV to bring in transfers, then link each one to the invoices it paid." actionLabel="Import bank CSV" onAction={() => setImporting(true)} />
+          <EmptyState icon={Wallet} title="No payments yet" body="Import a bank statement to bring in transfers. Satya matches each one to the bills it paid and asks you about the rest." actionLabel="Import bank statement" onAction={() => setImporting(true)} />
         )
       ) : (
-        <>
-          <ul className={cn("rise-stagger space-y-2 transition-opacity", isFetching && "opacity-70")} aria-busy={isFetching}>
-            {items.map((payment) => {
-              const open = OPEN_STATUSES.has(payment.status || "");
+        <div className={cn("space-y-3 transition-opacity", isFetching && "opacity-70")} aria-busy={isFetching}>
+          <ResponsiveTable
+            caption="Payments"
+            columns={columns}
+            rows={items}
+            rowKey={(r) => r.id}
+            rowAccent={(r) => (OPEN_STATUSES.has(r.status || "") ? "warn" : null)}
+            actions={(r) => {
+              const isOpen = OPEN_STATUSES.has(r.status || "");
               return (
-                <li key={payment.id}>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] px-4 py-3.5">
-                    <div className="min-w-0 flex-1 basis-56">
-                      <p className="flex flex-wrap items-baseline gap-x-2 text-sm text-[var(--ink)]">
-                        <Money value={amt(payment)} className="font-semibold" />
-                        <span className="truncate text-[var(--ink-2)]">{who(payment)}</span>
-                      </p>
-                      <p className="mt-0.5 text-xs text-[var(--muted)]">
-                        {payment.date ? <DateText value={payment.date} /> : "No date"}
-                        {payment.utr ? <> · UTR <span className="font-code">{payment.utr}</span></> : " · no bank reference"}
-                        {payment.mode ? <> · {payment.mode}</> : ""}
-                        {payment.status === "partial" && payment.allocatedTotal ? <> · <Money value={payment.allocatedTotal} /> allocated</> : ""}
-                      </p>
-                    </div>
-                    <StatusPill status={payment.status} />
-                    {open ? (
-                      <Btn size="sm" variant="outline" onClick={() => setWorkbench(payment.id)} aria-label={`Resolve payment of ${amt(payment)} to ${who(payment)}`}>
-                        Resolve
-                      </Btn>
-                    ) : null}
-                  </div>
-                </li>
+                <RowActions
+                  label={`payment to ${who(r)}`}
+                  primary={isOpen ? <Btn size="sm" onClick={() => setWorkbench(r.id)}>Match to bills</Btn> : null}
+                  items={[
+                    ...(r.supplierId ? [{ label: "Open the supplier", icon: Building2, href: `/app/suppliers/${r.supplierId}` }] : []),
+                    { label: "Preview the payment", icon: Eye, href: `/app/documents/${r.id}` },
+                    { label: "Ask Satya about it", icon: MessageSquare, href: `/app/ask?about=${encodeURIComponent(`payment ${r.utr ?? r.number ?? ""} to ${who(r)}`)}` },
+                  ]}
+                />
               );
-            })}
-          </ul>
-
-          <nav className="flex flex-wrap items-center justify-between gap-3 pt-1" aria-label="Payments pages">
-            <p className="text-xs text-[var(--muted)]">
-              Showing <span className="tnum">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)}</span> of <span className="tnum">{total}</span>
-            </p>
-            {pages > 1 ? (
-              <div className="flex items-center gap-1">
-                <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} aria-label="Previous page"
-                  className="grid h-8 w-8 place-items-center rounded-[var(--radius-sm)] border border-[var(--line)] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]/50 disabled:opacity-40">
-                  <ChevronLeft size={14} aria-hidden="true" />
-                </button>
-                {pageNumbers.map((n) => (
-                  <button key={n} type="button" onClick={() => setPage(n)} aria-current={n === page ? "page" : undefined} aria-label={`Page ${n}`}
-                    className={cn("tnum h-8 min-w-8 rounded-[var(--radius-sm)] border px-2 text-xs font-medium transition-colors",
-                      n === page ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--on-accent)]" : "border-[var(--line)] text-[var(--ink-2)] hover:border-[var(--accent)]/50")}>
-                    {n}
-                  </button>
-                ))}
-                <button type="button" onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page === pages} aria-label="Next page"
-                  className="grid h-8 w-8 place-items-center rounded-[var(--radius-sm)] border border-[var(--line)] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]/50 disabled:opacity-40">
-                  <ChevronRight size={14} aria-hidden="true" />
-                </button>
-              </div>
-            ) : null}
-          </nav>
-        </>
+            }}
+          />
+          <Pager page={page} pages={pages} total={total} pageSize={PAGE_SIZE} onPage={setPage} noun={total === 1 ? "payment" : "payments"} />
+        </div>
       )}
 
       <AllocationSheet paymentId={workbench} onClose={() => setWorkbench(null)} />

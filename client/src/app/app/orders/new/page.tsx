@@ -10,18 +10,20 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Check, FileDown, CircleCheck, LoaderCircle, TriangleAlert, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, FileDown, LoaderCircle, TriangleAlert, Plus, Trash2 } from "lucide-react";
 import { useSession } from "@/components/v2/session";
 import { mockEntities, mockSupplier } from "@/lib/mocks/flagship";
 import { v2 } from "@/lib/api/v2";
 const downloadDocumentPdf = async (...args: Parameters<typeof import("@/components/v2/po-pdf").downloadDocumentPdf>) =>
   (await import("@/components/v2/po-pdf")).downloadDocumentPdf(...args);
 import { mocksEnabled } from "@/lib/flags";
-import { formatMoney, isoDateIst } from "@/lib/format";
+import { formatMoney, formatDate, isoDateIst } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { FadeIn } from "@/components/ui/v2";
+import { FadeIn, Btn, PageHeader, Callout, inputClass } from "@/components/ui/v2";
+import { SearchField } from "@/components/pages/shared/search-field";
 
-const STEPS = ["Who is buying?", "Who is the supplier?", "What are you buying?", "Commercial terms", "Tax & totals", "Approvals", "Issue & share"];
+const STEPS = ["Buyer", "Supplier", "Items", "Terms", "Tax & totals", "Approval", "Issue"];
+const STEP_HINT = ["Which of your companies is buying, and by when.", "Who you are buying from — this decides CGST + SGST or IGST.", "What you are buying. Pick the HSN code and the GST rate fills in.", "Payment, delivery and inspection terms printed on the order.", "Satya saves a draft and works out GST and totals on the server.", "Send it to the approver your company policy names for this amount.", "Issue the approved order and share it with the supplier."];
 
 type Line = { description: string; hsn: string; gstRate: string; qty: string; uom: string; rate: string };
 
@@ -80,8 +82,9 @@ function mockCompute(lines: Line[], intraState: boolean): Promise<ComputeResult>
   );
 }
 
-const inputCls = "h-10 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface-2)]/50 px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)] placeholder:text-[var(--muted)]";
-const labelCls = "mb-1 block text-xs font-medium text-[var(--muted)]";
+const inputCls = inputClass;
+const labelCls = "mb-1.5 block text-[14px] font-medium text-[var(--ink)]";
+const noteCls = "rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3.5 py-2.5 text-[14px] leading-relaxed text-[var(--ink-2)]";
 
 /** Debounced HSN picker — real /api/v2/hsn/search outside mocks, curated list inside. */
 function HsnField({ value, onChange, onPick }: { value: string; onChange: (v: string) => void; onPick?: (code: string, rate?: string | null) => void }) {
@@ -137,7 +140,7 @@ function HsnField({ value, onChange, onPick }: { value: string; onChange: (v: st
                 aria-selected={r.code === value}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => { onChange(r.code); onPick?.(r.code, r.rate); setOpen(false); }}
-                className="w-full px-3 py-1.5 text-left text-xs hover:bg-[var(--accent-soft)]"
+                className="w-full px-3 py-2 text-left text-[14px] hover:bg-[var(--accent-soft)]"
               >
                 <span className="font-code font-medium text-[var(--ink)]">{r.code}</span>
                 <span className="ml-2 text-[var(--muted)]">{r.description}</span>
@@ -160,6 +163,7 @@ export default function NewOrderPage() {
     if (!entityId && activeEntity?.id) setEntityId(activeEntity.id);
   }, [activeEntity?.id, entityId]);
   const [supplierId, setSupplierId] = useState("");
+  const [supplierQuery, setSupplierQuery] = useState("");
   const [requiredBy, setRequiredBy] = useState("");
   const [costCentre, setCostCentre] = useState("");
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
@@ -178,11 +182,13 @@ export default function NewOrderPage() {
   const supplier = supplierList.find((s) => s.id === supplierId);
   const intraState = supplier && entity ? stateOf(supplier.gstin) === entity.stateCode : true;
   const linesValid = lines.every((l) => l.description.trim() && QTY_RE.test(l.qty) && Number(l.qty) > 0 && RATE_RE.test(l.rate));
-  const canNext =
-    (step === 0 && !!entity) ||
-    (step === 1 && !!supplier) ||
-    (step === 2 && linesValid) ||
-    step >= 3;
+  // Why "Continue" is disabled — said next to the button, not discovered.
+  const blockedReason =
+    step === 0 && !entity ? "Choose the buying company."
+      : step === 1 && !supplier ? "Choose a supplier."
+        : step === 2 && !linesValid ? "Each item needs a description, quantity and rate."
+          : step === 4 && !compute ? "Work out the totals first."
+            : null;
 
   // Any edit after computing invalidates the totals — they must be recomputed.
   const inputsKey = JSON.stringify({ entityId, supplierId, lines, terms, requiredBy, costCentre });
@@ -319,52 +325,55 @@ export default function NewOrderPage() {
     <FadeIn className="grid grid-cols-1 gap-6 xl:grid-cols-5">
       {/* left: wizard */}
       <div className="xl:col-span-3">
-        <button type="button" onClick={() => router.back()} className="mb-3 inline-flex items-center gap-1 text-sm text-[var(--muted)] hover:text-[var(--ink)]">
-          <ArrowLeft size={15} /> Back
-        </button>
-        <h1 className="type-page-title">New purchase order</h1>
+        <Link href="/app/orders" className="mb-4 inline-flex items-center gap-1 text-[14px] font-medium text-[var(--muted)] hover:text-[var(--ink)]">
+          <ArrowLeft size={15} aria-hidden="true" /> Orders
+        </Link>
+        <PageHeader title="New purchase order" description="Seven short steps. GST and totals are worked out for you; nothing is sent to the supplier until you issue it." />
 
         {/* stepper */}
-        <ol className="mt-4 flex flex-wrap gap-1.5" aria-label="Progress">
+        <ol className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none]" aria-label="Steps">
           {STEPS.map((name, i) => (
-            <li key={name}>
+            <li key={name} className="min-w-[72px] flex-1">
               <button
                 type="button"
                 onClick={() => i < step && setStep(i)}
+                disabled={i > step}
                 aria-current={i === step ? "step" : undefined}
-                className={cn(
-                  "rounded-full border px-2.5 py-1 text-[13px] font-medium transition-all",
-                  i === step ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--on-accent)]" : i < step ? "border-[var(--accent)]/30 bg-[var(--accent-soft)] text-[var(--accent-strong)] cursor-pointer hover:border-[var(--accent)]/60" : "border-[var(--line)] bg-[var(--surface-2)] text-[var(--muted)]",
-                )}
+                className={cn("group flex w-full flex-col gap-2 text-left", i < step && "cursor-pointer")}
               >
-                {i < step ? "✓ " : `${i + 1}. `}{name}
+                <span className={cn("h-1 w-full rounded-full transition-colors", i <= step ? "bg-[var(--accent)]" : "bg-[var(--surface-3)]")} />
+                <span className={cn("flex items-center gap-1.5 text-[13px] font-medium", i === step ? "text-[var(--ink)]" : i < step ? "text-[var(--accent-strong)] group-hover:underline dark:text-[var(--accent)]" : "text-[var(--muted)]")}>
+                  {i < step ? <Check size={13} aria-hidden="true" /> : <span className="tnum">{i + 1}</span>}
+                  {name}
+                </span>
               </button>
             </li>
           ))}
         </ol>
 
-        <div className="mt-5 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow-1)]">
+        <div className="mt-6 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)] sm:p-6">
+          <p className="mb-5 text-[15px] text-[var(--muted)]">{STEP_HINT[step]}</p>
           {step === 0 && (
             <fieldset>
-              <legend className="text-base font-semibold text-[var(--ink)]">Who is buying?</legend>
-              <div className="mt-4 space-y-4">
+              <legend className="sr-only">Who is buying?</legend>
+              <div className="space-y-5">
                 <div>
-                  <label className={labelCls} htmlFor="entity">Entity (billing GSTIN)</label>
+                  <label className={labelCls} htmlFor="entity">Buying company</label>
                   <select id="entity" value={entityId} onChange={(e) => setEntityId(e.target.value)} className={inputCls}>
                     {entities.length === 0 ? <option value="">Loading your entities…</option> : null}
                     {entities.map((e) => <option key={e.id} value={e.id}>{e.legalName}{e.gstin ? ` · ${e.gstin}` : ""}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className={labelCls} htmlFor="cost">Cost centre</label>
+                  <label className={labelCls} htmlFor="cost">Cost centre <span className="font-normal text-[var(--muted)]">(optional)</span></label>
                   <input id="cost" value={costCentre} onChange={(e) => setCostCentre(e.target.value)} placeholder="e.g. Maintenance — Plant 2" className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls} htmlFor="reqby">Required by</label>
+                  <label className={labelCls} htmlFor="reqby">Needed by <span className="font-normal text-[var(--muted)]">(optional)</span></label>
                   <input id="reqby" type="date" value={requiredBy} onChange={(e) => setRequiredBy(e.target.value)} className={inputCls} />
                 </div>
-                <p className="rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]">
-                  Place of supply comes from the ship-to state — it decides whether CGST+SGST or IGST applies.
+                <p className={noteCls}>
+                  The place of supply is your company’s state — it decides whether CGST + SGST or IGST applies.
                 </p>
               </div>
             </fieldset>
@@ -372,33 +381,40 @@ export default function NewOrderPage() {
 
           {step === 1 && (
             <fieldset>
-              <legend className="text-base font-semibold text-[var(--ink)]">Who is the supplier?</legend>
-              <div className="mt-4 space-y-2">
-                {!mocksEnabled() && suppliersLoading ? <p className="text-sm text-[var(--muted)]">Loading your suppliers…</p> : null}
+              <legend className="sr-only">Who is the supplier?</legend>
+              <div className="space-y-2.5">
+                {!mocksEnabled() && suppliersLoading ? <p className="text-[15px] text-[var(--muted)]">Loading your suppliers…</p> : null}
                 {!mocksEnabled() && !suppliersLoading && supplierList.length === 0 ? (
-                  <p className="rounded-[var(--radius-sm)] border border-dashed border-[var(--line-strong)] px-4 py-6 text-center text-sm text-[var(--muted)]">
+                  <p className="rounded-[var(--radius-sm)] border border-dashed border-[var(--line-strong)] px-4 py-6 text-center text-[15px] text-[var(--muted)]">
                     No suppliers in your master yet. <Link href="/app/suppliers" className="font-medium text-[var(--accent)] hover:underline">Open Suppliers</Link>
                   </p>
                 ) : null}
-                {supplierList.map((s) => (
-                  <label key={s.id} className={cn("flex cursor-pointer items-start gap-3 rounded-[var(--radius-sm)] border p-3", supplierId === s.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]")}>
-                    <input type="radio" name="supplier" checked={supplierId === s.id} onChange={() => setSupplierId(s.id)} className="mt-1 accent-[var(--accent)]" />
-                    <span>
-                      <span className="block text-sm font-medium text-[var(--ink)]">{s.legalName}</span>
-                      <span className="mt-0.5 block font-code text-xs text-[var(--muted)]">{s.gstin ? `GSTIN ${s.gstin}` : "No GSTIN on file"}</span>
-                      {s.udyam && (
-                        <span className="mt-1 inline-block rounded-full bg-[var(--likely-soft)] px-2 py-0.5 text-[13px] font-medium capitalize text-[var(--likely)]" title="Micro and small enterprises must be paid within 45 days of acceptance.">
-                          {s.udyam.category} enterprise (Udyam {s.udyam.number})
+                {supplierList.length > 6 ? (
+                  <SearchField value={supplierQuery} onChange={setSupplierQuery} placeholder="Find a supplier by name or GSTIN" className="sm:w-full" />
+                ) : null}
+                <div className="max-h-[420px] space-y-2.5 overflow-y-auto pr-1">
+                  {supplierList
+                    .filter((s) => !supplierQuery.trim() || s.id === supplierId || `${s.legalName} ${s.gstin ?? ""}`.toLowerCase().includes(supplierQuery.trim().toLowerCase()))
+                    .map((s) => (
+                      <label key={s.id} className={cn("flex cursor-pointer items-start gap-3 rounded-[var(--radius-sm)] border p-3.5 transition-colors", supplierId === s.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] hover:bg-[var(--surface-2)]/60")}>
+                        <input type="radio" name="supplier" checked={supplierId === s.id} onChange={() => setSupplierId(s.id)} className="mt-1 accent-[var(--accent)]" />
+                        <span>
+                          <span className="block text-[15px] font-medium text-[var(--ink)]">{s.legalName}</span>
+                          <span className="mt-0.5 block text-[13px] text-[var(--muted)] tnum">{s.gstin ? `GSTIN ${s.gstin}` : "No GSTIN on file"}</span>
+                          {s.udyam && (
+                            <span className="mt-1.5 inline-block rounded-full bg-[var(--likely-soft)] px-2 py-0.5 text-[13px] font-medium text-[var(--likely)]" title="Micro and small enterprises must be paid within 45 days of acceptance.">
+                              {s.udyam.category.charAt(0).toUpperCase() + s.udyam.category.slice(1)} enterprise · pay within 45 days
+                            </span>
+                          )}
                         </span>
-                      )}
-                    </span>
-                  </label>
-                ))}
-                <Link href="/app/suppliers" className="inline-block text-xs font-medium text-[var(--accent)] hover:underline">Manage suppliers →</Link>
+                      </label>
+                    ))}
+                </div>
+                <Link href="/app/suppliers" className="inline-block text-[14px] font-medium text-[var(--accent-strong)] hover:underline dark:text-[var(--accent)]">Supplier missing? Open Suppliers →</Link>
                 {supplier && (
-                  <p className="rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--ink-2)]">
-                    {intraState ? "Same state as your entity — CGST + SGST will apply." : "Different state — IGST will apply."}
-                    {" "}Default terms: {supplier.paymentTermsDays} days.
+                  <p className={noteCls}>
+                    {intraState ? "Same state as your company — CGST + SGST will apply." : "Different state from your company — IGST will apply."}
+                    {supplier.paymentTermsDays ? ` Their usual credit: ${supplier.paymentTermsDays} days.` : ""}
                   </p>
                 )}
               </div>
@@ -407,26 +423,26 @@ export default function NewOrderPage() {
 
           {step === 2 && (
             <fieldset>
-              <legend className="text-base font-semibold text-[var(--ink)]">What are you buying?</legend>
-              <div className="mt-4 space-y-4">
+              <legend className="sr-only">What are you buying?</legend>
+              <div className="space-y-5">
                 {lines.map((line, i) => (
-                  <div key={i} className="rounded-[var(--radius-sm)] border border-[var(--line)] p-3">
+                  <div key={i} className="rounded-[var(--radius-sm)] border border-[var(--line)] p-4">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs font-medium text-[var(--muted)]">Line {i + 1}</p>
+                      <p className="text-[14px] font-semibold text-[var(--ink-2)]">Item {i + 1}</p>
                       {lines.length > 1 && (
-                        <button type="button" onClick={() => setLines((prev) => prev.filter((_, x) => x !== i))} aria-label={`Remove line ${i + 1}`} className="text-[var(--muted)] hover:text-[var(--sev-critical)]">
-                          <Trash2 size={14} />
+                        <button type="button" onClick={() => setLines((prev) => prev.filter((_, x) => x !== i))} aria-label={`Remove item ${i + 1}`} className="grid h-8 w-8 place-items-center rounded-full text-[var(--muted)] hover:bg-[var(--sev-critical-soft)] hover:text-[var(--sev-critical)]">
+                          <Trash2 size={15} />
                         </button>
                       )}
                     </div>
-                    <div className="mt-2 grid grid-cols-2 gap-3">
-                      <div className="col-span-2">
+                    <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="sm:col-span-2">
                         <label className={labelCls}>Description</label>
                         <input value={line.description} onChange={(e) => setLine(i, { description: e.target.value })} placeholder="e.g. Centrifugal pump 1 kW, model CP-100" className={inputCls} />
                       </div>
                       <div>
                         <HsnField value={line.hsn} onChange={(v) => setLine(i, { hsn: v, gstRate: "" })} onPick={(code, rate) => setLine(i, { hsn: code, gstRate: rate ?? "" })} />
-                        {line.gstRate ? <p className="mt-1 text-xs text-[var(--muted)]">GST {line.gstRate}% from the HSN master — confirm it fits your item.</p> : null}
+                        {line.gstRate ? <p className="mt-1.5 text-[13px] text-[var(--muted)]">GST {line.gstRate}% from the HSN list — check it fits your item.</p> : null}
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         <div>
@@ -434,36 +450,34 @@ export default function NewOrderPage() {
                           <input value={line.qty} onChange={(e) => setLine(i, { qty: e.target.value })} inputMode="decimal" className={inputCls} />
                         </div>
                         <div>
-                          <label className={labelCls}>UOM</label>
+                          <label className={labelCls}>Unit</label>
                           <select value={line.uom} onChange={(e) => setLine(i, { uom: e.target.value })} className={inputCls}>
                             {["NOS", "EA", "BOX", "SET", "M", "KG", "L", "PAIR", "ROLL", "LOT"].map((u) => <option key={u}>{u}</option>)}
                           </select>
                         </div>
                         <div>
-                          <label className={labelCls}>Rate ₹</label>
+                          <label className={labelCls}>Rate (₹)</label>
                           <input value={line.rate} onChange={(e) => setLine(i, { rate: e.target.value })} inputMode="decimal" className={inputCls} />
                         </div>
                       </div>
                     </div>
                   </div>
                 ))}
-                <button type="button" onClick={() => setLines((prev) => [...prev, emptyLine()])} className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)]">
-                  <Plus size={13} /> Add another item
-                </button>
+                <Btn variant="secondary" size="sm" icon={Plus} onClick={() => setLines((prev) => [...prev, emptyLine()])}>Add another item</Btn>
               </div>
             </fieldset>
           )}
 
           {step === 3 && (
             <fieldset>
-              <legend className="text-base font-semibold text-[var(--ink)]">Commercial terms</legend>
-              <div className="mt-4 grid grid-cols-2 gap-4">
+              <legend className="sr-only">Commercial terms</legend>
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <div>
-                  <label className={labelCls}>Advance % (against PI)</label>
+                  <label className={labelCls}>Advance (% of order value)</label>
                   <input value={terms.advancePct} onChange={(e) => setTerms({ ...terms, advancePct: e.target.value })} inputMode="decimal" className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>Balance credit days</label>
+                  <label className={labelCls}>Credit days for the balance</label>
                   <input value={terms.creditDays} onChange={(e) => setTerms({ ...terms, creditDays: e.target.value })} inputMode="numeric" className={inputCls} />
                 </div>
                 <div>
@@ -483,50 +497,40 @@ export default function NewOrderPage() {
                   <input value={terms.warranty} onChange={(e) => setTerms({ ...terms, warranty: e.target.value })} inputMode="numeric" className={inputCls} />
                 </div>
               </div>
-              <p className="mt-4 rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]">
-                These are sample clauses — review with your legal adviser.
-              </p>
+              <p className={cn(noteCls, "mt-5")}>These are standard clauses — have your legal adviser review them once.</p>
             </fieldset>
           )}
 
           {step === 4 && (
             <fieldset>
-              <legend className="text-base font-semibold text-[var(--ink)]">Tax & totals</legend>
+              <legend className="sr-only">Tax and totals</legend>
               {!compute ? (
-                <div className="mt-4">
-                  <p className="text-sm text-[var(--ink-2)]">
-                    Satya saves this as a draft and computes GST and totals on the server — never in the browser.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={runCompute}
-                    disabled={computing}
-                    className="mt-3 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] disabled:opacity-50"
-                  >
-                    {computing ? <LoaderCircle size={15} className="animate-spin" /> : null}
-                    {computing ? "Calculating…" : "Compute tax & totals"}
-                  </button>
+                <div>
+                  <Btn onClick={runCompute} disabled={computing} icon={computing ? LoaderCircle : undefined} className={computing ? "[&>svg]:animate-spin" : undefined}>
+                    {computing ? "Working out GST…" : "Work out GST and totals"}
+                  </Btn>
+                  {actionError ? <p className="mt-3 text-[14px] text-[var(--sev-critical)]">{actionError}</p> : null}
                 </div>
               ) : (
-                <div className="mt-4 space-y-4">
-                  <p className="text-xs text-[var(--muted)]">Supply type: <span className="font-medium text-[var(--ink)]">{compute.taxType}</span> · amounts computed by the engine</p>
-                  <div className="table-scroll"><table className="w-full text-sm">
-                    <thead><tr className="text-left text-xs text-[var(--muted)]"><th className="py-1">Line</th><th>Taxable</th><th>CGST</th><th>SGST</th><th>IGST</th><th>Total</th></tr></thead>
+                <div className="space-y-4">
+                  <p className="text-[14px] text-[var(--muted)]">Tax type: <span className="font-medium text-[var(--ink)]">{compute.taxType === "IGST" ? "IGST (different state)" : "CGST + SGST (same state)"}</span></p>
+                  <div className="overflow-x-auto"><table className="w-full min-w-[520px] text-[15px]">
+                    <thead><tr className="border-b border-[var(--line)] text-right text-[13px] text-[var(--muted)]"><th className="py-2 text-left font-semibold">Item</th><th className="font-semibold">Taxable</th><th className="font-semibold">CGST</th><th className="font-semibold">SGST</th><th className="font-semibold">IGST</th><th className="font-semibold">Total</th></tr></thead>
                     <tbody className="tnum">
                       {compute.lines.map((line) => (
-                        <tr key={line.lineNo} className="border-t border-[var(--line)] text-[var(--ink-2)]">
-                          <td className="py-1.5">{line.lineNo}</td><td>{formatMoney(line.taxableValue)}</td><td>{formatMoney(line.cgst)}</td><td>{formatMoney(line.sgst)}</td><td>{formatMoney(line.igst)}</td><td className="font-medium text-[var(--ink)]">{formatMoney(line.lineTotal)}</td>
+                        <tr key={line.lineNo} className="border-b border-[var(--line)] text-right text-[var(--ink-2)]">
+                          <td className="py-2 text-left">{line.lineNo}</td><td>{formatMoney(line.taxableValue)}</td><td>{formatMoney(line.cgst)}</td><td>{formatMoney(line.sgst)}</td><td>{formatMoney(line.igst)}</td><td className="font-medium text-[var(--ink)]">{formatMoney(line.lineTotal)}</td>
                         </tr>
                       ))}
-                      <tr className="border-t-2 border-[var(--ink)] font-semibold text-[var(--ink)]">
-                        <td className="py-2">Grand total</td><td>{formatMoney(compute.totals.taxable)}</td><td>{formatMoney(compute.totals.cgst)}</td><td>{formatMoney(compute.totals.sgst)}</td><td>{formatMoney(compute.totals.igst)}</td><td>{formatMoney(compute.totals.grand)}</td>
+                      <tr className="text-right font-semibold text-[var(--ink)]">
+                        <td className="py-2.5 text-left">Grand total</td><td>{formatMoney(compute.totals.taxable)}</td><td>{formatMoney(compute.totals.cgst)}</td><td>{formatMoney(compute.totals.sgst)}</td><td>{formatMoney(compute.totals.igst)}</td><td>{formatMoney(compute.totals.grand)}</td>
                       </tr>
                     </tbody>
                   </table></div>
                   <ul className="space-y-1.5">
                     {compute.warnings.map((warning) => (
-                      <li key={warning.code} className="flex items-start gap-2 text-xs text-[var(--possible)]">
-                        <TriangleAlert size={13} className="mt-0.5 shrink-0" /> {warning.message}
+                      <li key={warning.code} className="flex items-start gap-2 text-[14px] text-[var(--ink-2)]">
+                        <TriangleAlert size={15} className="mt-0.5 shrink-0 text-[var(--sev-medium)]" /> {warning.message}
                       </li>
                     ))}
                   </ul>
@@ -537,54 +541,43 @@ export default function NewOrderPage() {
 
           {step === 5 && (
             <fieldset>
-              <legend className="text-base font-semibold text-[var(--ink)]">Approvals</legend>
-              <div className="mt-4 rounded-[var(--radius-sm)] bg-[var(--surface-2)] p-4 text-sm text-[var(--ink-2)]">
-                <p>Submitting routes this order to the approver set by your company’s delegation-of-authority policy for {compute ? formatMoney(compute.totals.grand) : "this value"}.</p>
-                <p className="mt-1 text-xs text-[var(--muted)]">You can’t approve an order you created — another approver must sign off.</p>
+              <legend className="sr-only">Approval</legend>
+              <div className={noteCls}>
+                <p>Satya sends this order{compute ? ` (${formatMoney(compute.totals.grand)})` : ""} to the approver your company’s approval policy names for this amount.</p>
+                <p className="mt-1 text-[13px] text-[var(--muted)]">You can’t approve an order you created — someone else must sign off.</p>
               </div>
-              {actionError && <p className="mt-3 text-xs text-[var(--sev-critical)]">{actionError}</p>}
-              <button
-                type="button"
-                onClick={submitForApproval}
-                disabled={!mocksEnabled() && !docId}
-                className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] disabled:opacity-50"
-              >
-                Submit for approval <ArrowRight size={15} />
-              </button>
+              {actionError && <p className="mt-3 text-[14px] text-[var(--sev-critical)]">{actionError}</p>}
+              <div className="mt-6 flex justify-between border-t border-[var(--line)] pt-5">
+                <Btn variant="ghost" onClick={() => setStep(4)}>Back</Btn>
+                <Btn onClick={submitForApproval} disabled={!mocksEnabled() && !docId}>Send for approval <ArrowRight size={16} aria-hidden="true" /></Btn>
+              </div>
             </fieldset>
           )}
 
           {step === 6 && (
             <fieldset>
-              <legend className="text-base font-semibold text-[var(--ink)]">Issue & share</legend>
+              <legend className="sr-only">Issue and share</legend>
               {!issued ? (
-                <div className="mt-4">
+                <div>
                   {mocksEnabled() || docStatus === "approved" ? (
-                    <p className="flex items-center gap-2 text-sm text-[var(--confirmed)]"><CircleCheck size={16} /> Approved — ready to issue</p>
+                    <Callout tone="success" title="Approved — ready to issue" />
                   ) : (
-                    <div className="rounded-[var(--radius-sm)] bg-[var(--possible-soft)] px-4 py-3 text-sm text-[var(--ink-2)]">
-                      <p className="font-medium text-[var(--ink)]">Waiting for approval</p>
-                      <p className="mt-1 text-xs">Status: {docStatus.replaceAll("_", " ")}. An approver reviews it from the order page; you can issue it once approved.</p>
-                      <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium">
-                        <button type="button" onClick={refreshStatus} className="text-[var(--accent)] hover:underline">Check status</button>
-                        {docId ? <Link href={`/app/orders/${docId}`} className="text-[var(--accent)] hover:underline">Open the order</Link> : null}
-                      </div>
-                    </div>
+                    <Callout
+                      tone="warn"
+                      title="Waiting for approval"
+                      action={<Btn size="sm" variant="secondary" onClick={refreshStatus}>Check again</Btn>}
+                    >
+                      <p className="text-[14px]">An approver reviews it from the order page. You can issue it here once it is approved.{docId ? <> <Link href={`/app/orders/${docId}`} className="font-medium underline">Open the order</Link></> : null}</p>
+                    </Callout>
                   )}
-                  {actionError && <p className="mt-3 text-xs text-[var(--sev-critical)]">{actionError}</p>}
-                  <button
-                    type="button"
-                    onClick={issuePo}
-                    disabled={!mocksEnabled() && docStatus !== "approved"}
-                    className="mt-4 inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] disabled:opacity-50"
-                  >
-                    Issue purchase order
-                  </button>
+                  {actionError && <p className="mt-3 text-[14px] text-[var(--sev-critical)]">{actionError}</p>}
+                  <Btn className="mt-5" onClick={issuePo} disabled={!mocksEnabled() && docStatus !== "approved"}>Issue purchase order</Btn>
                 </div>
               ) : (
-                <div className="mt-4 space-y-3">
-                  <p className="text-sm text-[var(--ink-2)]">Issued as <span className="font-code font-medium text-[var(--ink)]">{issued.number ?? "—"}</span></p>
-                  {issued.verifyUrl && <p className="text-xs text-[var(--muted)]">Verify: <span className="font-code">{issued.verifyUrl}</span></p>}
+                <div className="space-y-4">
+                  <Callout tone="success" title={`Issued as ${issued.number ?? "a purchase order"}`}>
+                    {issued.verifyUrl ? <p className="text-[14px]">The supplier can check it is genuine at the verify link.</p> : null}
+                  </Callout>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -597,7 +590,7 @@ export default function NewOrderPage() {
                           toast.error("The PDF couldn’t be generated right now.");
                         }
                       }}
-                      className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)]"
+                      className="inline-flex h-9 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line-strong)] px-3 text-[14px] font-medium text-[var(--ink-2)] hover:bg-[var(--surface-2)]"
                     >
                       <FileDown size={13} /> Download PDF
                     </button>
@@ -605,14 +598,14 @@ export default function NewOrderPage() {
                       <button
                         type="button"
                         onClick={() => navigator.clipboard.writeText(issued.verifyUrl!).then(() => toast.success("Verify link copied"))}
-                        className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)]"
+                        className="inline-flex h-9 items-center rounded-[var(--radius-sm)] border border-[var(--line-strong)] px-3 text-[14px] font-medium text-[var(--ink-2)] hover:bg-[var(--surface-2)]"
                       >
                         Copy verify link
                       </button>
                     )}
-                    <button type="button" onClick={() => window.print()} className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-1.5 text-xs font-medium text-[var(--ink-2)]">Print</button>
+                    <button type="button" onClick={() => window.print()} className="inline-flex h-9 items-center rounded-[var(--radius-sm)] border border-[var(--line-strong)] px-3 text-[14px] font-medium text-[var(--ink-2)] hover:bg-[var(--surface-2)]">Print</button>
                   </div>
-                  <button type="button" onClick={() => router.push("/app/orders")} className="text-xs font-medium text-[var(--accent)]">Done — back to orders</button>
+                  <Btn onClick={() => router.push(docId ? `/app/orders/${docId}` : "/app/orders")}>Done — open the order</Btn>
                 </div>
               )}
             </fieldset>
@@ -620,18 +613,14 @@ export default function NewOrderPage() {
 
           {/* nav */}
           {step < 5 && (
-            <div className="mt-6 flex justify-between border-t border-[var(--line)] pt-4">
-              <button type="button" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="text-sm text-[var(--muted)] disabled:opacity-40">
-                ← Previous
-              </button>
-              <button
-                type="button"
-                onClick={() => setStep((s) => s + 1)}
-                disabled={!canNext || (step === 4 && !compute)}
-                className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] disabled:opacity-50"
-              >
-                Next <ArrowRight size={14} />
-              </button>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] pt-5">
+              <Btn variant="ghost" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>Back</Btn>
+              <div className="flex items-center gap-3">
+                {blockedReason ? <p className="hidden text-[14px] text-[var(--muted)] sm:block">{blockedReason}</p> : null}
+                <Btn onClick={() => setStep((s) => s + 1)} disabled={!!blockedReason}>
+                  Continue <ArrowRight size={16} aria-hidden="true" />
+                </Btn>
+              </div>
             </div>
           )}
         </div>
@@ -639,40 +628,41 @@ export default function NewOrderPage() {
 
       {/* right: live preview */}
       <aside className="xl:col-span-2" aria-label="Document preview">
-        <div className="sticky top-20 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)]">
+        <div className="sticky top-24 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-1)]">
+          <p className="mb-3 text-[13px] font-semibold text-[var(--muted)]">Live preview</p>
           <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
             <div>
               <p className="font-semibold text-[var(--ink)]">{entity?.legalName ?? "—"}</p>
-              <p className="font-code text-[13px] text-[var(--muted)]">{entity?.gstin ? `GSTIN ${entity.gstin}` : "GSTIN not set"}</p>
+              <p className="text-[13px] text-[var(--muted)] tnum">{entity?.gstin ? `GSTIN ${entity.gstin}` : "GSTIN not set"}</p>
             </div>
-            <p className="text-xs font-semiboldr text-[var(--muted)]">Purchase order · draft</p>
+            <p className="text-[13px] font-semibold text-[var(--muted)]">Purchase order · draft</p>
           </div>
-          <dl className="mt-3 space-y-1.5 text-xs">
+          <dl className="mt-3 space-y-2 text-[14px]">
             <div className="flex justify-between"><dt className="text-[var(--muted)]">Supplier</dt><dd className="text-[var(--ink)]">{supplier?.legalName ?? "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-[var(--muted)]">Required by</dt><dd className="text-[var(--ink)]">{requiredBy || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-[var(--muted)]">Needed by</dt><dd className="text-[var(--ink)]">{requiredBy ? formatDate(requiredBy) : "—"}</dd></div>
             <div className="flex justify-between"><dt className="text-[var(--muted)]">Cost centre</dt><dd className="text-[var(--ink)]">{costCentre || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-[var(--muted)]">Payment terms</dt><dd className="text-[var(--ink)]">{terms.advancePct !== "0" ? `${terms.advancePct}% advance, ` : ""}{terms.creditDays} days</dd></div>
+            <div className="flex justify-between"><dt className="text-[var(--muted)]">Payment terms</dt><dd className="text-[var(--ink)]">{terms.advancePct !== "0" ? `${terms.advancePct}% advance, ` : ""}{terms.creditDays} day{terms.creditDays === "1" ? "" : "s"} credit</dd></div>
           </dl>
-          <table className="mt-3 w-full text-xs">
-            <thead><tr className="border-y border-[var(--line)] text-left text-[var(--muted)]"><th className="py-1.5">Item</th><th>Qty</th><th>Rate</th></tr></thead>
+          <table className="mt-4 w-full text-[14px]">
+            <thead><tr className="border-y border-[var(--line)] text-[13px] text-[var(--muted)]"><th className="py-2 text-left font-semibold">Item</th><th className="text-right font-semibold">Qty</th><th className="text-right font-semibold">Rate</th></tr></thead>
             <tbody>
               {lines.map((line, i) => (
                 <tr key={i} className="border-b border-[var(--line)] text-[var(--ink-2)]">
-                  <td className="py-1.5">{line.description || "—"}{line.hsn ? <span className="block font-code text-[13px] text-[var(--muted)]">HSN {line.hsn}{line.gstRate ? ` · ${line.gstRate}%` : ""}</span> : null}</td>
-                  <td className="tnum">{line.qty || "—"} {line.uom}</td>
-                  <td className="tnum">{line.rate ? formatMoney(line.rate) : "—"}</td>
+                  <td className="py-2 pr-2">{line.description || "—"}{line.hsn ? <span className="block text-[13px] text-[var(--muted)]">HSN {line.hsn}{line.gstRate ? ` · GST ${line.gstRate}%` : ""}</span> : null}</td>
+                  <td className="tnum whitespace-nowrap text-right">{line.qty || "—"} {line.uom}</td>
+                  <td className="tnum whitespace-nowrap text-right">{line.rate ? formatMoney(line.rate) : "—"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           {compute && (
             <div className="mt-3 border-t border-[var(--line)] pt-3 text-right">
-              <p className="text-xs text-[var(--muted)]">{compute.taxType} · grand total</p>
+              <p className="text-[13px] text-[var(--muted)]">Grand total incl. GST</p>
               <p className="tnum text-xl font-semibold text-[var(--ink)]">{formatMoney(compute.totals.grand)}</p>
             </div>
           )}
           <p className="mt-4 flex items-center gap-1.5 border-t border-[var(--line)] pt-3 text-[13px] text-[var(--muted)]">
-            <Check size={11} /> Saved as a draft when you compute totals · GST is calculated on the server.
+            <Check size={13} aria-hidden="true" /> Saved as a draft when the totals are worked out.
           </p>
         </div>
       </aside>

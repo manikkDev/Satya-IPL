@@ -93,7 +93,7 @@ export function CaseWorkflow({
       {/* owner & priority */}
       <div className="grid gap-3 sm:grid-cols-[1fr_140px_auto] sm:items-end">
         <div>
-          <label htmlFor="case-owner" className="mb-1 flex items-center gap-1.5 text-xs font-medium text-[var(--muted)]">
+          <label htmlFor="case-owner" className="mb-1 flex items-center gap-1.5 text-[13px] font-medium text-[var(--muted)]">
             <UserRound size={13} aria-hidden="true" /> Owner
           </label>
           <select id="case-owner" value={owner} onChange={(e) => setOwner(e.target.value)} disabled={!canAct} className={field}>
@@ -106,7 +106,7 @@ export function CaseWorkflow({
           </select>
         </div>
         <div>
-          <label htmlFor="case-priority" className="mb-1 block text-xs font-medium text-[var(--muted)]">Priority</label>
+          <label htmlFor="case-priority" className="mb-1 block text-[13px] font-medium text-[var(--muted)]">Priority</label>
           <select id="case-priority" value={prio} onChange={(e) => setPrio(e.target.value)} disabled={!canAct} className={field}>
             <option value="low">Low</option>
             <option value="normal">Normal</option>
@@ -125,7 +125,7 @@ export function CaseWorkflow({
 
       {/* reminders */}
       <div className="mt-6">
-        <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--muted)]">
+        <p className="mb-2 flex items-center gap-1.5 text-[13px] font-medium text-[var(--muted)]">
           <AlarmClock size={13} aria-hidden="true" /> Reminders
         </p>
         {(reminders.data?.items ?? []).length === 0 ? (
@@ -150,7 +150,7 @@ export function CaseWorkflow({
                   </button>
                   <div className="min-w-0 flex-1">
                     <p className={cn("text-sm", r.status === "done" ? "text-[var(--muted)] line-through" : "text-[var(--ink)]")}>{r.note}</p>
-                    <p className={cn("text-xs", overdue ? "font-medium text-[var(--sev-critical)]" : "text-[var(--muted)]")}>
+                    <p className={cn("text-[13px]", overdue ? "font-medium text-[var(--sev-critical)]" : "text-[var(--muted)]")}>
                       Due <DateText value={r.dueDate} />{overdue ? " · overdue" : ""}
                       {r.assignee && nameOf.get(r.assignee) ? ` · ${nameOf.get(r.assignee)}` : ""}
                     </p>
@@ -178,7 +178,7 @@ export function CaseWorkflow({
       {/* supplier messages */}
       <div className="mt-6">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <p className="mr-auto flex items-center gap-1.5 text-xs font-medium text-[var(--muted)]">
+          <p className="mr-auto flex items-center gap-1.5 text-[13px] font-medium text-[var(--muted)]">
             <MessageCircle size={13} aria-hidden="true" /> Supplier messages
           </p>
           {canAct ? (
@@ -206,14 +206,14 @@ export function CaseWorkflow({
             {(outbox.data?.items ?? []).map((m) => (
               <li key={m.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
                 <span className="capitalize text-[var(--ink)]">{m.channel}</span>
-                <span className="font-code text-xs text-[var(--muted)]">{m.to}</span>
-                <span className={cn("text-xs font-medium", STATUS_COPY[m.status]?.tone)}>{STATUS_COPY[m.status]?.label ?? m.status}</span>
+                <span className="font-code text-[13px] text-[var(--muted)]">{m.to}</span>
+                <span className={cn("text-[13px] font-medium", STATUS_COPY[m.status]?.tone)}>{STATUS_COPY[m.status]?.label ?? m.status}</span>
                 {m.status === "scheduled" && m.scheduledFor ? (
-                  <span className="text-xs text-[var(--muted)]">· sends <DateText value={m.scheduledFor} withTime /></span>
+                  <span className="text-[13px] text-[var(--muted)]">· sends <DateText value={m.scheduledFor} withTime /></span>
                 ) : null}
                 <span className="ml-auto flex items-center gap-2">
                   {m.link ? (
-                    <a href={m.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline">
+                    <a href={m.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[13px] font-medium text-[var(--accent)] hover:underline">
                       Open <ExternalLink size={11} aria-hidden="true" />
                     </a>
                   ) : null}
@@ -225,19 +225,19 @@ export function CaseWorkflow({
                           .then(() => queryClient.invalidateQueries({ queryKey: ["outbox", caseId] }))
                           .catch((e) => toast.error(e instanceof Error ? e.message : "Retry failed"))
                       }
-                      className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline"
+                      className="inline-flex items-center gap-1 text-[13px] font-medium text-[var(--accent)] hover:underline"
                     >
                       <RotateCcw size={11} aria-hidden="true" /> {m.status === "scheduled" ? "Send now" : "Retry"}
                     </button>
                   ) : null}
                 </span>
-                {m.lastError && m.status !== "sent" ? <p className="w-full text-xs text-[var(--muted)]">{m.lastError}</p> : null}
+                {m.lastError && m.status !== "sent" ? <p className="w-full text-[13px] text-[var(--muted)]">{m.lastError}</p> : null}
               </li>
             ))}
           </ul>
         )}
         {config.data && !config.data.email ? (
-          <p className="mt-2 text-xs text-[var(--muted)]">
+          <p className="mt-2 text-[13px] text-[var(--muted)]">
             Email isn’t set up on this server yet — WhatsApp and SMS open on your own device with the message pre-filled.
           </p>
         ) : null}
@@ -310,17 +310,17 @@ function Composer({
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <label htmlFor="msg-to" className="mb-1 block text-xs font-medium text-[var(--muted)]">{channel === "email" ? "Email address" : "Mobile number"}</label>
+            <label htmlFor="msg-to" className="mb-1 block text-[13px] font-medium text-[var(--muted)]">{channel === "email" ? "Email address" : "Mobile number"}</label>
             <input id="msg-to" value={to} onChange={(e) => setTo(e.target.value)} className={field} inputMode={channel === "email" ? "email" : "tel"} placeholder={channel === "email" ? "accounts@supplier.in" : "98220 41105"} />
           </div>
           {channel === "email" ? (
             <div>
-              <label htmlFor="msg-subject" className="mb-1 block text-xs font-medium text-[var(--muted)]">Subject</label>
+              <label htmlFor="msg-subject" className="mb-1 block text-[13px] font-medium text-[var(--muted)]">Subject</label>
               <input id="msg-subject" value={subject} onChange={(e) => setSubject(e.target.value)} className={field} />
             </div>
           ) : null}
           <div>
-            <label htmlFor="msg-body" className="mb-1 block text-xs font-medium text-[var(--muted)]">Message</label>
+            <label htmlFor="msg-body" className="mb-1 block text-[13px] font-medium text-[var(--muted)]">Message</label>
             <textarea id="msg-body" rows={7} value={body} onChange={(e) => setBody(e.target.value)} className={cn(field, "h-auto resize-none py-2 leading-relaxed")} />
           </div>
         </div>

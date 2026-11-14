@@ -21,9 +21,28 @@ const LINK_WORD: Record<string, string> = {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <dt className="text-xs text-[var(--muted)]">{label}</dt>
-      <dd className="mt-0.5 truncate text-sm text-[var(--ink)]">{children}</dd>
+      <dt className="text-[13px] text-[var(--muted)]">{label}</dt>
+      <dd className="mt-0.5 truncate text-[15px] text-[var(--ink)]">{children}</dd>
     </div>
+  );
+}
+
+/** One linked record, named by its type and number (never its internal id). */
+function LinkedDoc({ id, word, outgoing, self }: { id: string; word: string; outgoing: boolean; self: string }) {
+  const q = useQuery({ queryKey: ["document", id], queryFn: () => docsApi.get(id), staleTime: 5 * 60_000 });
+  const d = q.data;
+  const other = (
+    <Link href={`/app/documents/${id}`} className="font-medium text-[var(--accent-strong)] hover:underline dark:text-[var(--accent)]">
+      {d ? `${docTypeLabel(d.type)} ${d.number ?? d.externalRef ?? ""}`.trim() : q.isError ? "a linked record" : "…"}
+    </Link>
+  );
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-2 py-3 text-[15px]">
+      <span className="text-[var(--ink-2)]">
+        {outgoing ? <>This {self} {word} {other}</> : <>{other} {word} this {self}</>}
+      </span>
+      {d?.date ? <span className="text-[14px] text-[var(--muted)]"><DateText value={d.date} />{d.totals?.grand ? <> · <Money value={d.totals.grand} /></> : null}</span> : null}
+    </li>
   );
 }
 
@@ -49,16 +68,16 @@ export function DocumentView({ id }: { id: string }) {
   const source = (doc as unknown as { source?: { extractionDraftId?: string; channel?: string } }).source;
 
   return (
-    <FadeIn className="space-y-5">
-      <Link href="/app/documents" className="inline-flex items-center gap-1 text-sm text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
-        <ArrowLeft size={15} aria-hidden="true" /> Documents
+    <FadeIn className="space-y-6">
+      <Link href="/app/documents" className="inline-flex items-center gap-1 text-[14px] font-medium text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
+        <ArrowLeft size={15} aria-hidden="true" /> Invoices & documents
       </Link>
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <p className="mb-1.5 text-xs font-medium text-[var(--accent)]">{docTypeLabel(doc.type)}</p>
-          <h1 className="font-code break-all text-[22px] font-semibold leading-tight text-[var(--ink)]">{doc.number ?? doc.externalRef ?? doc.id}</h1>
-          <p className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
+          <p className="type-eyebrow mb-1.5">{docTypeLabel(doc.type)}{doc.seller?.name ? ` · ${doc.seller.name}` : ""}</p>
+          <h1 className="type-page-title break-all">{doc.number ?? doc.externalRef ?? "Unnumbered document"}</h1>
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-[15px] text-[var(--muted)]">
             <DateText value={doc.date} /> <StatusBadge status={doc.status} />
           </p>
         </div>
@@ -77,7 +96,7 @@ export function DocumentView({ id }: { id: string }) {
       <Card>
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Supplier / seller">{doc.seller?.name ?? "—"}</Field>
-          <Field label="Seller GSTIN"><span className="font-code">{doc.seller?.gstin ?? "—"}</span></Field>
+          <Field label="Seller GSTIN"><span className="tnum">{doc.seller?.gstin ?? "—"}</span></Field>
           <Field label="Buyer">{doc.buyer?.name ?? "—"}</Field>
           <Field label="Grand total">{t.grand ? <Money value={t.grand} /> : "—"}</Field>
         </dl>
@@ -87,7 +106,7 @@ export function DocumentView({ id }: { id: string }) {
         <Card pad={false} className="overflow-hidden">
           <div className="px-5 pt-5"><CardTitle>Lines</CardTitle></div>
           <div className="table-scroll">
-            <table className="w-full text-sm">
+            <table className="w-full text-[15px]">
               <thead>
                 <tr className="border-y border-[var(--line)] bg-[var(--surface-2)]/60 text-[13px] font-semibold text-[var(--muted)]">
                   <th scope="col" className="px-4 py-2.5 text-left">#</th>
@@ -103,7 +122,7 @@ export function DocumentView({ id }: { id: string }) {
                   <tr key={l.lineNo} className="border-b border-[var(--line)] last:border-0 text-[var(--ink-2)]">
                     <td className="tnum px-4 py-2.5">{l.lineNo}</td>
                     <td className="px-4 py-2.5 text-[var(--ink)]">{l.description}</td>
-                    <td className="font-code px-4 py-2.5 text-xs">{l.hsn ?? "—"}</td>
+                    <td className="tnum px-4 py-2.5 text-[14px]">{l.hsn ?? "—"}</td>
                     <td className="px-4 py-2.5 text-right"><Qty value={l.qty ?? null} uom={l.uom} /></td>
                     <td className="px-4 py-2.5 text-right">{l.rate ? <Money value={l.rate} /> : "—"}</td>
                     <td className="px-4 py-2.5 text-right">{l.taxableValue ? <Money value={l.taxableValue} /> : "—"}</td>
@@ -112,7 +131,7 @@ export function DocumentView({ id }: { id: string }) {
               </tbody>
             </table>
           </div>
-          <dl className="ml-auto grid max-w-xs grid-cols-2 gap-x-6 gap-y-1.5 border-t border-[var(--line)] px-5 py-4 text-sm">
+          <dl className="ml-auto grid max-w-xs grid-cols-2 gap-x-6 gap-y-1.5 border-t border-[var(--line)] px-5 py-4 text-[15px]">
             {([["Taxable", t.taxable], ["CGST", t.cgst], ["SGST", t.sgst], ["IGST", t.igst], ["Grand total", t.grand]] as const).map(([label, value]) =>
               value && (label === "Grand total" || value !== "0.00") ? (
                 <div key={label} className="contents">
@@ -127,17 +146,13 @@ export function DocumentView({ id }: { id: string }) {
 
       {doc.links?.length ? (
         <Card>
-          <CardTitle icon={Link2}>Linked documents</CardTitle>
-          <ul className="space-y-2">
+          <CardTitle icon={Link2} description="How this record connects to the rest of the trail.">Linked records</CardTitle>
+          <ul className="divide-y divide-[var(--line)]">
             {doc.links.map((l) => {
               const outgoing = l.fromId === doc.id;
               const other = outgoing ? l.toId : l.fromId;
-              return (
-                <li key={`${l.fromId}-${l.toId}-${l.kind}`} className="flex flex-wrap items-center gap-2 text-sm text-[var(--ink-2)]">
-                  <span>{outgoing ? `This document ${LINK_WORD[l.kind] ?? l.kind.toLowerCase()}` : `Referenced by (${(LINK_WORD[l.kind] ?? l.kind.toLowerCase())})`}</span>
-                  <Link href={`/app/documents/${other}`} className="font-code text-xs text-[var(--accent)] hover:underline">{other}</Link>
-                </li>
-              );
+              const word = LINK_WORD[l.kind] ?? l.kind.replaceAll("_", " ").toLowerCase();
+              return <LinkedDoc key={`${l.fromId}-${l.toId}-${l.kind}`} id={other} word={word} outgoing={outgoing} self={docTypeLabel(doc.type).toLowerCase()} />;
             })}
           </ul>
         </Card>

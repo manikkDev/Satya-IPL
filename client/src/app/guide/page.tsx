@@ -22,15 +22,15 @@ function Timeline() {
     <figure>
       <figcaption className="sr-only">Pilot timeline, weeks 0 to 8</figcaption>
       <div className="relative overflow-x-auto rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5" tabIndex={0} role="region" aria-label="Pilot timeline">
-        <div className="min-w-[680px]">
-          <div className="grid grid-cols-[13rem_repeat(9,minmax(0,1fr))] gap-y-2 text-xs">
+        <div className="min-w-[760px]">
+          <div className="grid grid-cols-[16rem_repeat(9,minmax(0,1fr))] gap-y-2 text-[13px]">
             <span />
             {WEEKS.map((w) => (
               <span key={w} className="tnum border-l border-[var(--line)] pl-1.5 text-[var(--muted)]">W{w}</span>
             ))}
             {PILOT_STEPS.map((s) => (
               <div key={s.n} className="contents">
-                <span className="truncate pr-3 text-[13px] text-[var(--ink-2)]">{s.n}. {s.title}</span>
+                <span className="truncate pr-3 text-[14px] text-[var(--ink-2)]" title={s.title}>{s.n}. {s.title}</span>
                 <div className="relative col-span-9 h-6">
                   <div className="absolute inset-0 grid grid-cols-9" aria-hidden="true">
                     {WEEKS.map((w) => <span key={w} className="border-l border-[var(--line)]" />)}

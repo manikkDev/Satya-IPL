@@ -204,7 +204,7 @@ function ModelSection({ m }: { m: MatchModel }) {
             <IntervalRow label="Recall" hint="share of links found" value={m.metrics.recall} ci={m.metrics.ci?.recall} />
             <IntervalRow label="F1" value={m.metrics.f1} ci={m.metrics.ci?.f1} />
           </div>
-          {!m.metrics.ci?.precision ? <p className="mt-3 text-xs text-[var(--muted)]">Confidence intervals not reported.</p> : null}
+          {!m.metrics.ci?.precision ? <p className="mt-3 text-[13px] text-[var(--muted)]">Confidence intervals not reported.</p> : null}
         </Box>
       </div>
 
@@ -259,7 +259,7 @@ function ModelSection({ m }: { m: MatchModel }) {
         {m.sources.length ? (
           <div className="relative mt-3 overflow-x-auto">
             <table className="w-full min-w-[460px] border-collapse text-left text-sm">
-              <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]"><th scope="col" className="py-2 pr-3 font-medium">Source</th><th scope="col" className="py-2 pr-3 font-medium">Provenance</th><th scope="col" className="py-2 pr-3 text-right font-medium">Pairs</th><th scope="col" className="py-2 text-right font-medium">Groups</th></tr></thead>
+              <thead><tr className="border-b border-[var(--line)] text-[13px] text-[var(--muted)]"><th scope="col" className="py-2 pr-3 font-medium">Source</th><th scope="col" className="py-2 pr-3 font-medium">Provenance</th><th scope="col" className="py-2 pr-3 text-right font-medium">Pairs</th><th scope="col" className="py-2 text-right font-medium">Groups</th></tr></thead>
               <tbody>
                 {m.sources.map((s) => (
                   <tr key={s.name} className="border-b border-[var(--line)] last:border-0">
@@ -282,7 +282,7 @@ function ModelSection({ m }: { m: MatchModel }) {
           <p className="mt-1 text-[13px] text-[var(--muted)]">Blended numbers hide the hard cases, so each source is reported separately.</p>
           <div className="relative mt-3 overflow-x-auto">
             <table className="w-full min-w-[560px] border-collapse text-left text-sm tnum">
-              <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">{["Source", "Provenance", "n", "Precision", "Recall", "F1", "PR-AUC"].map((h) => <th key={h} scope="col" className="py-2 pr-3 font-medium">{h}</th>)}</tr></thead>
+              <thead><tr className="border-b border-[var(--line)] text-[13px] text-[var(--muted)]">{["Source", "Provenance", "n", "Precision", "Recall", "F1", "PR-AUC"].map((h) => <th key={h} scope="col" className="py-2 pr-3 font-medium">{h}</th>)}</tr></thead>
               <tbody>
                 {m.bySource.map((s) => (
                   <tr key={s.name} className="border-b border-[var(--line)] last:border-0">
@@ -427,7 +427,7 @@ export function ModelCardView({ variant }: { variant: "app" | "public" }) {
         <button type="button" onClick={() => void reload()} className="mt-5 inline-flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--line-strong)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">
           <RotateCcw size={14} aria-hidden="true" /> Try again
         </button>
-        <p className="mt-4 text-xs text-[var(--muted)]">
+        <p className="mt-4 text-[13px] text-[var(--muted)]">
           Methodology: <Link href="/research#methods" className="text-[var(--accent)] underline">how we evaluate</Link>
         </p>
       </div>
@@ -502,7 +502,7 @@ export function ModelCardView({ variant }: { variant: "app" | "public" }) {
             : refs?.map((r) => (
                 <li key={r.n} className="[overflow-wrap:anywhere]">
                   {r.text} {r.url ? <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] underline">Link</a> : null}
-                  {r.notReverified ? <span className="ml-2 text-xs text-[var(--muted)]">(not re-verified)</span> : null}
+                  {r.notReverified ? <span className="ml-2 text-[13px] text-[var(--muted)]">(not re-verified)</span> : null}
                 </li>
               ))}
         </ol>

@@ -50,7 +50,7 @@ export default function ResearchPage() {
       </PitchHero>
 
       <nav aria-label="On this page" className="mt-10 max-w-[72ch] rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">On this page</p>
+        <p className="text-[13px] font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">On this page</p>
         <ol className="mt-3 grid gap-x-6 gap-y-1.5 text-[15px] sm:grid-cols-2">
           {TOC.map(([id, label], i) => (
             <li key={id}>
@@ -141,7 +141,7 @@ export default function ResearchPage() {
                   {c.caveat ? <p className="text-[var(--ink)]">{c.caveat}</p> : null}
                 </div>
                 <div className="rounded-[var(--radius-sm)] bg-[var(--surface-2)] p-4 text-sm leading-relaxed text-[var(--ink-2)]">
-                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">Data needed per invoice</p>
+                  <p className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">Data needed per invoice</p>
                   <p className="mt-1.5">{c.satyaNeeds}</p>
                 </div>
               </div>
