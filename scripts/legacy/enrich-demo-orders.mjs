@@ -7,7 +7,7 @@
 // a different state (clean, partial, over-billed, duplicate, unmatched
 // payment…), plus findings and decisions on the order's case.
 // Idempotent via number/externalRef keys. Run: node scripts/enrich-demo-orders.mjs
-import mongoose from "../server/node_modules/mongoose/index.js";
+import mongoose from "../../server/node_modules/mongoose/index.js";
 import { createHash } from "node:crypto";
 
 const MONGO = process.env.MONGO_URI || "mongodb://localhost:27017/satya";

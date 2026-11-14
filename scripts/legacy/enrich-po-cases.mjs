@@ -5,7 +5,7 @@
 // UTR + allocation, plus DocumentLinks. Then every case a reviewer opens
 // shows a real chain: findings, balances, money trail. Idempotent —
 // skips POs that already have a GRN. Run: node scripts/enrich-po-cases.mjs
-import mongoose from "../server/node_modules/mongoose/index.js";
+import mongoose from "../../server/node_modules/mongoose/index.js";
 
 const MONGO = process.env.MONGO_URI || "mongodb://localhost:27017/satya";
 const MAX_CASES = Number(process.env.MAX_CASES || 80);

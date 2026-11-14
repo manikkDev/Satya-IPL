@@ -5,7 +5,7 @@
 // payment documents + links + cases. Events are REAL (BPI-2019); identities and
 // INR restatement are synthetic -> provenance: CONSTRUCTED_DEMO everywhere.
 // Idempotent via externalRef keys. Run: node scripts/seed-bpi-company.mjs
-import mongoose from "../server/node_modules/mongoose/index.js";
+import mongoose from "../../server/node_modules/mongoose/index.js";
 import { createRequire } from "node:module";
 import { gunzipSync } from "node:zlib";
 import { readFileSync } from "node:fs";
@@ -15,7 +15,7 @@ const require = createRequire(import.meta.url);
 const MONGO = process.env.MONGO_URI || "mongodb://localhost:27017/satya";
 const EUR_TO_INR = 90; // synthetic restatement, flagged in copy
 
-const art = JSON.parse(gunzipSync(readFileSync(new URL("../ml-fl-service/assets/bpi_company.jsonl.gz", import.meta.url))).toString());
+const art = JSON.parse(gunzipSync(readFileSync(new URL("../../ml-fl-service/assets/bpi_company.jsonl.gz", import.meta.url))).toString());
 await mongoose.connect(MONGO);
 const db = mongoose.connection.db;
 
