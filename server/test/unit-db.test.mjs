@@ -29,7 +29,30 @@ test("audit chain stays linear under concurrent appends", async (t) => {
   assert.ok(results.every(Boolean));
   const seqs = (await Audit.find({ groupId: "grp_t" }).lean()).map((r) => r.seq).sort((a, b) => a - b);
   assert.deepEqual(seqs, Array.from({ length: 25 }, (_, i) => i + 1));
-  assert.deepEqual(await verifyChain("grp_t"), { valid: true, checked: 25 });
+  const verdict = await verifyChain("grp_t");
+  assert.equal(verdict.valid, true);
+  assert.equal(verdict.checked, 25);
+  assert.equal(verdict.validSinceSequencing, true);
+  // a legacy fork (two rows sharing one prevHash) is reported, not fatal to new rows
+  const { default: AuditModel } = await import("../src/models/Audit.js");
+  const crypto = await import("node:crypto");
+  const mk = (id, prevHash, at) => {
+    const event = { groupId: "grp_l", actor: "u", action: "x", prevHash, at };
+    const canon = JSON.stringify(Object.fromEntries(Object.keys(event).sort().map((k) => [k, event[k]])));
+    return { id, ...event, hash: crypto.createHash("sha256").update(prevHash + canon).digest("hex") };
+  };
+  const g = "0".repeat(64);
+  const a = mk("a", g, "2026-01-01T00:00:00.000Z");
+  await AuditModel.create(a);
+  await AuditModel.create(mk("b", a.hash, "2026-01-01T00:00:01.000Z"));
+  await AuditModel.create(mk("c", a.hash, "2026-01-01T00:00:02.000Z")); // fork
+  await writeAudit({ groupId: "grp_l", actor: "u", action: "after", statusCode: 200 });
+  const v2 = await verifyChain("grp_l");
+  assert.equal(v2.valid, false);
+  assert.equal(v2.legacy.forks, 1);
+  assert.equal(v2.legacy.tampered, 0);
+  assert.equal(v2.validSinceSequencing, true);
+  assert.equal(v2.firstBreak.id, "c");
 });
 
 test("job runner recovers expired leases and dead-letters exhausted jobs", async (t) => {

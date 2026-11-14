@@ -129,7 +129,7 @@ router.get("/:id/allocate", handle(async (req, res) => {
     }
   }
   res.json({
-    payment: { id: payment.id, amount: payment.payment?.amount, utr: payment.payment?.utr, remaining, revision: payment.revision },
+    payment: { id: payment.id, amount: payment.payment?.amount, utr: payment.payment?.utr, remaining, revision: payment.revision, date: payment.date, valueDate: payment.payment?.valueDate ?? null, counterparty: payment.seller?.name ?? null },
     openInvoices: targets.openInvoices, credits: targets.credits,
     suggestion,
     ...(suggestionError ? { suggestionError } : {}),

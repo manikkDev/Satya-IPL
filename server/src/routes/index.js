@@ -5,6 +5,7 @@ import authRoutes from './businessAuth.js';
 import businessRoutes from './businessRoutes.js';
 import conversationRoutes from "./conversationRoutes.js";
 import v2Routes from "./v2/index.js";
+import internalRoutes from "./internal.js";
 
 const router = express.Router();
 
@@ -22,6 +23,7 @@ router.use(apiLimiter);
 router.use('/auth', (req, res, next) => req.method === 'POST' ? authLimiter(req, res, next) : next(), authRoutes);
 router.use('/v1', writeLimiter, businessRoutes);
 router.use('/v2', v2Routes);
+router.use('/internal', internalRoutes);
 router.use('/conversations', conversationRoutes);
 // Add your resource routes here
 
