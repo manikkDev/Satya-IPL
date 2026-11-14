@@ -12,8 +12,7 @@
 //
 // Only the demo group (Group.legacyCompanyId = "satya-demo") is touched.
 // Other groups and every user's password are left alone.
-import "dotenv/config";
-import mongoose from "mongoose";
+import { connect, findDemoGroup } from "./db.js";
 import { fileURLToPath } from "node:url";
 import Group from "../models/Group.js";
 import Entity from "../models/Entity.js";
@@ -21,7 +20,6 @@ import Policy from "../models/Policy.js";
 import Job from "../models/Job.js";
 import Finding from "../models/Finding.js";
 import Case from "../models/Case.js";
-import User from "../models/User.js";
 import { DEFAULT_NUMBERING, DEFAULT_TERMS } from "../services/policies.js";
 import { accountHash } from "../services/bankAccounts.js";
 import { newId } from "../lib/ids.js";
@@ -40,15 +38,7 @@ const GROUP_SCOPED = ["documents", "documentlinks", "cases", "findings", "decisi
 export const TEST_GROUP_NAMES = ["Trial Industries", "Bank Flow Ltd", "Parent Industries"];
 const TEST_EMAIL = /@example\.test$/i;
 
-export const connect = async () => {
-  const uri = process.env.DB_URI || process.env.MONGO_URI;
-  if (!uri) throw new Error("Set DB_URI or MONGO_URI");
-  const dbName = process.env.APP_DB_NAME || "satya";
-  await mongoose.connect(uri, { dbName });
-  return { db: mongoose.connection.db, dbName, close: () => mongoose.disconnect() };
-};
-
-export const findDemoGroup = (db) => db.collection("groups").findOne({ legacyCompanyId: DEMO_COMPANY_ID });
+export { connect, findDemoGroup };
 
 // ---------------------------------------------------------------- wipe ----
 const countDemoData = async (db, group) => {

@@ -440,7 +440,7 @@ if (isMain) {
   const { istDate } = await import("./dates.js");
   const today = istDate();
   if (process.argv.includes("--db")) {
-    const { connect, findDemoGroup } = await import("./curated.js");
+    const { connect, findDemoGroup } = await import("./db.js");
     const conn = await connect();
     const group = await findDemoGroup(conn.db);
     if (!group) { console.error("Demo group not found"); process.exit(1); }
