@@ -79,6 +79,8 @@ const toolsFor = (intent, opts) => {
     ...(opts.attachmentIds.length ? ATTACHMENT_TOOLS : []),
   ])];
 };
+/** In Plan payments mode these questions become a payment-run proposal. */
+const PLAN_INTENTS = new Set(["payables_due", "ageing", "msme", "s43bh", "supplier_exposure", "briefing", "general", "supplier_balance", "payments"]);
 const DRAFT_NOTE = /\b(note|memo|summary|internal|cfo|ceo|boss|md|director|team|approval|board|management)\b/i;
 
 /**
@@ -131,7 +133,7 @@ export async function runCopilot({ message, context = {}, auth, llm = null, call
   // mode + attachment steer the route (refusals above are never overridden)
   if (opts.attachmentIds.length && (ABOUT_ATTACHMENT.test(text) || route.intent === "general" || route.confidence < 0.8)) {
     route = { ...route, intent: "attachment_review", confidence: 0.9, reason: "question about the attached document" };
-  } else if (opts.mode === "plan" && !["payment_run", "attachment_review"].includes(route.intent)) {
+  } else if (opts.mode === "plan" && PLAN_INTENTS.has(route.intent)) {
     route = { ...route, intent: "payment_run", confidence: 0.85, reason: "Plan payments mode" };
   }
   // Draft mode, internal note ("a note for our CFO on what is due") — answer

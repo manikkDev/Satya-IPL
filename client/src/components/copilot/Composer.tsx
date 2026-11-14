@@ -120,7 +120,7 @@ function SupplierPicker({ value, onChange }: { value: { id?: string | null; name
 export const Composer = forwardRef<ComposerHandle, {
   value: string;
   onChange: (v: string) => void;
-  onSend: (text?: string) => void;
+  onSend: (text?: string, options?: AgentOptions) => void;
   onStop: () => void;
   busy: boolean;
   lastQuestion?: string;
@@ -169,10 +169,11 @@ export const Composer = forwardRef<ComposerHandle, {
   useEffect(() => setSlashIndex(0), [slashQuery]);
 
   const runCommand = (c: SlashCommand) => {
-    if (c.mode && c.mode !== options.mode) onOptionsChange({ ...options, mode: c.mode });
+    const next = c.mode && c.mode !== options.mode ? { ...options, mode: c.mode } : options;
+    if (next !== options) onOptionsChange(next);
     if (c.send) {
       onChange("");
-      onSend(c.send);
+      onSend(c.send, next);
       return;
     }
     const text = c.text ?? "";

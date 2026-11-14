@@ -4,7 +4,7 @@
 // Confirm — then the browser calls the named API endpoint with the user's own
 // session (server RBAC, maker-checker and audit apply as usual).
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import Link from "next/link";
 import {
   AlertTriangle, ArrowUpRight, BellRing, Check, ChevronDown, CircleSlash, ExternalLink, Gavel, Landmark, Link2, Loader2, Mail,
@@ -128,7 +128,10 @@ export function ActionCard({
 
       <div className="space-y-4 px-5 pb-4">
         {card.facts?.length ? (
-          <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[12px] border border-[var(--line)] bg-[var(--line)] sm:grid-cols-4">
+          <dl
+            style={{ "--cols": Math.min(card.facts.length, 4) } as CSSProperties}
+            className={cn("grid gap-px overflow-hidden rounded-[12px] border border-[var(--line)] bg-[var(--line)] sm:[grid-template-columns:repeat(var(--cols),minmax(0,1fr))]", card.facts.length === 1 ? "grid-cols-1" : "grid-cols-2")}
+          >
             {card.facts.map((f) => (
               <div key={f.label} className="bg-[var(--surface)] px-3 py-2.5">
                 <dt className="text-[12px] text-[var(--muted)]">{f.label}</dt>

@@ -59,7 +59,7 @@ export function MiniTable({
               return (
                 <tr key={i} className="border-t border-[var(--line)] transition-colors hover:bg-[var(--surface-2)]/60">
                   {table.columns.map((c, ci) => (
-                    <td key={c.key} className={cn("px-4 py-2.5 align-top text-[var(--ink-2)]", c.align === "right" && "tnum whitespace-nowrap text-right", ci === 0 && "whitespace-nowrap font-medium text-[var(--ink)]")}>
+                    <td key={c.key} className={cn("px-4 py-2.5 align-top text-[var(--ink-2)]", c.align === "right" && "tnum whitespace-nowrap text-right", (c.format === "date" || c.format === "inr" || c.format === "int" || c.format === "pct") && "whitespace-nowrap", ci === 0 && "whitespace-nowrap font-medium text-[var(--ink)]", ci > 0 && !c.format && "min-w-[150px]")}>
                       {ci === 0 && href ? (
                         <Link href={href} className="inline-flex items-center gap-0.5 hover:text-[var(--accent-strong)] hover:underline">
                           {formatCell(row[c.key], c.format)}

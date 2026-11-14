@@ -5,7 +5,7 @@
 // draft blocks (":::draft Title … :::"), a "How we calculated" panel, and a
 // soft per-word fade for text revealed while streaming.
 
-import { Children, isValidElement, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { Children, createContext, isValidElement, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -300,6 +300,36 @@ const isStrongOnly = (children: ReactNode) => {
   return items.length === 1 && isValidElement(items[0]) && (items[0].type === "strong" || (items[0].props as { node?: { tagName?: string } })?.node?.tagName === "strong");
 };
 
+type BlockCtx = { citeMap: Map<string, number>; citations: Citation[]; lead: boolean };
+const ProseContext = createContext<BlockCtx>({ citeMap: new Map(), citations: [], lead: false });
+
+// Components are module-level (stable identities): an inline object would
+// remount every paragraph on each streamed frame and restart the word fade.
+function MdParagraph({ node, children }: { node?: { position?: { start: { offset?: number } } }; children?: ReactNode }) {
+  const { lead } = useContext(ProseContext);
+  if (lead && node?.position?.start.offset === 0) return <p className="sx-lead">{children}</p>;
+  if (isStrongOnly(children)) return <h4 className="sx-h">{children}</h4>;
+  return <p>{children}</p>;
+}
+function MdLink({ href, children }: { href?: string; children?: ReactNode }) {
+  const { citeMap, citations } = useContext(ProseContext);
+  if (href === "caret:") return <span className="sx-caret" aria-hidden="true" />;
+  if (href?.startsWith("cite:")) {
+    const ref = href.slice(5);
+    return <CitationChip n={citeMap.get(ref) ?? 0} citation={citations.find((c) => c.ref === ref)} />;
+  }
+  const safe = href && (href.startsWith("/") || /^https?:\/\//.test(href)) ? href : undefined;
+  return safe ? <a href={safe}>{children}</a> : <span>{children}</span>;
+}
+function MdTable({ children }: { children?: ReactNode }) {
+  return <ProseTable>{children}</ProseTable>;
+}
+const MD_COMPONENTS = { p: MdParagraph, a: MdLink, table: MdTable };
+const REMARK = [remarkGfm];
+const REHYPE_FADE = [rehypeWordFade];
+const NO_PLUGINS: never[] = [];
+const keepUrl = (url: string) => url;
+
 function MarkdownBlock({ text, citeMap, citations, lead, fade }: { text: string; citeMap: Map<string, number>; citations: Citation[]; lead: boolean; fade: boolean }) {
   const prepared = useMemo(
     () => text.replace(/\s?\[S(\d+)\]/g, (_m, n) => {
@@ -308,31 +338,13 @@ function MarkdownBlock({ text, citeMap, citations, lead, fade }: { text: string;
     }),
     [text, citeMap],
   );
+  const ctx = useMemo(() => ({ citeMap, citations, lead }), [citeMap, citations, lead]);
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={fade ? [rehypeWordFade] : []}
-      urlTransform={(url) => url}
-      components={{
-        p: ({ node, children }) => {
-          if (lead && node?.position?.start.offset === 0) return <p className="sx-lead">{children}</p>;
-          if (isStrongOnly(children)) return <h4 className="sx-h">{children}</h4>;
-          return <p>{children}</p>;
-        },
-        a: ({ href, children }) => {
-          if (href === "caret:") return <span className="sx-caret" aria-hidden="true" />;
-          if (href?.startsWith("cite:")) {
-            const ref = href.slice(5);
-            return <CitationChip n={citeMap.get(ref) ?? 0} citation={citations.find((c) => c.ref === ref)} />;
-          }
-          const safe = href && (href.startsWith("/") || /^https?:\/\//.test(href)) ? href : undefined;
-          return safe ? <a href={safe}>{children}</a> : <span>{children}</span>;
-        },
-        table: ({ children }) => <ProseTable>{children}</ProseTable>,
-      }}
-    >
-      {prepared}
-    </ReactMarkdown>
+    <ProseContext.Provider value={ctx}>
+      <ReactMarkdown remarkPlugins={REMARK} rehypePlugins={fade ? REHYPE_FADE : NO_PLUGINS} urlTransform={keepUrl} components={MD_COMPONENTS}>
+        {prepared}
+      </ReactMarkdown>
+    </ProseContext.Provider>
   );
 }
 

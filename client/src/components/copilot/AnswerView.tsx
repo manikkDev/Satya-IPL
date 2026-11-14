@@ -96,7 +96,18 @@ function ToolButton({ label, onClick, children, pressed, className, disabled }: 
   );
 }
 
-const DOWN_REASONS = ["A figure looks wrong", "Not what I asked", "Missing something", "Too long"];
+/** Say each fact once: drop a table whose rows repeat an earlier table's. */
+function uniqueTables<T extends { rows: Record<string, unknown>[]; columns: { key: string }[] }>(tables: T[]): T[] {
+  const seen = new Set<string>();
+  return tables.filter((t) => {
+    const key = t.rows.map((r) => String(r[t.columns[0]?.key ?? ""] ?? "")).sort().join("|");
+    if (key && seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+const DOWN_REASONS =["A figure looks wrong", "Not what I asked", "Missing something", "Too long"];
 
 export function AnswerView({
   turn,
@@ -232,7 +243,7 @@ export function AnswerView({
           </div>
         ) : null}
 
-        {!writing && (answer?.tables ?? []).slice(0, 2).map((t) => <MiniTable key={t.id} table={t} sources={sources} />)}
+        {!writing && uniqueTables(answer?.tables ?? []).slice(0, 2).map((t) => <MiniTable key={t.id} table={t} sources={sources} />)}
 
         {cards.map((card) => <ActionCard key={card.id} card={card} sources={sources} onResult={onActionResult} />)}
 
@@ -241,7 +252,7 @@ export function AnswerView({
             {evidenceRefs.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-[var(--muted)]">
                 <span>Sources</span>
-                {evidenceRefs.filter((r, i, a) => a.indexOf(r) === i && numbered.get(r)).map((r) => {
+                {evidenceRefs.filter((r, i, a) => a.indexOf(r) === i && numbered.get(r)).sort((x, y) => (numbered.get(x) ?? 0) - (numbered.get(y) ?? 0)).map((r) => {
                   const c = citations.find((x) => x.ref === r) ?? sources.find((x) => x.ref === r);
                   return (
                     <button key={r} type="button" onClick={() => onOpenSources(turn)} title={c?.label} className="inline-flex h-[20px] min-w-[20px] items-center justify-center rounded-[6px] bg-[var(--surface-2)] px-1 text-[11px] font-semibold text-[var(--ink-2)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent-strong)]">

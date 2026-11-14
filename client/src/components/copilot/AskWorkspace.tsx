@@ -138,6 +138,7 @@ export function AskWorkspace() {
     setAnnounce("Satya is working on your question.");
     pinnedRef.current = true;
     setPinned(true);
+    if (!replace) requestAnimationFrame(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
     const controller = new AbortController();
     const requestId = newId("req");
     abortRef.current = { controller, requestId, turnId: id };
@@ -289,14 +290,44 @@ export function AskWorkspace() {
 
   /* ---------------------------------------------- pinned auto-scroll */
 
+  // Only the USER unpins (wheel/touch/keys upward); scrolling back to the
+  // bottom re-pins. Programmatic and scroll-anchoring scrolls never unpin.
   useEffect(() => {
+    const atBottom = () => window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 140;
+    const pin = (v: boolean) => {
+      if (pinnedRef.current === v) return;
+      pinnedRef.current = v;
+      setPinned(v);
+    };
     const onScroll = () => {
-      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 140;
-      pinnedRef.current = atBottom;
-      setPinned(atBottom);
+      if (atBottom()) pin(true);
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) pin(false);
+    };
+    let touchY = 0;
+    const onTouchStart = (e: TouchEvent) => {
+      touchY = e.touches[0]?.clientY ?? 0;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if ((e.touches[0]?.clientY ?? 0) > touchY + 8) pin(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && e.target.closest("input, textarea, select") !== null;
+      if (!typing && ["PageUp", "ArrowUp", "Home"].includes(e.key)) pin(false);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    window.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("keydown", onKey);
+    };
   }, []);
   const hasTurns = turns.length > 0;
   useEffect(() => {
@@ -431,7 +462,7 @@ export function AskWorkspace() {
               ref={composer}
               value={input}
               onChange={setInput}
-              onSend={(text) => send(text ?? input)}
+              onSend={(text, opts) => send(text ?? input, { withOptions: opts })}
               onStop={stop}
               busy={busy}
               lastQuestion={lastQuestion}
