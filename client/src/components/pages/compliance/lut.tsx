@@ -12,9 +12,10 @@ import { v2 } from "@/lib/api/v2";
 import { mocksEnabled } from "@/lib/flags";
 import {
   Money, StatusChip, ResponsiveTable, RowActions, InfoPanel, InfoList, EmptyState, ErrorState, TableSkeleton,
-  SectionHeader, RelativeDue, type Column, type StatusTone,
+  SectionHeader, type Column, type StatusTone,
 } from "@/components/ui/v2";
-import { formatDate } from "@/lib/format";
+import { formatDate, daysFromTodayIst } from "@/lib/format";
+import { dayText } from "@/lib/humanize";
 import { useSection, FieldModal, Modal, exportCsv, csvMoney, inputCls, labelCls, hintCls, type MoneyVal } from "./shared";
 import { cn } from "@/lib/utils";
 
@@ -75,7 +76,19 @@ export function LutPanel({ onView }: { onView: (id: string) => void }) {
       },
     },
     { key: "arn", header: "ARN", cell: (e) => (e.currentArn ? <span className="font-code text-[14px]">{e.currentArn}</span> : <span className="text-[var(--muted)]">—</span>) },
-    { key: "valid", header: "Valid until", cell: (e) => (e.validTo ? <RelativeDue date={e.validTo} /> : <span className="text-[var(--muted)]">—</span>) },
+    {
+      key: "valid", header: "Valid until",
+      cell: (e) => {
+        if (!e.validTo) return <span className="text-[var(--muted)]">—</span>;
+        const left = daysFromTodayIst(e.validTo);
+        return (
+          <span className="inline-flex flex-col whitespace-nowrap leading-snug">
+            <span className="text-[var(--ink)]">{formatDate(e.validTo)}</span>
+            {left !== null ? <span className={left <= 30 ? "text-[13px] text-[var(--sev-medium)]" : "text-[13px] text-[var(--muted)]"}>{left < 0 ? "Lapsed" : `${dayText(left)} left`}</span> : null}
+          </span>
+        );
+      },
+    },
   ];
 
   const exportColumns: Column<ExportRow>[] = [
