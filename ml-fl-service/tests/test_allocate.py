@@ -53,11 +53,13 @@ def test_tds_net_expands_target():
 
 
 def test_too_many_candidates_errors():
-    from satya_engine.contracts_v2 import OpenInvoice
+    # The brute-force cap of 20 is gone (exact paise branch-and-bound search);
+    # an unreasonable pool is still refused instead of silently truncated.
+    from satya_engine.recon.allocate import MAX_ITEMS
     request = AllocatePaymentRequest.model_validate(dict(
         payment={"id": "P-1", "amount": {"amount": "100", "currency": "INR"}},
         openInvoices=[{"id": f"I-{i}", "openAmount": {"amount": "1", "currency": "INR"}}
-                      for i in range(21)]))
+                      for i in range(MAX_ITEMS + 1)]))
     with pytest.raises(AllocationInputError):
         allocate(request)
 

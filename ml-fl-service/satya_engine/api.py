@@ -10,11 +10,11 @@ from .auth import internal
 from .compat_v1 import router as legacy_router
 from .anomaly import score as anomaly_score
 from .evaluate import report as eval_report
-from .contracts_v2 import AllocatePaymentRequest, AnomalyScoreRequest, ComplianceDeadlinesRequest, DocsParseRequest, DocsValidateRequest, GstinValidateRequest, MatchCandidatesRequest, ReconcileCaseRequest, TaxComputeRequest, schemas
+from .contracts_v2 import AllocateBatchRequest, AllocatePaymentRequest, AnomalyScoreRequest, ComplianceDeadlinesRequest, DocsParseRequest, DocsValidateRequest, GstinValidateRequest, MatchCandidatesRequest, ReconcileCaseRequest, TaxComputeRequest, schemas
 from .match.candidates import candidates as match_candidates
 from .deadlines import deadlines
 from .docs import DocParseError, parse, validate
-from .recon.allocate import AllocationInputError, allocate
+from .recon.allocate import AllocationInputError, allocate, allocate_batch
 from .recon.case import reconcile_case
 from .india.gstin import validate_gstin
 from .india.hsn_master import HsnMaster
@@ -87,6 +87,15 @@ def create_app():
     def allocate_payment(request: AllocatePaymentRequest):
         try:
             return allocate(request)
+        except AllocationInputError as error:
+            return JSONResponse(status_code=422, content={
+                "error": {"code": "VALIDATION_FAILED", "message": str(error),
+                          "requestId": uuid.uuid4().hex}})
+
+    @app.post("/v2/allocate/batch", dependencies=[Depends(require_v2), Depends(internal)])
+    def allocate_many(request: AllocateBatchRequest):
+        try:
+            return allocate_batch(request)
         except AllocationInputError as error:
             return JSONResponse(status_code=422, content={
                 "error": {"code": "VALIDATION_FAILED", "message": str(error),

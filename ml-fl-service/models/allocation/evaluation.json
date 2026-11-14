@@ -1,0 +1,80 @@
+{
+ "generatedAt": "2026-11-14T17:55:34+00:00",
+ "task": "payment_allocation",
+ "algorithm": "score-then-solve (plausibility + exact paise subset search, tolerance modes, ambiguity margin)",
+ "protocol": "per payment: same-supplier invoices open at the payment date form the pool; truth = generator SETTLES set; split payments (partial settlement) excluded from this protocol",
+ "overall": {
+  "payments": 1785,
+  "exactAllocationAccuracy": 0.9283,
+  "autoRate": 0.9193,
+  "autoPrecision": 0.997,
+  "autoPrecisionWilson95": [
+   0.9929,
+   0.9987
+  ],
+  "confirmedRate": 0.5137,
+  "abstentionRate": 0.0521,
+  "multiInvoiceShare": 0.2168,
+  "latencyMsP50": 0.13,
+  "latencyMsP95": 0.58,
+  "legacy": {
+   "answeredRate": 0.5311,
+   "exactAllocationAccuracy": 0.5311,
+   "precisionWhenAnswered": 1.0,
+   "algorithm": "exact brute-force subset-sum, <= 20 candidates, no TDS/bank tolerance"
+  }
+ },
+ "bySource": [
+  {
+   "source": "synthetic",
+   "provenance": "synthetic",
+   "payments": 1150,
+   "exactAllocationAccuracy": 0.9209,
+   "autoRate": 0.913,
+   "autoPrecision": 0.999,
+   "autoPrecisionWilson95": [
+    0.9946,
+    0.9998
+   ],
+   "confirmedRate": 0.6139,
+   "abstentionRate": 0.0739,
+   "multiInvoiceShare": 0.1026,
+   "latencyMsP50": 0.13,
+   "latencyMsP95": 0.3,
+   "legacy": {
+    "answeredRate": 0.633,
+    "exactAllocationAccuracy": 0.633,
+    "precisionWhenAnswered": 1.0,
+    "algorithm": "exact brute-force subset-sum, <= 20 candidates, no TDS/bank tolerance"
+   }
+  },
+  {
+   "source": "bpi2019",
+   "provenance": "BPI-2019 derived",
+   "payments": 635,
+   "exactAllocationAccuracy": 0.9417,
+   "autoRate": 0.9307,
+   "autoPrecision": 0.9932,
+   "autoPrecisionWilson95": [
+    0.9827,
+    0.9974
+   ],
+   "confirmedRate": 0.3323,
+   "abstentionRate": 0.0126,
+   "multiInvoiceShare": 0.4236,
+   "latencyMsP50": 0.13,
+   "latencyMsP95": 2.72,
+   "legacy": {
+    "answeredRate": 0.3465,
+    "exactAllocationAccuracy": 0.3465,
+    "precisionWhenAnswered": 1.0,
+    "algorithm": "exact brute-force subset-sum, <= 20 candidates, no TDS/bank tolerance"
+   }
+  }
+ ],
+ "limitations": [
+  "Synthetic / BPI-derived payments only; real remittance behaviour differs",
+  "Pool restricted to the true supplier (mirrors the server's same-counterparty ranking)",
+  "Partial/split payments are not scored here (they always go to review)"
+ ]
+}

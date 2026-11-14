@@ -565,6 +565,9 @@ class PaymentInput(Contract):
     date: DateOnly | None = None
     utr: str | None = None
     tdsAmount: Money | None = None
+    narration: str | None = None
+    partyName: str | None = None
+    partyGstin: str | None = None
 
 
 class OpenInvoice(Contract):
@@ -573,6 +576,9 @@ class OpenInvoice(Contract):
     date: DateOnly | None = None
     openAmount: Money
     dueDate: DateOnly | None = None
+    taxableAmount: Money | None = None
+    partyName: str | None = None
+    partyGstin: str | None = None
 
 
 class CreditInput(Contract):
@@ -586,11 +592,28 @@ class TdsPolicy(Contract):
     rate: DecimalString | None = None
 
 
+class AllocationTolerance(Contract):
+    """Tolerances the solver may use (each ranks below an exact allocation)."""
+    tdsRates: list[DecimalString] | None = None          # percent, default ["0.1", "1", "2"]
+    bankChargeMax: DecimalString | None = None           # rupees, default "500"
+    roundingPaise: int | None = Field(default=None, ge=0, le=500)  # default 100 (Rs 1)
+    ambiguityMargin: DecimalString | None = None         # objective gap, default "0.25"
+    maxInvoicesPerPayment: int | None = Field(default=None, ge=1, le=12)
+
+
 class AllocatePaymentRequest(Contract):
     payment: PaymentInput
     openInvoices: list[OpenInvoice] = Field(max_length=2000)
     credits: list[CreditInput] | None = None
     tdsPolicy: TdsPolicy | None = None
+    tolerance: AllocationTolerance | None = None
+
+
+class AllocateBatchRequest(Contract):
+    payments: list[PaymentInput] = Field(min_length=1, max_length=500)
+    openInvoices: list[OpenInvoice] = Field(max_length=2000)
+    tdsPolicy: TdsPolicy | None = None
+    tolerance: AllocationTolerance | None = None
 
 
 class AnomalyScoreRequest(Contract):
@@ -716,7 +739,7 @@ def schemas():
         Money, Address, Party, DocLine, BusinessDocument, Evidence, Finding,
         GraphPayload, TaxComputeRequest, GstinValidateRequest, DocumentLink,
         EntityPolicy, Reviews, Scenario, ReconcileCaseRequest, PartialBusinessDocument,
-        MatchRecord, MatchCandidatesRequest, AllocatePaymentRequest, AnomalyScoreRequest,
+        MatchRecord, MatchCandidatesRequest, AllocatePaymentRequest, AllocateBatchRequest, AnomalyScoreRequest,
         ComplianceDeadlinesRequest, Deadline, DocsParseRequest, DocsValidateRequest,
         ReconcileCaseResponse, LedgerRow, CaseBalances, ReconFinding, Ambiguity,
         Recommendation,
