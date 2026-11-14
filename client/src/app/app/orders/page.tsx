@@ -6,15 +6,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Upload, ShoppingCart, ListChecks, MessageSquare } from "lucide-react";
+import { Pager } from "@/components/pages/shared/pager";
 import { v2 } from "@/lib/api/v2";
 import type { OrderListRow } from "@/lib/mocks/data";
-import { Money, DateText, StatusBadge, ErrorState, EmptyState, PageHeader, FadeIn, BtnLink } from "@/components/ui/v2";
-import { FilterChips } from "@/components/pages/shared/filter-chips";
-import { ResponsiveTable, TableSkeleton, Pager, type Column } from "@/components/pages/shared/data-table";
-import { RowActions } from "@/components/pages/shared/row-actions";
+import { Money, DateText, StatusBadge, ErrorState, EmptyState, PageHeader, FadeIn, BtnLink, FilterChips, ResponsiveTable, RowActions, TableSkeleton, type Column } from "@/components/ui/v2";
 import { SearchField, ListToolbar } from "@/components/pages/shared/search-field";
 import { ProgressStack } from "@/components/pages/shared/progress-meter";
 
@@ -23,7 +20,7 @@ const PAGE_SIZE = 20;
 type FilterKey = "all" | "issues" | "issued" | "partially_fulfilled" | "fulfilled" | "pending_approval" | "draft";
 // Rare statuses (acknowledged, short-closed) stay reachable through search
 // and "All" — five chips read at a glance, nine don't.
-const FILTERS: { value: FilterKey; label: string; tone?: "warn" | "bad"; always?: boolean }[] = [
+const FILTERS: { value: FilterKey; label: string; tone?: "warn" | "critical"; always?: boolean }[] = [
   { value: "all", label: "All", always: true },
   { value: "issues", label: "Has issues", tone: "warn", always: true },
   { value: "pending_approval", label: "Waiting for approval", tone: "warn" },
@@ -43,7 +40,6 @@ const filterParams = (f: FilterKey): Record<string, string> =>
 type Row = OrderListRow & { caseId?: string | null };
 
 export default function OrdersPage() {
-  const router = useRouter();
   const [filter, setFilter] = useState<FilterKey>("all");
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -86,7 +82,7 @@ export default function OrdersPage() {
 
   const columns: Column<Row>[] = [
     {
-      key: "order", header: "Order", mobile: "title", className: "min-w-[230px]",
+      key: "order", header: "Order", primary: true, className: "min-w-[230px]",
       cell: (r) => (
         <div className="min-w-0">
           <Link href={`/app/orders/${r.id}`} onClick={(e) => e.stopPropagation()} className="block truncate font-semibold text-[var(--ink)] hover:underline">{r.supplier || "Supplier not set"}</Link>
@@ -147,7 +143,7 @@ export default function OrdersPage() {
         }
       >
         <FilterChips
-          ariaLabel="Filter orders"
+          label="Filter orders"
           value={filter}
           onChange={setFilter}
           options={FILTERS.filter((f) => f.always || f.value === filter || (counts.data?.[f.value] ?? 0) > 0).map((f) => ({
@@ -159,7 +155,7 @@ export default function OrdersPage() {
       {error ? (
         <ErrorState message={error instanceof Error ? error.message : "Something went wrong."} onRetry={() => refetch()} />
       ) : isLoading ? (
-        <TableSkeleton rows={8} cols={8} />
+        <TableSkeleton rows={8} columns={8} />
       ) : rows.length ? (
         <div className={isFetching ? "space-y-3 opacity-70 transition-opacity" : "space-y-3 transition-opacity"}>
           <ResponsiveTable
@@ -167,9 +163,9 @@ export default function OrdersPage() {
             columns={columns}
             rows={rows}
             rowKey={(r) => r.id}
-            onRowClick={(r) => router.push(`/app/orders/${r.id}`)}
             actions={(r) => (
               <RowActions
+                label={`order ${r.number}`}
                 primary={r.issueCount && r.caseId ? { label: "Review", href: `/app/investigations/${r.caseId}` } : { label: "Open", href: `/app/orders/${r.id}` }}
                 items={[
                   { label: "Open the order", icon: ShoppingCart, href: `/app/orders/${r.id}` },

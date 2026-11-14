@@ -6,7 +6,6 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { CircleCheck, Plus, MessageSquare, Upload } from "lucide-react";
 import { workflow } from "@/lib/api/workflow";
@@ -14,18 +13,13 @@ import { RiskBadge } from "@/components/v2/risk-badge";
 import { mocksEnabled } from "@/lib/flags";
 import { v2 } from "@/lib/api/v2";
 import type { SupplierRow } from "@/lib/api/v2";
-import { ErrorState, EmptyState, PageHeader, FadeIn, BtnLink } from "@/components/ui/v2";
-import { FilterChips } from "@/components/pages/shared/filter-chips";
-import { ResponsiveTable, TableSkeleton, type Column } from "@/components/pages/shared/data-table";
-import { RowActions } from "@/components/pages/shared/row-actions";
+import { ErrorState, EmptyState, PageHeader, FadeIn, BtnLink, FilterChips, InfoPanel, ResponsiveTable, RowActions, TableSkeleton, type Column } from "@/components/ui/v2";
 import { SearchField, ListToolbar } from "@/components/pages/shared/search-field";
-import { InfoPanel } from "@/components/pages/shared/info-panel";
 
 type FilterKey = "all" | "attention" | "msme" | "nogstin";
 const cap = (s?: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
 
 export default function SuppliersPage() {
-  const router = useRouter();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ["suppliers"], queryFn: () => v2.suppliers() });
@@ -50,7 +44,7 @@ export default function SuppliersPage() {
 
   const columns: Column<SupplierRow>[] = [
     {
-      key: "name", header: "Supplier", mobile: "title", className: "min-w-[240px]",
+      key: "name", header: "Supplier", primary: true, className: "min-w-[240px]",
       cell: (s) => (
         <div className="min-w-0">
           <Link href={`/app/suppliers/${s.id}`} onClick={(e) => e.stopPropagation()} className="block truncate font-semibold text-[var(--ink)] hover:underline">{s.name}</Link>
@@ -98,14 +92,14 @@ export default function SuppliersPage() {
 
       <ListToolbar search={<SearchField value={query} onChange={setQuery} placeholder="Search name or GSTIN" />}>
         <FilterChips
-          ariaLabel="Filter suppliers"
+          label="Filter suppliers"
           value={filter}
           onChange={setFilter}
           options={[
             { value: "all" as const, label: "All", count: count("all") },
-            { value: "attention" as const, label: "Needs a closer look", count: risks.data ? count("attention") : null, tone: "warn" as const },
+            { value: "attention" as const, label: "Needs a closer look", count: risks.data ? count("attention") : undefined, tone: "warn" as const },
             { value: "msme" as const, label: "MSME", count: count("msme") },
-            ...(count("nogstin") || filter === "nogstin" ? [{ value: "nogstin" as const, label: "GSTIN missing", count: count("nogstin"), tone: "bad" as const }] : []),
+            ...(count("nogstin") || filter === "nogstin" ? [{ value: "nogstin" as const, label: "GSTIN missing", count: count("nogstin"), tone: "critical" as const }] : []),
           ]}
         />
       </ListToolbar>
@@ -113,7 +107,7 @@ export default function SuppliersPage() {
       {error ? (
         <ErrorState message={error instanceof Error ? error.message : "Something went wrong."} onRetry={() => refetch()} />
       ) : isLoading ? (
-        <TableSkeleton rows={8} cols={6} />
+        <TableSkeleton rows={8} columns={6} />
       ) : items.length === 0 ? (
         <EmptyState
           title={query || filter !== "all" ? "No suppliers match" : "No suppliers yet"}
@@ -127,10 +121,10 @@ export default function SuppliersPage() {
           columns={columns}
           rows={items}
           rowKey={(s) => s.id}
-          onRowClick={(s) => router.push(`/app/suppliers/${s.id}`)}
           rowAccent={(s) => (riskById.get(s.id)?.band === "high" ? "critical" : null)}
           actions={(s) => (
             <RowActions
+              label={s.name}
               primary={{ label: "Open", href: `/app/suppliers/${s.id}` }}
               items={[
                 { label: "New purchase order", icon: Plus, href: "/app/orders/new" },

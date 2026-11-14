@@ -1,104 +1,79 @@
-// Plain-English copy for the reconciliation engine's finding codes. The
-// engine's own message stays as the specific detail line; this adds a short
-// headline and what would actually settle the issue — so the page never
-// shows a raw code or "see the source document".
+// What would settle each engine finding — one concrete next step, so a page
+// never says "see the source document". Headlines and text cleaning come
+// from the shared lib/humanize (findingTitle, sanitizeEngineText); this file
+// only adds the resolution copy and the decision words.
 
-import { formatDate, formatMoney } from "@/lib/format";
+import { findingTitle, sanitizeEngineText } from "@/lib/humanize";
 
 export type FindingCopy = {
-  /** Short headline, sentence case. */
-  label: string;
   /** What would settle it — one concrete next step. */
   settle: string;
 };
 
 export const FINDING_COPY: Record<string, FindingCopy> = {
   INVOICE_QTY_EXCEEDS_RECEIVED: {
-    label: "Billed for more than was delivered",
     settle: "Ask the supplier for a credit note for the undelivered units — or record the missing goods receipt if they did arrive.",
   },
   QTY_INVOICED_EXCEEDS_ACCEPTED: {
-    label: "Billed for goods that failed quality check",
     settle: "Raise a debit note for the rejected units, or record a revised quality-check result.",
   },
   DUPLICATE_INVOICE_SUSPECT: {
-    label: "Possible duplicate invoice",
     settle: "Confirm with the supplier whether this is one bill or a revised one, then cancel the extra copy.",
   },
   DUP_EXACT_INVOICE: {
-    label: "Same invoice recorded twice",
     settle: "Cancel the duplicate entry so the bill is not paid twice.",
   },
   DELIVERY_SHORTFALL: {
-    label: "Delivery is short",
     settle: "Chase the remaining quantity, or short-close the order line if it is no longer needed.",
   },
   MSME_43BH_DEADLINE: {
-    label: "MSME payment deadline passed",
     settle: "Pay the supplier (interest is due by law) or record why the bill is disputed.",
   },
   DOC_MISSING_INVOICE: {
-    label: "Delivered, not billed yet",
     settle: "Nothing to pay yet — expect the supplier’s invoice and follow up if it is late.",
   },
   RECEIPT_EVIDENCE_MISSING: {
-    label: "Billed with no goods-received record",
     settle: "Record the goods receipt, or hold the invoice until stores confirm the delivery.",
   },
   PAY_UNALLOCATED: {
-    label: "Payment not linked to an invoice",
     settle: "Get the remittance details from the supplier, then allocate the payment in Payments.",
   },
   PAY_SPLIT: {
-    label: "Invoice paid in instalments",
     settle: "Usually fine — confirm the payments add up to the invoice.",
   },
   PRICE_VARIANCE: {
-    label: "Price differs from the order",
     settle: "Ask for a credit note for the difference, or approve the new rate in writing.",
   },
   DOC_CREDIT_NOTE_PENDING: {
-    label: "Credit note not applied",
     settle: "Apply the credit note against an open invoice before the next payment.",
   },
   TAX_GSTIN_INVALID: {
-    label: "Supplier GSTIN looks invalid",
     settle: "Ask for a corrected invoice with a valid GSTIN — GST credit can’t be claimed until then.",
   },
   TAX_TYPE_MISMATCH: {
-    label: "Wrong type of GST charged",
     settle: "Ask for a revised invoice with the correct GST split (CGST + SGST for a same-state supply).",
   },
   TAX_EWAYBILL_MISSING: {
-    label: "e-way bill number missing",
     settle: "Ask the supplier for the e-way bill number — it is required for goods over ₹50,000.",
   },
 };
 
-/** Fallback headline for codes without copy: "PAY_UNALLOCATED" → "Pay unallocated". */
+/** "PAY_UNALLOCATED" → "Pay unallocated" (only for decision actions). */
 export const codeWords = (code?: string | null) =>
   code ? code.replaceAll("_", " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase()) : "Issue";
 
-export const findingLabel = (code?: string | null, fallback?: string) =>
-  (code && FINDING_COPY[code]?.label) || fallback || codeWords(code);
+/** Plain headline for a finding code (never the raw code). */
+export const findingLabel = (code?: string | null, _fallback?: string) => {
+  void _fallback;
+  return findingTitle(code);
+};
 
 export const findingSettle = (code?: string | null, fallback?: string) =>
   (code && FINDING_COPY[code]?.settle) || (fallback && !/^see the source/i.test(fallback) ? fallback : "") ||
   "Open the linked documents and correct whichever one is wrong.";
 
-/** Tidy an engine sentence for reading: "44 day(s)" → "44 days",
- *  "₹88736.00" → "₹88,736.00", "2026-10-01" → "1 Oct 2026". */
-export function tidyText(text?: string | null): string {
-  if (!text) return "";
-  return text
-    .replace(/\b(\d+) day\(s\)/g, (_m, n) => `${n} day${n === "1" ? "" : "s"}`)
-    .replace(/\b(\d+) unit\(s\)/g, (_m, n) => `${n} unit${n === "1" ? "" : "s"}`)
-    .replace(/₹\s?(\d+(?:\.\d+)?)(?![\d,])/g, (_m, n) => formatMoney(n))
-    .replace(/₹₹/g, "₹")
-    .replace(/\b(\d{4}-\d{2}-\d{2})\b/g, (_m, d) => formatDate(d))
-    .replace(/\bMSMED s\.15\b/g, "MSME Act")
-    .replace(/\bs\.43B\(h\)/g, "Section 43B(h)");
-}
+/** Engine sentence → readable text (₹ grouping, plurals, dates, no ids). */
+export const tidyText = (text?: string | null) => sanitizeEngineText(text);
 
 /** Recommendation action → the sentence a manager reads first. */
 export const RECOMMENDATION_HEADLINE: Record<string, string> = {

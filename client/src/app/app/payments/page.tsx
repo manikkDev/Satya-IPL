@@ -14,14 +14,12 @@ import {
   UploadCloud, X, CheckCircle2, Search, Landmark, Link2, Building2, Eye, MessageSquare,
   CircleCheck, CircleDot, CircleDashed, CircleHelp, CircleAlert, Wallet, Loader2, type LucideIcon,
 } from "lucide-react";
+import { Pager } from "@/components/pages/shared/pager";
 import { v2 } from "@/lib/api/v2";
 import { mocksEnabled } from "@/lib/flags";
 import { useSession } from "@/components/v2/session";
-import { Money, DateText, ErrorState, EmptyState, PageHeader, FadeIn, Card, Btn, Callout } from "@/components/ui/v2";
+import { Money, DateText, ErrorState, EmptyState, PageHeader, FadeIn, Card, Btn, Callout, FilterChips, ResponsiveTable, RowActions, TableSkeleton, type Column } from "@/components/ui/v2";
 import { AllocationSheet } from "@/components/pages/payments/allocation-sheet";
-import { FilterChips } from "@/components/pages/shared/filter-chips";
-import { ResponsiveTable, TableSkeleton, Pager, type Column } from "@/components/pages/shared/data-table";
-import { RowActions } from "@/components/pages/shared/row-actions";
 import { SearchField, ListToolbar } from "@/components/pages/shared/search-field";
 import { fromPaise, sumMoney, toPaise } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -196,7 +194,7 @@ function ImportCsv({ entityId, onDone }: { entityId: string; onDone: () => void 
 
 /* ---------- page ---------- */
 type FilterKey = "" | "unallocated" | "partial" | "needs_evidence" | "unclear" | "allocated";
-const FILTERS: { value: FilterKey; label: string; tone?: "warn" | "bad"; always?: boolean }[] = [
+const FILTERS: { value: FilterKey; label: string; tone?: "warn" | "critical"; always?: boolean }[] = [
   { value: "unallocated", label: "Not matched", tone: "warn", always: true },
   { value: "partial", label: "Part matched", tone: "warn" },
   { value: "needs_evidence", label: "Needs evidence", tone: "warn" },
@@ -267,7 +265,7 @@ export default function PaymentsPage() {
 
   const columns: Column<Row>[] = [
     {
-      key: "who", header: "Paid to", mobile: "title", className: "min-w-[220px]",
+      key: "who", header: "Paid to", primary: true, className: "min-w-[220px]",
       cell: (r) => (
         <div className="min-w-0">
           <p className="truncate font-semibold text-[var(--ink)]">{who(r)}</p>
@@ -344,7 +342,7 @@ export default function PaymentsPage() {
         }
       >
         <FilterChips
-          ariaLabel="Filter payments"
+          label="Filter payments"
           value={activeStatus}
           onChange={(v) => setStatus(v)}
           options={FILTERS.filter((f) => f.always || f.value === activeStatus || (counts.data?.[f.value] ?? 0) > 0).map((f) => ({
@@ -356,7 +354,7 @@ export default function PaymentsPage() {
       {error ? (
         <ErrorState message={error instanceof Error ? error.message : "Something went wrong."} onRetry={() => refetch()} />
       ) : isLoading || (!data && !mocks) ? (
-        <TableSkeleton rows={6} cols={7} />
+        <TableSkeleton rows={6} columns={7} />
       ) : items.length === 0 ? (
         filtered ? (
           <EmptyState icon={Search} title={debounced ? "No payments match your search" : "Nothing in this group"} body="Try another search, or pick a different filter above." actionLabel="Show all payments" onAction={() => { setQuery(""); setStatus(""); }} />
@@ -375,8 +373,8 @@ export default function PaymentsPage() {
               const isOpen = OPEN_STATUSES.has(r.status || "");
               return (
                 <RowActions
-                  primaryVariant={isOpen ? "primary" : "secondary"}
-                  primary={isOpen ? { label: "Match to bills", onSelect: () => setWorkbench(r.id) } : null}
+                  label={`payment to ${who(r)}`}
+                  primary={isOpen ? <Btn size="sm" onClick={() => setWorkbench(r.id)}>Match to bills</Btn> : null}
                   items={[
                     ...(r.supplierId ? [{ label: "Open the supplier", icon: Building2, href: `/app/suppliers/${r.supplierId}` }] : []),
                     { label: "Preview the payment", icon: Eye, href: `/app/documents/${r.id}` },

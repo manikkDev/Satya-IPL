@@ -19,13 +19,10 @@ import {
 import { ingestApi, readLocal, writeLocal, AI_NOTICE_KEY, type DraftListRow } from "@/lib/api/v2-pages";
 import { mocksEnabled } from "@/lib/flags";
 import { useSession } from "@/components/v2/session";
-import { DateText, ErrorState, EmptyState, PageHeader, FadeIn, Card, Btn, BtnLink } from "@/components/ui/v2";
+import { DateText, ErrorState, EmptyState, PageHeader, FadeIn, Card, Btn, BtnLink, FilterChips, ResponsiveTable, RowActions, TableSkeleton, type Column } from "@/components/ui/v2";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { docTypeLabel, MAX_UPLOAD_MB, ACCEPT_EXT, formatBytes } from "@/components/pages/documents/labels";
 import { DocumentRegister } from "@/components/pages/documents/register";
-import { FilterChips } from "@/components/pages/shared/filter-chips";
-import { ResponsiveTable, TableSkeleton, type Column } from "@/components/pages/shared/data-table";
-import { RowActions } from "@/components/pages/shared/row-actions";
 import { pageTabsList, pageTabsTrigger, tabCount } from "@/components/pages/shared/page-tabs";
 import { cn } from "@/lib/utils";
 
@@ -54,7 +51,7 @@ function StatusWord({ status }: { status: DraftListRow["status"] }) {
 
 const draftColumns: Column<DraftListRow>[] = [
   {
-    key: "file", header: "File", mobile: "title", className: "min-w-[240px]",
+    key: "file", header: "File", primary: true, className: "min-w-[240px]",
     cell: (d) => {
       const name = d.filename ?? "Uploaded file";
       const issue = d.status === "failed" || d.status === "needs_review" ? d.issues?.find((i) => i.severity !== "info")?.message : undefined;
@@ -75,7 +72,6 @@ const draftColumns: Column<DraftListRow>[] = [
 ];
 
 function DraftTable({ items, empty }: { items: DraftListRow[]; empty: React.ReactNode }) {
-  const router = useRouter();
   if (!items.length) return <>{empty}</>;
   return (
     <ResponsiveTable
@@ -83,11 +79,14 @@ function DraftTable({ items, empty }: { items: DraftListRow[]; empty: React.Reac
       columns={draftColumns}
       rows={items}
       rowKey={(d) => d.id}
-      onRowClick={(d) => router.push(`/app/documents/${d.id}`)}
       actions={(d) => (
         <RowActions
-          primaryVariant={d.status === "needs_review" ? "primary" : "secondary"}
-          primary={{ label: d.status === "needs_review" ? "Review" : d.status === "failed" ? "Fix" : "Open", href: `/app/documents/${d.id}` }}
+          label={d.filename ?? "this upload"}
+          primary={
+            d.status === "needs_review"
+              ? <BtnLink size="sm" href={`/app/documents/${d.id}`}>Review</BtnLink>
+              : { label: d.status === "failed" ? "Fix" : "Open", href: `/app/documents/${d.id}` }
+          }
         />
       )}
     />
@@ -362,19 +361,19 @@ export default function DocumentsPage() {
           ) : error ? (
             <ErrorState message={error instanceof Error ? error.message : "Something went wrong."} onRetry={() => refetch()} />
           ) : isLoading ? (
-            <TableSkeleton rows={4} cols={5} />
+            <TableSkeleton rows={4} columns={5} />
           ) : (
             <div className="space-y-4">
               {items.length ? (
                 <FilterChips
-                  ariaLabel="Upload status"
+                  label="Upload status"
                   value={activeFilter}
                   onChange={setFilter}
                   options={[
                     { value: "review" as const, label: "Needs review", count: needsReview.length, tone: "warn" as const },
                     { value: "all" as const, label: "All uploads", count: items.length },
                     { value: "saved" as const, label: "Saved", count: saved.length },
-                    ...(failed.length ? [{ value: "failed" as const, label: "Couldn’t read", count: failed.length, tone: "bad" as const }] : []),
+                    ...(failed.length ? [{ value: "failed" as const, label: "Couldn’t read", count: failed.length, tone: "critical" as const }] : []),
                   ]}
                 />
               ) : null}

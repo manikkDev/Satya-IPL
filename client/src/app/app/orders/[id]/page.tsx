@@ -20,15 +20,12 @@ import { PoSheet } from "@/components/v2/po-sheet";
 import { formatMoney, fromPaise, toPaise, formatQty } from "@/lib/format";
 import { v2 } from "@/lib/api/v2";
 import {
-  Money, DateText, StatusBadge, SeverityBadge, ErrorState, FadeIn, Card, Btn, BtnLink, PageHeader, EmptyState, ToneBadge,
-} from "@/components/ui/v2";
+  Money, DateText, StatusBadge, SeverityBadge, ErrorState, FadeIn, Card, Btn, BtnLink, PageHeader, EmptyState, ToneBadge, ResponsiveTable, RowActions, type Column } from "@/components/ui/v2";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { roleLabel } from "@/content/copy/vocabulary";
 import { findingLabel, findingSettle, tidyText } from "@/content/copy/findings";
 import { docTypeLabel } from "@/components/pages/documents/labels";
-import { RowActions } from "@/components/pages/shared/row-actions";
-import { ResponsiveTable, type Column } from "@/components/pages/shared/data-table";
 import { LifecycleStrip } from "@/components/pages/shared/progress-meter";
 import { pageTabsList, pageTabsTrigger, tabCount } from "@/components/pages/shared/page-tabs";
 import { cn } from "@/lib/utils";
@@ -112,7 +109,7 @@ export default function OrderDetailPage() {
   type LineRow = (typeof lifecycle)[number];
   const lineColumns: Column<LineRow>[] = [
     {
-      key: "item", header: "Item", mobile: "title", className: "min-w-[200px]",
+      key: "item", header: "Item", primary: true, className: "min-w-[200px]",
       cell: (l) => (
         <div className="min-w-0">
           <p className="font-medium text-[var(--ink)]">{l.description || `Line ${l.lineNo}`}</p>
@@ -139,7 +136,7 @@ export default function OrderDetailPage() {
 
   const docColumns: Column<LinkedDoc>[] = [
     {
-      key: "doc", header: "Document", mobile: "title",
+      key: "doc", header: "Document", primary: true,
       cell: (d) => (
         <div className="min-w-0">
           <p className="truncate font-medium text-[var(--ink)]">{d.number}</p>
@@ -182,13 +179,13 @@ export default function OrderDetailPage() {
               ) : null}
               <Btn variant="secondary" icon={FileDown} onClick={downloadPdf}>PDF</Btn>
               <RowActions
-                label="More actions"
+                label={`order ${order.number}`}
                 items={[
                   { label: "Preview the order", icon: Eye, onSelect: () => setPreviewDocId(order.id) },
                   ...(canAmend ? [{ label: "Amend the order", icon: Pencil, onSelect: () => setConfirm("amend") }] : []),
                   ...(canClose ? [{ label: "Short-close", icon: OctagonX, onSelect: () => setConfirm("short-close"), danger: true }] : []),
                   ...(caseId && !issueCount ? [{ label: "Open its check", icon: ListChecks, href: `/app/investigations/${caseId}` }] : []),
-                  { label: "Ask Satya about this order", icon: MessageSquare, onSelect: () => router.push(`/app/ask?about=${encodeURIComponent(`PO ${order.number}`)}`), separated: true },
+                  { label: "Ask Satya about this order", icon: MessageSquare, onSelect: () => router.push(`/app/ask?about=${encodeURIComponent(`PO ${order.number}`)}`) },
                 ]}
               />
             </>
@@ -239,7 +236,7 @@ export default function OrderDetailPage() {
         </TabsList>
 
         <TabsContent value="lines" className="mt-6 space-y-6">
-          <ResponsiveTable caption="Order lines" columns={lineColumns} rows={lifecycle} rowKey={(l) => String(l.lineNo)} stickyHeader={false} />
+          <ResponsiveTable caption="Order lines" columns={lineColumns} rows={lifecycle} rowKey={(l) => String(l.lineNo)} />
           {schedule.length ? (
             <Card>
               <h3 className="text-[17px] font-semibold text-[var(--ink)]">Delivery schedule</h3>
@@ -270,8 +267,7 @@ export default function OrderDetailPage() {
               columns={docColumns}
               rows={documents}
               rowKey={(d) => d.id}
-              onRowClick={(d) => setPreviewDocId(d.id)}
-              actions={(d) => <RowActions primary={{ label: "Preview", icon: Eye, onSelect: () => setPreviewDocId(d.id) }} />}
+              actions={(d) => <RowActions label={d.number} primary={{ label: "Preview", icon: Eye, onSelect: () => setPreviewDocId(d.id) }} />}
             />
           )}
         </TabsContent>

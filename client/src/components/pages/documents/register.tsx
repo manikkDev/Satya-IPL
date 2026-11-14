@@ -9,11 +9,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { Eye, ListChecks, MessageSquare, FileText } from "lucide-react";
+import { Pager } from "@/components/pages/shared/pager";
 import { v2, type DocView } from "@/lib/api/v2";
-import { Money, DateText, StatusBadge, ErrorState, EmptyState } from "@/components/ui/v2";
-import { FilterChips } from "@/components/pages/shared/filter-chips";
-import { ResponsiveTable, TableSkeleton, Pager, type Column } from "@/components/pages/shared/data-table";
-import { RowActions } from "@/components/pages/shared/row-actions";
+import { Money, DateText, StatusBadge, ErrorState, EmptyState, FilterChips, ResponsiveTable, RowActions, TableSkeleton, type Column } from "@/components/ui/v2";
 import { SearchField, ListToolbar } from "@/components/pages/shared/search-field";
 import { docTypeLabel } from "@/components/pages/documents/labels";
 
@@ -73,7 +71,7 @@ export function DocumentRegister() {
 
   const columns: Column<Row>[] = [
     {
-      key: "doc", header: "Document", mobile: "title", className: "min-w-[220px]",
+      key: "doc", header: "Document", primary: true, className: "min-w-[220px]",
       cell: (d) => (
         <div className="min-w-0">
           <p className="truncate font-semibold text-[var(--ink)]">{d.number || d.externalRef || "Unnumbered"}</p>
@@ -97,7 +95,7 @@ export function DocumentRegister() {
     <div className="space-y-4">
       <ListToolbar search={<SearchField value={query} onChange={setQuery} placeholder="Search number or supplier" />}>
         <FilterChips
-          ariaLabel="Document type"
+          label="Document type"
           value={type}
           onChange={setType}
           options={TYPES.filter((t) => t.value === type || (counts.data?.[t.value] ?? 1) > 0).map((t) => ({ value: t.value, label: t.label, count: counts.data?.[t.value] }))}
@@ -107,7 +105,7 @@ export function DocumentRegister() {
       {error ? (
         <ErrorState message={error instanceof Error ? error.message : "Something went wrong."} onRetry={() => refetch()} />
       ) : isLoading ? (
-        <TableSkeleton rows={8} cols={6} />
+        <TableSkeleton rows={8} columns={6} />
       ) : rows.length === 0 ? (
         <EmptyState
           icon={FileText}
@@ -121,9 +119,9 @@ export function DocumentRegister() {
             columns={columns}
             rows={rows}
             rowKey={(d) => d.id}
-            onRowClick={(d) => setPreview(d.id)}
             actions={(d) => (
               <RowActions
+                label={d.number ?? "this document"}
                 primary={{ label: "Preview", icon: Eye, onSelect: () => setPreview(d.id) }}
                 items={[
                   { label: "Open full page", icon: FileText, href: `/app/documents/${d.id}` },

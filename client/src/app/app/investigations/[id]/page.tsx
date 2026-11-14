@@ -24,8 +24,7 @@ import { toPaise, formatMoney, formatQty } from "@/lib/format";
 import { v2 } from "@/lib/api/v2";
 import {
   Money, DateText, StatusBadge, CertaintyBadge, SeverityBadge, ErrorState, EmptyState, FadeIn, Card,
-  PageHeader, Btn, InfoTip, Callout, ToneBadge,
-} from "@/components/ui/v2";
+  PageHeader, Btn, InfoTip, Callout, ToneBadge, ResponsiveTable, RowActions, type Column } from "@/components/ui/v2";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BALANCE_TERMS, roleLabel } from "@/content/copy/vocabulary";
@@ -34,8 +33,6 @@ import {
 } from "@/content/copy/findings";
 import { docTypeLabel } from "@/components/pages/documents/labels";
 import { splitCaseTitle } from "@/components/pages/shared/case-title";
-import { RowActions } from "@/components/pages/shared/row-actions";
-import { ResponsiveTable, type Column } from "@/components/pages/shared/data-table";
 import { pageTabsList, pageTabsTrigger, tabCount } from "@/components/pages/shared/page-tabs";
 import type { Finding, Evidence } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -415,7 +412,7 @@ export default function InvestigationDetailPage() {
   /* ---------- documents table ---------- */
   const docColumns: Column<CaseDoc>[] = [
     {
-      key: "doc", header: "Document", mobile: "title",
+      key: "doc", header: "Document", primary: true,
       cell: (d) => (
         <div className="min-w-0">
           <p className="truncate font-medium text-[var(--ink)]">{d.number || "Unnumbered"}</p>
@@ -470,7 +467,7 @@ export default function InvestigationDetailPage() {
                 Evidence pack
               </Btn>
               <RowActions
-                label="More actions"
+                label={supplier}
                 items={[
                   ...(canCheck ? [{ label: checking ? "Checking…" : "Re-run the check", icon: RefreshCw, onSelect: () => void runCheck(), disabled: checking }] : []),
                   ...(orderDoc ? [{ label: "Open the order", icon: ShoppingCart, href: `/app/orders/${orderDoc.id}` }] : []),
@@ -498,7 +495,7 @@ export default function InvestigationDetailPage() {
                 </Btn>
                 <Btn variant="secondary" onClick={() => setPendingDecision(secondary)}>{DECISION_VERB[secondary]}</Btn>
                 <RowActions
-                  label="Other decisions"
+                  label="this decision"
                   items={otherDecisions.map((a) => ({ label: DECISION_VERB[a] ?? a, onSelect: () => setPendingDecision(a) }))}
                 />
               </div>
@@ -684,9 +681,9 @@ export default function InvestigationDetailPage() {
               columns={docColumns}
               rows={docs}
               rowKey={(d) => d.id}
-              onRowClick={(d) => setPreviewDocId(d.id)}
               actions={(d) => (
                 <RowActions
+                  label={d.number ?? "this document"}
                   primary={{ label: "Preview", icon: Eye, onSelect: () => setPreviewDocId(d.id) }}
                   items={d.type === "PO" ? [{ label: "Open the order", icon: ShoppingCart, href: `/app/orders/${d.id}` }] : []}
                 />

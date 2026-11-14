@@ -15,10 +15,8 @@ import {
 import { v2 } from "@/lib/api/v2";
 import type { OrderListRow } from "@/lib/mocks/data";
 import { mocksEnabled } from "@/lib/flags";
-import { Money, DateText, ErrorState, FadeIn, Card, CardTitle, StatusBadge, PageHeader, BtnLink, Btn, StatCard, ToneBadge, EmptyState } from "@/components/ui/v2";
+import { Money, DateText, ErrorState, FadeIn, Card, CardTitle, StatusBadge, PageHeader, BtnLink, Btn, StatCard, ToneBadge, EmptyState, ResponsiveTable, RowActions, TableSkeleton, type Column } from "@/components/ui/v2";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ResponsiveTable, TableSkeleton, type Column } from "@/components/pages/shared/data-table";
-import { RowActions } from "@/components/pages/shared/row-actions";
 import { ProgressStack } from "@/components/pages/shared/progress-meter";
 import { pageTabsList, pageTabsTrigger, tabCount } from "@/components/pages/shared/page-tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -171,7 +169,7 @@ export default function SupplierDetailPage() {
 
   const billColumns: Column<OpenBill>[] = [
     {
-      key: "bill", header: "Bill", mobile: "title",
+      key: "bill", header: "Bill", primary: true,
       cell: (b) => (
         <div className="min-w-0">
           <Link href={`/app/documents/${b.id}`} onClick={(e) => e.stopPropagation()} className="font-semibold text-[var(--ink)] hover:underline">{b.number ?? "Unnumbered bill"}</Link>
@@ -205,7 +203,7 @@ export default function SupplierDetailPage() {
 
   const orderColumns: Column<OrderListRow & { caseId?: string | null }>[] = [
     {
-      key: "po", header: "Order", mobile: "title",
+      key: "po", header: "Order", primary: true,
       cell: (o) => (
         <div className="min-w-0">
           <Link href={`/app/orders/${o.id}`} onClick={(e) => e.stopPropagation()} className="font-semibold text-[var(--ink)] hover:underline tnum">{o.number}</Link>
@@ -231,7 +229,7 @@ export default function SupplierDetailPage() {
 
   const payColumns: Column<PaymentRow>[] = [
     {
-      key: "date", header: "Date", mobile: "title",
+      key: "date", header: "Date", primary: true,
       cell: (p) => (
         <div>
           <p className="font-medium text-[var(--ink)]">{p.date ? <DateText value={p.date} /> : "No date"}</p>
@@ -269,7 +267,7 @@ export default function SupplierDetailPage() {
             <>
               <BtnLink href="/app/orders/new" icon={Plus}>New purchase order</BtnLink>
               <RowActions
-                label="More actions"
+                label={supplier.name}
                 items={[
                   { label: "Ask Satya about them", icon: MessageSquare, onSelect: () => router.push(`/app/ask?about=${encodeURIComponent(supplier.name)}`) },
                   { label: "See all their payments", icon: Wallet, onSelect: () => setTab("payments") },
@@ -355,7 +353,7 @@ export default function SupplierDetailPage() {
 
         <TabsContent value="bills" className="mt-6">
           {summaryQ.isLoading ? (
-            <TableSkeleton rows={3} cols={5} />
+            <TableSkeleton rows={3} columns={5} />
           ) : openBills.length === 0 ? (
             <EmptyState icon={ReceiptText} title="No open bills" body="Everything billed by this supplier has been paid or credited." />
           ) : (
@@ -364,9 +362,9 @@ export default function SupplierDetailPage() {
               columns={billColumns}
               rows={openBills}
               rowKey={(b) => b.id}
-              stickyHeader={false}
               actions={(b) => (
                 <RowActions
+                  label={b.number ?? "this bill"}
                   primary={b.caseId && issuesByCase.get(b.caseId) ? { label: "Review issues", href: `/app/investigations/${b.caseId}` } : { label: "Open", href: `/app/documents/${b.id}` }}
                 />
               )}
@@ -376,7 +374,7 @@ export default function SupplierDetailPage() {
 
         <TabsContent value="orders" className="mt-6">
           {ordersQ.isLoading ? (
-            <TableSkeleton rows={3} cols={5} />
+            <TableSkeleton rows={3} columns={5} />
           ) : orders.length === 0 ? (
             <EmptyState icon={ShoppingCart} title="No purchase orders yet" body="Orders you raise with this supplier appear here." actionLabel="New purchase order" actionHref="/app/orders/new" />
           ) : (
@@ -385,16 +383,14 @@ export default function SupplierDetailPage() {
               columns={orderColumns}
               rows={orders}
               rowKey={(o) => o.id}
-              stickyHeader={false}
-              onRowClick={(o) => router.push(`/app/orders/${o.id}`)}
-              actions={(o) => <RowActions primary={o.issueCount && o.caseId ? { label: "Review", href: `/app/investigations/${o.caseId}` } : { label: "Open", href: `/app/orders/${o.id}` }} />}
+              actions={(o) => <RowActions label={o.number} primary={o.issueCount && o.caseId ? { label: "Review", href: `/app/investigations/${o.caseId}` } : { label: "Open", href: `/app/orders/${o.id}` }} />}
             />
           )}
         </TabsContent>
 
         <TabsContent value="payments" className="mt-6">
           {paymentsQ.isLoading ? (
-            <TableSkeleton rows={3} cols={4} />
+            <TableSkeleton rows={3} columns={4} />
           ) : payments.length === 0 ? (
             <EmptyState icon={Wallet} title="No payments yet" body="Bank transfers to this supplier appear here once a bank statement is imported." actionLabel="Go to Payments" actionHref="/app/payments" />
           ) : (
@@ -403,10 +399,9 @@ export default function SupplierDetailPage() {
               columns={payColumns}
               rows={payments}
               rowKey={(p) => p.id}
-              stickyHeader={false}
               actions={(p) =>
                 ["unallocated", "partial", "needs_evidence", "unclear"].includes(p.status ?? "") ? (
-                  <RowActions primaryVariant="primary" primary={{ label: "Match", href: "/app/payments" }} />
+                  <RowActions label={p.utr ?? "this payment"} primary={<BtnLink size="sm" href="/app/payments">Match</BtnLink>} />
                 ) : null
               }
             />

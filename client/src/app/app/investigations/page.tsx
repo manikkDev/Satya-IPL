@@ -7,18 +7,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight, Clock3, MessageSquare, ShoppingCart } from "lucide-react";
+import { Pager } from "@/components/pages/shared/pager";
 import { v2 } from "@/lib/api/v2";
-import { ErrorState, EmptyState, PageHeader, FadeIn, Money, SeverityBadge, StatusBadge, BtnLink } from "@/components/ui/v2";
+import { ErrorState, EmptyState, PageHeader, FadeIn, Money, SeverityBadge, StatusBadge, BtnLink, FilterChips, InfoPanel, ResponsiveTable, RowActions, TableSkeleton, type Column } from "@/components/ui/v2";
 import type { Severity } from "@/lib/api/types";
 import { toPaise } from "@/lib/format";
-import { FilterChips } from "@/components/pages/shared/filter-chips";
-import { ResponsiveTable, TableSkeleton, Pager, type Column } from "@/components/pages/shared/data-table";
-import { RowActions } from "@/components/pages/shared/row-actions";
 import { SearchField, ListToolbar } from "@/components/pages/shared/search-field";
-import { InfoPanel } from "@/components/pages/shared/info-panel";
 import { splitCaseTitle } from "@/components/pages/shared/case-title";
 
 type CaseRow = {
@@ -31,7 +27,7 @@ type CaseRow = {
 };
 
 type StatusKey = "open" | "in_review" | "on_hold" | "resolved" | "all";
-const STATUSES: { value: StatusKey; label: string; tone?: "warn" | "bad" }[] = [
+const STATUSES: { value: StatusKey; label: string; tone?: "warn" | "critical" }[] = [
   { value: "open", label: "Open", tone: "warn" },
   { value: "in_review", label: "In review" },
   { value: "on_hold", label: "On hold" },
@@ -43,7 +39,6 @@ const PAGE_SIZE = 15;
 const positive = (v?: string | null) => !!v && toPaise(v) > BigInt(0);
 
 export default function InvestigationsPage() {
-  const router = useRouter();
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [status, setStatus] = useState<StatusKey>("open");
@@ -83,7 +78,7 @@ export default function InvestigationsPage() {
     {
       key: "check",
       header: "Order",
-      mobile: "title",
+      primary: true,
       className: "min-w-[260px]",
       cell: (row) => {
         const { supplier, reference } = splitCaseTitle(row.title, row.id);
@@ -156,7 +151,7 @@ export default function InvestigationsPage() {
         search={<SearchField value={query} onChange={setQuery} placeholder="Search order number or supplier" />}
       >
         <FilterChips
-          ariaLabel="Filter by status"
+          label="Filter by status"
           value={status}
           onChange={setStatus}
           options={STATUSES.map((s) => ({ value: s.value, label: s.label, count: counts.data?.[s.value], tone: s.tone }))}
@@ -166,7 +161,7 @@ export default function InvestigationsPage() {
       {error ? (
         <ErrorState message={error instanceof Error ? error.message : "Something went wrong."} onRetry={() => refetch()} />
       ) : isLoading ? (
-        <TableSkeleton rows={6} cols={6} />
+        <TableSkeleton rows={6} columns={6} />
       ) : items.length === 0 ? (
         <EmptyState
           title={debounced ? "No orders match your search" : status === "open" ? "Nothing open — you’re all caught up" : filtered ? "Nothing here" : "Nothing to review yet"}
@@ -189,13 +184,13 @@ export default function InvestigationsPage() {
             columns={columns}
             rows={items}
             rowKey={(r) => r.id}
-            onRowClick={(r) => router.push(`/app/investigations/${r.id}`)}
             rowAccent={(r) => (r.topSeverity === "critical" ? "critical" : r.topSeverity === "high" ? "warn" : null)}
             actions={(row) => {
               const { supplier } = splitCaseTitle(row.title, row.id);
               const orderId = row.subjectIds?.find((s) => s.endsWith("_po")) ?? row.subjectIds?.[0];
               return (
                 <RowActions
+                  label={supplier}
                   primary={{
                     label: !row.reconciled ? "Run check" : row.findings ? "Review" : "Open",
                     href: `/app/investigations/${row.id}`,
