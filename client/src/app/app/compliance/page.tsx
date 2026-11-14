@@ -23,7 +23,10 @@ import {
 } from "@/components/ui/v2";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { daysLeftText } from "@/lib/format";
+import { daysLeftText, formatMoney } from "@/lib/format";
+import { parsePaise, paiseToDecimal, ZERO } from "@/lib/api/v2-pages";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { LinkBtn } from "@/components/pages/shared/link-btn";
 import { cn } from "@/lib/utils";
 
 const DocPreviewModal = dynamic(
@@ -37,11 +40,30 @@ type MoneyVal = { amount: string; currency: string };
 
 type SectionKey = "msme" | "gstr2b" | "rule37" | "tds" | "eway" | "lut";
 
+/** Entity-scoped sections send the active entity; LUT lists every entity. */
 function useSection<S extends SectionKey>(section: S, params: Record<string, string> = {}) {
+  const { activeEntity } = useSession();
+  const entityId = section === "lut" ? "" : activeEntity?.id ?? "";
+  const merged = entityId ? { ...params, entityId } : params;
   return useQuery({
-    queryKey: ["compliance", section, params],
-    queryFn: () => v2.complianceSection(section, params),
+    queryKey: ["compliance", section, entityId, params],
+    queryFn: () => v2.complianceSection(section, merged),
   });
+}
+
+/** Skeleton shaped like a tab: rule line, four stat tiles, three rows. */
+function SectionSkeleton() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-label="Loading">
+      <Skeleton className="h-4 w-3/4 max-w-3xl" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[74px] w-full" />)}
+      </div>
+      <div className="space-y-2.5">
+        {[0, 1, 2].map((i) => <Skeleton key={i} className="h-[68px] w-full" />)}
+      </div>
+    </div>
+  );
 }
 
 /** One plain-English line on the rule + a way to ask the copilot about it. */
@@ -98,18 +120,22 @@ function ChipLabel({ tone, children }: { tone: "bad" | "warn" | "good" | "muted"
 
 /* ---------- small modal ---------- */
 
-function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
+/** Radix dialog: Escape closes, focus is trapped and returned on close. */
+function Modal({ title, description, onClose, children, wide }: { title: string; description?: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-label={title}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={onClose} />
-      <div className={cn("relative w-full rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--paper)] shadow-[var(--shadow-3)]", wide ? "max-w-2xl" : "max-w-lg")}>
-        <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-3">
-          <p className="text-sm font-semibold text-[var(--ink)]">{title}</p>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded p-1 text-[var(--muted)] hover:text-[var(--ink)]"><X size={16} /></button>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent
+        showCloseButton={false}
+        className={cn("gap-0 overflow-hidden rounded-[var(--radius-lg)] border-[var(--line)] bg-[var(--paper)] p-0 text-[var(--ink)] shadow-[var(--shadow-3)]", wide ? "sm:max-w-2xl" : "sm:max-w-lg")}
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-3">
+          <DialogTitle className="text-sm font-semibold text-[var(--ink)]">{title}</DialogTitle>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-[var(--radius-sm)] p-1 text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60"><X size={16} aria-hidden="true" /></button>
         </div>
+        {description ? <DialogDescription className="sr-only">{description}</DialogDescription> : <DialogDescription className="sr-only">{title}</DialogDescription>}
         <div className="max-h-[80vh] overflow-y-auto p-5">{children}</div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -131,9 +157,7 @@ function ReminderModal({ title, subject, body, email, onClose }: { title: string
           {copied ? "Copied" : "Copy message"}
         </Btn>
         {email ? (
-          <a href={`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}>
-            <Btn size="sm" icon={Mail}>Open in mail</Btn>
-          </a>
+          <LinkBtn href={`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`} variant="primary" icon={Mail}>Open in mail</LinkBtn>
         ) : null}
         <Btn size="sm" variant="ghost" onClick={onClose}>Done</Btn>
       </div>
@@ -178,7 +202,7 @@ function MsmeTab({ onView }: { onView: (id: string) => void }) {
   const { data, isLoading, error, refetch } = useSection("msme");
   const [remind, setRemind] = useState<MsmeRow | null>(null);
   if (error) return <ErrorState message={error instanceof Error ? error.message : "Could not load"} onRetry={() => refetch()} />;
-  if (isLoading || !data) return <Skeleton className="h-72 w-full" />;
+  if (isLoading || !data) return <SectionSkeleton />;
   const items = (data.items ?? []) as MsmeRow[];
   const s = data.summary ?? {};
 
@@ -195,7 +219,7 @@ function MsmeTab({ onView }: { onView: (id: string) => void }) {
         { label: "Outstanding to MSMEs", value: <Money value={s.outstanding} /> },
       ]} />
       {items.length === 0 ? (
-        <EmptyState icon={CircleCheck} title="Nothing unpaid to micro or small suppliers" body="When an unpaid MSME invoice is recorded, its payment deadline will show up here." />
+        <EmptyState icon={CircleCheck} title="No unpaid MSME invoices" body="Nothing is owed to micro or small suppliers right now. When an MSME invoice is recorded and still unpaid, its 45-day deadline shows up here." />
       ) : (
         <ul className="space-y-2.5">
           {items.map((row) => (
@@ -207,17 +231,17 @@ function MsmeTab({ onView }: { onView: (id: string) => void }) {
                 </p>
                 <p className="mt-0.5 text-xs text-[var(--muted)]">{row.note}{!row.amountRecorded ? " · invoice amount not recorded" : ""}</p>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <div className="text-right">
                   <p className="tnum text-sm font-semibold text-[var(--ink)]">{row.amountRecorded ? <Money value={row.outstanding} /> : "—"}</p>
-                  <p className={cn("text-xs", row.daysLeft <= 7 ? "font-medium text-[var(--sev-medium)]" : row.daysLeft < 0 ? "font-medium text-[var(--sev-critical)]" : "text-[var(--muted)]")}>
+                  <p className={cn("text-xs", row.daysLeft < 0 ? "font-medium text-[var(--sev-critical)]" : row.daysLeft <= 7 ? "font-medium text-[var(--sev-medium)]" : "text-[var(--muted)]")}>
                     {daysLeftText(row.daysLeft)} · due <DateText value={row.dueDate} />
                   </p>
                 </div>
-                <div className="flex gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   <Btn size="sm" variant="ghost" icon={Eye} onClick={() => onView(row.documentId)}>View</Btn>
                   <Btn size="sm" variant="secondary" icon={Mail} onClick={() => setRemind(row)}>Remind</Btn>
-                  <Link href="/app/payments"><Btn size="sm" variant="outline" icon={Landmark}>Record payment</Btn></Link>
+                  <LinkBtn href="/app/payments" variant="outline" icon={Landmark}>Record payment</LinkBtn>
                 </div>
               </div>
             </Row>
@@ -259,7 +283,7 @@ function Gstr2bTab({ onView }: { onView: (id: string) => void }) {
   const [importBusy, setImportBusy] = useState(false);
 
   if (error) return <ErrorState message={error instanceof Error ? error.message : "Could not load"} onRetry={() => refetch()} />;
-  if (isLoading || !data) return <Skeleton className="h-72 w-full" />;
+  if (isLoading || !data) return <SectionSkeleton />;
 
   const missing = (data.missingIn2B ?? []) as G2bRow[];
   const missingBooks = (data.missingInBooks ?? []) as G2bRow[];
@@ -320,7 +344,11 @@ function Gstr2bTab({ onView }: { onView: (id: string) => void }) {
       ]} />
 
       {missing.length === 0 && missingBooks.length === 0 && mismatched.length === 0 ? (
-        <EmptyState icon={CircleCheck} title="Nothing missing" body={data.estimated ? "No open issues point at GSTR-2B mismatches." : "Every books invoice for this period is in your GSTR-2B."} />
+        data.estimated ? (
+          <EmptyState icon={FileUp} title="No GSTR-2B imported yet" body="No open issues point at a mismatch, but that is not a portal check. Import this month’s GSTR-2B JSON for an exact invoice-by-invoice match." actionLabel="Import GSTR-2B" onAction={() => { setImportPeriod(data.period || ""); setImportOpen(true); }} />
+        ) : (
+          <EmptyState icon={CircleCheck} title="Everything matches" body={`Every invoice in your books for ${data.period} is in your GSTR-2B, and nothing in GSTR-2B is missing from your books.`} />
+        )
       ) : null}
 
       {missing.length > 0 && (
@@ -332,7 +360,7 @@ function Gstr2bTab({ onView }: { onView: (id: string) => void }) {
                 <p className="text-sm leading-relaxed text-[var(--ink-2)]">
                   <span className="font-medium text-[var(--ink)]">{row.invoice}</span> · {row.supplier} · <Money value={row.amount} /> — not in GSTR-2B for {data.period}; <Money value={row.tax} /> of credit is at risk.
                 </p>
-                <div className="flex gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   <Btn size="sm" variant="ghost" icon={Eye} onClick={() => onView(row.documentId)}>View</Btn>
                   <Btn size="sm" variant="secondary" icon={Mail} onClick={() => setRemind(row)}>Remind supplier</Btn>
                 </div>
@@ -351,7 +379,7 @@ function Gstr2bTab({ onView }: { onView: (id: string) => void }) {
                 <p className="text-sm leading-relaxed text-[var(--ink-2)]">
                   <span className="font-medium text-[var(--ink)]">{row.invoice}</span> · {row.supplier} · books <Money value={row.amount} /> vs 2B <Money value={row.reportedValue} /> — off by <Money value={row.difference} />.
                 </p>
-                <div className="flex gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   <Btn size="sm" variant="ghost" icon={Eye} onClick={() => onView(row.documentId)}>View</Btn>
                   <Btn size="sm" variant="secondary" icon={Mail} onClick={() => setRemind(row)}>Ask supplier</Btn>
                 </div>
@@ -370,9 +398,9 @@ function Gstr2bTab({ onView }: { onView: (id: string) => void }) {
                 <p className="text-sm leading-relaxed text-[var(--ink-2)]">
                   <span className="font-medium text-[var(--ink)]">{row.invoice}</span> · {row.supplier} · <Money value={row.amount} /> — reported by the supplier but missing from your records.
                 </p>
-                <div className="flex gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   <Btn size="sm" variant="ghost" icon={Eye} onClick={() => onView(row.documentId)}>View</Btn>
-                  <Link href="/app/documents"><Btn size="sm" variant="secondary" icon={FileUp}>Upload invoice</Btn></Link>
+                  <LinkBtn href="/app/documents" icon={FileUp}>Upload invoice</LinkBtn>
                 </div>
               </Row>
             ))}
@@ -385,7 +413,7 @@ function Gstr2bTab({ onView }: { onView: (id: string) => void }) {
           title={`Remind ${remind.supplier}`}
           subject={`GSTR-2B — please report invoice ${remind.invoice}`}
           email={remind.supplierEmail}
-          body={reminderBody("gstr2b", rowInvoice(remind), `It does not appear in our GSTR-2B for ${data.period}, so we cannot claim the GST credit of ${fmtMoney(remind.tax?.amount)} until you report it in your GSTR-1.`)}
+          body={reminderBody("gstr2b", rowInvoice(remind), `It does not appear in our GSTR-2B for ${data.period}, so we cannot claim the GST credit of ${formatMoney(remind.tax ?? "0.00")} until you report it in your GSTR-1.`)}
           onClose={() => setRemind(null)}
         />
       ) : null}
@@ -420,7 +448,6 @@ function Gstr2bTab({ onView }: { onView: (id: string) => void }) {
 }
 
 const rowInvoice = (r: G2bRow) => r.invoice;
-const fmtMoney = (v?: string) => (v ? `₹${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00");
 
 /* ================================================================
    Rule 37 — 180-day ITC reversal
@@ -437,21 +464,25 @@ function Rule37Tab({ onView }: { onView: (id: string) => void }) {
   const { data, isLoading, error, refetch } = useSection("rule37");
   const queryClient = useQueryClient();
   const [remind, setRemind] = useState<Rule37Row | null>(null);
+  const [confirmReverse, setConfirmReverse] = useState<Rule37Row | null>(null);
+  const [reverseNote, setReverseNote] = useState("");
   const mutation = useMutation({
-    mutationFn: ({ id, reversed }: { id: string; reversed: boolean }): Promise<{ documentId: string; itcReversed: unknown }> => {
+    mutationFn: ({ id, reversed, note }: { id: string; reversed: boolean; note?: string }): Promise<{ documentId: string; itcReversed: unknown }> => {
       if (mocksEnabled()) return Promise.resolve({ documentId: id, itcReversed: null });
-      return v2.markItcReversed(id, reversed);
+      return v2.markItcReversed(id, reversed, note);
     },
     onSuccess: (_r, v) => {
       if (mocksEnabled()) toast.info("Demo data — change is not saved");
       else toast.success(v.reversed ? "Marked as reversed" : "Reversal undone");
+      setConfirmReverse(null);
+      setReverseNote("");
       queryClient.invalidateQueries({ queryKey: ["compliance", "rule37"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Could not update"),
   });
 
   if (error) return <ErrorState message={error instanceof Error ? error.message : "Could not load"} onRetry={() => refetch()} />;
-  if (isLoading || !data) return <Skeleton className="h-72 w-full" />;
+  if (isLoading || !data) return <SectionSkeleton />;
   const items = (data.items ?? []) as Rule37Row[];
   const s = data.summary ?? {};
 
@@ -468,7 +499,7 @@ function Rule37Tab({ onView }: { onView: (id: string) => void }) {
         { label: "Interest accruing (est.)", value: <Money value={s.interestAccruing} /> },
       ]} />
       {items.length === 0 ? (
-        <EmptyState icon={CircleCheck} title="No 180-day risk" body="Invoices that stay unpaid past 150 days will appear here before the credit is at risk." />
+        <EmptyState icon={CircleCheck} title="No invoices near the 180-day limit" body="Nothing has been unpaid for 150 days or more. Invoices appear here a month before their GST credit would have to be reversed." />
       ) : (
         <ul className="space-y-2.5">
           {items.map((row) => (
@@ -486,13 +517,13 @@ function Rule37Tab({ onView }: { onView: (id: string) => void }) {
                   {row.state === "reversed" && row.reversedAt ? <> · reversed <DateText value={row.reversedAt} /></> : null}
                 </p>
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 <Btn size="sm" variant="ghost" icon={Eye} onClick={() => onView(row.documentId)}>View</Btn>
                 {row.state !== "reversed" ? (
                   <>
                     <Btn size="sm" variant="secondary" icon={Mail} onClick={() => setRemind(row)}>Remind</Btn>
-                    <Link href="/app/payments"><Btn size="sm" variant="outline" icon={Landmark}>Pay</Btn></Link>
-                    <Btn size="sm" variant="danger" icon={CircleCheck} disabled={mutation.isPending} onClick={() => mutation.mutate({ id: row.documentId, reversed: true })}>Mark reversed</Btn>
+                    <LinkBtn href="/app/payments" variant="outline" icon={Landmark}>Pay</LinkBtn>
+                    <Btn size="sm" variant="danger" icon={CircleCheck} disabled={mutation.isPending} onClick={() => { setConfirmReverse(row); setReverseNote(""); }}>Mark reversed</Btn>
                   </>
                 ) : (
                   <Btn size="sm" variant="ghost" icon={Undo2} disabled={mutation.isPending} onClick={() => mutation.mutate({ id: row.documentId, reversed: false })}>Undo</Btn>
@@ -511,6 +542,24 @@ function Rule37Tab({ onView }: { onView: (id: string) => void }) {
           onClose={() => setRemind(null)}
         />
       ) : null}
+      {confirmReverse ? (
+        <FieldModal
+          title={`Mark ITC reversed — ${confirmReverse.invoice}`}
+          submitLabel="Yes, mark as reversed"
+          busy={mutation.isPending}
+          onClose={() => setConfirmReverse(null)}
+          onSubmit={() => mutation.mutate({ id: confirmReverse.documentId, reversed: true, note: reverseNote.trim() || undefined })}
+        >
+          <p className="text-sm leading-relaxed text-[var(--ink-2)]">
+            Only do this after you have added back <Money value={confirmReverse.itc} className="font-semibold" /> of GST credit in GSTR-3B.
+            It records that the reversal is done; it does not file anything.
+          </p>
+          <div>
+            <label htmlFor="rev-note" className={labelCls}>Where was it reversed? (recommended)</label>
+            <input id="rev-note" className={inputCls} value={reverseNote} onChange={(e) => setReverseNote(e.target.value)} placeholder="e.g. GSTR-3B for Oct 2026, table 4(B)(2)" />
+          </div>
+        </FieldModal>
+      ) : null}
     </div>
   );
 }
@@ -519,19 +568,64 @@ function Rule37Tab({ onView }: { onView: (id: string) => void }) {
    TDS decisions
    ================================================================ */
 
+type TdsEstimate = { section?: string | null; rate?: string | null; amount?: MoneyVal | string | null; base?: MoneyVal | string | null; note?: string | null };
 type TdsRow = {
   documentId: string; payment: string; date: string; utr?: string | null; supplier: string;
   amount: MoneyVal; status: "check" | "recorded" | "waived";
   section?: string | null; tdsAmount?: MoneyVal; fyPaidToSupplier?: MoneyVal; note: string;
+  // server screening estimate (accepted under any of these keys)
+  estimate?: TdsEstimate | null; suggested?: TdsEstimate | null; tdsEstimate?: TdsEstimate | MoneyVal | string | null;
+  suggestedRate?: string | null; taxableBase?: MoneyVal | string | null;
 };
 
+const decimalOf = (v: MoneyVal | string | null | undefined): string | null =>
+  v == null ? null : typeof v === "string" ? v : v.amount ?? null;
+
+/** The server's screening estimate for a row, whatever key it arrives on. TDS
+ *  is never computed in the browser — it depends on the GST-exclusive base,
+ *  the per-supplier FY threshold and the section, which only the server knows. */
+function tdsEstimateOf(row: TdsRow): { section: string | null; rate: string | null; amount: string | null; base: string | null } | null {
+  const raw = row.estimate ?? row.suggested ?? row.tdsEstimate ?? null;
+  if (!raw) return null;
+  const est: TdsEstimate =
+    typeof raw === "string" ? { amount: raw }
+    : "currency" in raw && !("section" in raw) ? { amount: raw as MoneyVal }
+    : (raw as TdsEstimate);
+  const amount = decimalOf(est.amount);
+  const parsed = amount !== null ? parsePaise(amount) : null;
+  const base = decimalOf(est.base ?? row.taxableBase ?? null);
+  const parsedBase = base !== null ? parsePaise(base) : null;
+  return {
+    section: est.section ?? row.section ?? null,
+    rate: est.rate ?? row.suggestedRate ?? null,
+    amount: parsed !== null ? paiseToDecimal(parsed) : null,
+    base: parsedBase !== null ? paiseToDecimal(parsedBase) : null,
+  };
+}
+
 const TDS_SECTIONS = [
-  { value: "194C", label: "194C — contractor works (1%/2%)", rate: "1" },
-  { value: "194J", label: "194J — professional fees (10%)", rate: "10" },
-  { value: "194I", label: "194I — rent (10%)", rate: "10" },
-  { value: "194Q", label: "194Q — goods over ₹50L/yr (0.1%)", rate: "0.1" },
-  { value: "GST-51", label: "GST sec 51 — notified entities (2%)", rate: "2" },
+  { value: "194Q", label: "194Q — purchase of goods (0.1% of the GST-exclusive value above ₹50 lakh per supplier per FY)", rate: "0.1" },
+  { value: "194C", label: "194C — contract work (1% individual/HUF, 2% others)", rate: "" },
+  { value: "194J", label: "194J — professional or technical fees", rate: "" },
+  { value: "194I", label: "194I — rent", rate: "" },
+  { value: "GST-51", label: "GST section 51 — TDS by notified entities (2%)", rate: "2" },
 ];
+
+function TdsEstimateLine({ row }: { row: TdsRow }) {
+  if (row.status !== "check") return null;
+  const est = tdsEstimateOf(row);
+  if (!est?.amount) return null;
+  return (
+    <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[var(--ink-2)]">
+      <Info size={12} className="text-[var(--likely)]" aria-hidden="true" />
+      <span>
+        Screening estimate <Money value={est.amount} className="font-medium" />
+        {est.section ? ` under ${est.section}` : ""}
+        {est.base ? <> on <Money value={est.base} /> before GST</> : null}
+      </span>
+    </p>
+  );
+}
 
 function TdsTab({ onView }: { onView: (id: string) => void }) {
   const { data, isLoading, error, refetch } = useSection("tds");
@@ -540,6 +634,7 @@ function TdsTab({ onView }: { onView: (id: string) => void }) {
   const [waive, setWaive] = useState<TdsRow | null>(null);
   const [section, setSection] = useState(TDS_SECTIONS[0].value);
   const [note, setNote] = useState("");
+  const [amountText, setAmountText] = useState("");
 
   const mutation = useMutation({
     mutationFn: (body: { paymentId: string; action: "record" | "waive"; section?: string; rate?: string; amount?: string; note?: string }): Promise<{ paymentId: string; tdsEntryId?: string }> => {
@@ -549,26 +644,40 @@ function TdsTab({ onView }: { onView: (id: string) => void }) {
     onSuccess: (_r, v) => {
       if (mocksEnabled()) toast.info("Demo data — change is not saved");
       else toast.success(v.action === "record" ? "TDS entry recorded" : "Marked as not applicable");
-      setRecord(null); setWaive(null); setNote("");
+      setRecord(null); setWaive(null); setNote(""); setAmountText("");
       queryClient.invalidateQueries({ queryKey: ["compliance", "tds"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Could not save"),
   });
 
   if (error) return <ErrorState message={error instanceof Error ? error.message : "Could not load"} onRetry={() => refetch()} />;
-  if (isLoading || !data) return <Skeleton className="h-72 w-full" />;
+  if (isLoading || !data) return <SectionSkeleton />;
   const items = (data.items ?? []) as TdsRow[];
   const s = data.summary ?? {};
 
   const chosen = TDS_SECTIONS.find((x) => x.value === section) ?? TDS_SECTIONS[0];
-  const autoAmount = record ? (Number(record.amount.amount) * Number(chosen.rate) / 100).toFixed(2) : "0.00";
+  const recordEstimate = record ? tdsEstimateOf(record) : null;
+  const enteredPaise = parsePaise(amountText);
+  const amountProblem = !amountText.trim()
+    ? "Enter the TDS amount you actually deducted"
+    : enteredPaise === null ? "Enter an amount like 5,400.00"
+    : enteredPaise <= ZERO ? "Must be more than ₹0"
+    : record && enteredPaise > (parsePaise(record.amount.amount) ?? ZERO) ? "More than the payment itself"
+    : null;
+  const openRecord = (row: TdsRow) => {
+    const est = tdsEstimateOf(row);
+    setRecord(row);
+    setSection(est?.section && TDS_SECTIONS.some((x) => x.value === est.section) ? est.section : TDS_SECTIONS[0].value);
+    setAmountText(est?.amount ?? "");
+    setNote("");
+  };
 
   return (
     <div className="space-y-4">
       <RuleLine ask="TDS on supplier payments">
         On some payments you must deduct <Term of="TDS">TDS</Term> before paying — the rate depends on the payment type
-        (contract work 194C, professional fees 194J, goods over ₹50L/year 194Q). Satya flags payments worth a decision;
-        your CA makes the call.
+        (contract work 194C, professional fees 194J, goods purchases above ₹50 lakh a year from one supplier 194Q — on the
+        value before GST). Amounts shown are Satya’s screening estimates; your CA makes the call.
       </RuleLine>
       <StatGrid items={[
         { label: "Need a decision", value: s.needsDecision ?? 0, warn: (s.needsDecision ?? 0) > 0 },
@@ -578,7 +687,7 @@ function TdsTab({ onView }: { onView: (id: string) => void }) {
       ]} />
 
       {items.length === 0 ? (
-        <EmptyState icon={CircleCheck} title="No TDS decisions pending" body="Payments that cross the screening bands will appear here." />
+        <EmptyState icon={CircleCheck} title="No payments need a TDS decision" body="No payment crosses the screening bands (₹2.5 lakh single payment, or ₹50 lakh a year to one supplier for 194Q). Recorded and N/A decisions also show here." />
       ) : (
         <ul className="space-y-2.5">
           {items.map((row) => (
@@ -589,12 +698,13 @@ function TdsTab({ onView }: { onView: (id: string) => void }) {
                   {row.status === "recorded" ? <ChipLabel tone="good"><BadgeCheck size={11} /> {row.section} · <Money value={row.tdsAmount} /></ChipLabel> : null}
                   {row.status === "waived" ? <ChipLabel tone="muted">N/A</ChipLabel> : null}
                 </p>
-                <p className="mt-0.5 text-xs text-[var(--muted)]">{row.note}{row.utr ? ` · ${row.utr}` : ""}</p>
+                <p className="mt-0.5 text-xs text-[var(--muted)]">{row.note}{row.utr ? <> · UTR <span className="font-code">{row.utr}</span></> : ""}</p>
+                <TdsEstimateLine row={row} />
               </div>
               {row.status === "check" ? (
-                <div className="flex gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   <Btn size="sm" variant="ghost" icon={Eye} onClick={() => onView(row.documentId)}>View</Btn>
-                  <Btn size="sm" variant="outline" onClick={() => { setRecord(row); setSection(TDS_SECTIONS[0].value); setNote(""); }}>Record TDS</Btn>
+                  <Btn size="sm" variant="outline" onClick={() => openRecord(row)}>Record TDS</Btn>
                   <Btn size="sm" variant="secondary" onClick={() => { setWaive(row); setNote(""); }}>Mark N/A</Btn>
                 </div>
               ) : (
@@ -611,18 +721,37 @@ function TdsTab({ onView }: { onView: (id: string) => void }) {
           submitLabel="Save TDS entry"
           busy={mutation.isPending}
           onClose={() => setRecord(null)}
-          onSubmit={() => mutation.mutate({ paymentId: record.documentId, action: "record", section, rate: chosen.rate, amount: autoAmount, note: note || undefined })}
+          onSubmit={() => {
+            if (amountProblem || enteredPaise === null) { toast.error(amountProblem ?? "Check the amount"); return; }
+            mutation.mutate({
+              paymentId: record.documentId, action: "record", section,
+              rate: (recordEstimate?.section === section ? recordEstimate?.rate : null) ?? (chosen.rate || undefined),
+              amount: paiseToDecimal(enteredPaise), note: note || undefined,
+            });
+          }}
         >
-          <p className="text-xs text-[var(--muted)]">Payment of <Money value={record.amount} /> on <DateText value={record.date} />.</p>
+          <p className="text-sm text-[var(--muted)]">Payment of <Money value={record.amount} /> on <DateText value={record.date} /> (includes GST).</p>
           <div>
-            <label className={labelCls}>Section</label>
-            <select className={inputCls} value={section} onChange={(e) => setSection(e.target.value)}>
+            <label htmlFor="tds-section" className={labelCls}>Section</label>
+            <select id="tds-section" className={inputCls} value={section} onChange={(e) => setSection(e.target.value)}>
               {TDS_SECTIONS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
             </select>
           </div>
           <div>
-            <label className={labelCls}>TDS amount ({chosen.rate}% of payment)</label>
-            <input className={inputCls} value={autoAmount} readOnly aria-readonly />
+            <label htmlFor="tds-amount" className={labelCls}>TDS amount deducted (₹)</label>
+            <input
+              id="tds-amount" inputMode="decimal" className={cn(inputCls, "tnum text-right", amountProblem && amountText ? "border-[var(--sev-critical)]" : "")}
+              value={amountText} onChange={(e) => setAmountText(e.target.value)} placeholder="0.00"
+              aria-invalid={Boolean(amountProblem && amountText)} aria-describedby="tds-amount-help"
+            />
+            <p id="tds-amount-help" className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
+              {recordEstimate?.amount ? (
+                <>Satya’s screening estimate is <Money value={recordEstimate.amount} />{recordEstimate.section ? ` under ${recordEstimate.section}` : ""}{recordEstimate.base ? <> on a GST-exclusive base of <Money value={recordEstimate.base} /></> : null} — confirm it with your CA before saving.</>
+              ) : (
+                <>Satya has no estimate for this payment. Enter the amount your CA confirmed — TDS is worked out on the value before GST, not on this payment total.</>
+              )}
+              {amountProblem && amountText ? <span className="mt-0.5 block text-[var(--sev-critical)]">{amountProblem}</span> : null}
+            </p>
           </div>
           <div>
             <label className={labelCls}>Note (optional)</label>
@@ -684,7 +813,7 @@ function EwayTab({ onView }: { onView: (id: string) => void }) {
   });
 
   if (error) return <ErrorState message={error instanceof Error ? error.message : "Could not load"} onRetry={() => refetch()} />;
-  if (isLoading || !data) return <Skeleton className="h-72 w-full" />;
+  if (isLoading || !data) return <SectionSkeleton />;
 
   const einv = data.einvoice ?? { withIrn: 0, waived: 0, pct: 0, checks: [] };
   const eway = data.eway ?? { withEwb: 0, waived: 0, goodsInvoices: 0, checks: [] };
@@ -718,7 +847,7 @@ function EwayTab({ onView }: { onView: (id: string) => void }) {
                   <p className="text-sm font-medium text-[var(--ink)]">{row.invoice} · {row.supplier} · <Money value={row.amount} /></p>
                   <p className="mt-0.5 text-xs text-[var(--muted)]">{row.reason}</p>
                 </div>
-                <div className="flex gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   <Btn size="sm" variant="ghost" icon={Eye} onClick={() => onView(row.documentId)}>View</Btn>
                   <Btn size="sm" variant="secondary" icon={Mail} onClick={() => setRemind({ row, kind: "irn" })}>Ask supplier</Btn>
                   <Btn size="sm" variant="outline" onClick={() => { setRecordIrn(row); setValue(""); }}>Record IRN</Btn>
@@ -744,7 +873,7 @@ function EwayTab({ onView }: { onView: (id: string) => void }) {
                   <p className="text-sm font-medium text-[var(--ink)]">{row.invoice} · {row.supplier} · <Money value={row.amount} /></p>
                   <p className="mt-0.5 text-xs text-[var(--muted)]">{row.reason}</p>
                 </div>
-                <div className="flex gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   <Btn size="sm" variant="ghost" icon={Eye} onClick={() => onView(row.documentId)}>View</Btn>
                   <Btn size="sm" variant="secondary" icon={Mail} onClick={() => setRemind({ row, kind: "ewb" })}>Ask supplier</Btn>
                   <Btn size="sm" variant="outline" onClick={() => { setRecordEwb(row); setValue(""); }}>Record e-way no.</Btn>
@@ -829,7 +958,7 @@ function LutTab() {
   });
 
   if (error) return <ErrorState message={error instanceof Error ? error.message : "Could not load"} onRetry={() => refetch()} />;
-  if (isLoading || !data) return <Skeleton className="h-72 w-full" />;
+  if (isLoading || !data) return <SectionSkeleton />;
 
   const entities = (data.entities ?? []) as LutEntity[];
   const exportsRows = (data.exportInvoices ?? []) as { documentId: string; invoice: string; date: string; buyer: string; amount: MoneyVal; covered: boolean }[];
@@ -854,6 +983,9 @@ function LutTab() {
         { label: "Exports without cover", value: s.uncoveredExports ?? 0, warn: (s.uncoveredExports ?? 0) > 0 },
       ]} />
 
+      {entities.length === 0 ? (
+        <EmptyState icon={Landmark} title="No entities to show" body="Add an entity in Settings to track its Letter of Undertaking for exports." />
+      ) : null}
       <ul className="space-y-3">
         {entities.map((ent) => {
           const meta = statusMeta(ent.status);
