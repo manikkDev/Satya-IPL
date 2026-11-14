@@ -42,6 +42,9 @@ const parse = (schema, body) => {
   }
   return parsed.data;
 };
+/** Replace internal doc_* ids in engine messages with document numbers. */
+const humanText = (text, names) => String(text || "").replace(/doc_[\w]+/g, (id) => names?.get(id) ?? id);
+
 const groupMembers = async (groupId) =>
   User.find({ "memberships.groupId": groupId, active: { $ne: false } }, { v2id: 1, name: 1, email: 1, memberships: 1 }).lean();
 
@@ -132,19 +135,22 @@ router.get("/notifications", handle(async (req, res) => {
 
   const [findings, reminders, assigned, dismissed] = await Promise.all([
     Finding.find({ groupId: req.scope.groupId, ...entityFilter, status: "open", severity: { $in: ["critical", "high"] }, createdAt: { $gte: since } },
-      { id: 1, caseId: 1, title: 1, severity: 1, code: 1, createdAt: 1 }).sort({ createdAt: -1 }).limit(60).lean(),
+      { id: 1, caseId: 1, title: 1, severity: 1, code: 1, createdAt: 1, "data.message": 1 }).sort({ createdAt: -1 }).limit(60).lean(),
     Reminder.find({ groupId: req.scope.groupId, ...entityFilter, status: "open", dueDate: { $lte: today }, $or: [{ assignee: me }, { createdBy: me }] }).limit(20).lean(),
     Case.find({ groupId: req.scope.groupId, ...entityFilter, assignee: me, status: { $in: ["open", "in_review", "escalated", "on_hold"] } }, { id: 1, title: 1, updatedAt: 1 }).limit(20).lean(),
     NotificationState.find({ groupId: req.scope.groupId, userId: me }, { key: 1 }).lean(),
   ]);
   const hidden = new Set(dismissed.map((d) => d.key));
+  const referenced = [...new Set(findings.flatMap((f) => String(f.data?.message || "").match(/doc_[\w]+/g) || []))];
+  const nameDocs = referenced.length ? await Document.find({ groupId: req.scope.groupId, id: { $in: referenced } }, { id: 1, number: 1 }).lean() : [];
+  const docNames = new Map(nameDocs.map((d) => [d.id, d.number || d.id]));
   const items = [];
   const seenFinding = new Set();
   for (const f of findings) {
     const key = `finding:${f.caseId}:${f.id}`;
     if (seenFinding.has(key) || hidden.has(key)) continue;
     seenFinding.add(key);
-    items.push({ key, kind: "finding", severity: f.severity, title: f.title || f.code, href: `/app/investigations/${f.caseId}`, at: f.createdAt });
+    items.push({ key, kind: "finding", severity: f.severity, title: humanText(f.title || f.data?.message, docNames) || f.code.replaceAll("_", " ").toLowerCase(), href: `/app/investigations/${f.caseId}`, at: f.createdAt });
   }
   for (const r of reminders) {
     const key = `reminder:${r.id}`;
@@ -297,6 +303,7 @@ router.get("/cases/:id/report.csv", handle(async (req, res) => {
   const docIds = [...new Set([...kase.subjectIds, ...links.flatMap((l) => [l.fromId, l.toId])])];
   const docs = await Document.find({ groupId: req.scope.groupId, id: { $in: docIds } }, { id: 1, type: 1, number: 1, externalRef: 1, date: 1, status: 1, totals: 1, "seller.name": 1 }).lean();
   const grand = (t) => (t && typeof t.grand === "object" ? t.grand?.amount : t?.grand) ?? "";
+  const nameById = new Map(docs.map((d) => [d.id, d.number || d.externalRef || d.id]));
 
   const lines = [
     csvRow(["Satya case report"]),
@@ -305,7 +312,7 @@ router.get("/cases/:id/report.csv", handle(async (req, res) => {
     "",
     csvRow(["Findings"]),
     csvRow(["Code", "Title", "Severity", "Certainty", "Status", "Explanation"]),
-    ...findings.map((f) => csvRow([f.code, f.title, f.severity, f.certainty, f.status, f.data?.explanation ?? f.data?.summary ?? ""])),
+    ...findings.map((f) => csvRow([f.code, humanText(f.title || f.data?.message, nameById), f.severity, f.certainty, f.status, humanText(f.data?.explanation ?? f.data?.message ?? "", nameById)])),
     "",
     csvRow(["Documents"]),
     csvRow(["Type", "Number", "Date", "Party", "Status", "Total"]),
