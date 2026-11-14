@@ -259,7 +259,7 @@ export function AskWorkspace() {
             <PanelLeft size={16} aria-hidden="true" />
           </button>
           <div className="min-w-0 flex-1">
-            <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-[var(--ink)]">
+            <h1 className="flex items-center gap-2 whitespace-nowrap text-xl font-semibold tracking-tight text-[var(--ink)]">
               <Sparkles size={18} className="text-[var(--accent)]" aria-hidden="true" /> Ask Satya
             </h1>
             <p className="truncate text-[13px] text-[var(--muted)]">{activeTitle ?? "Answers from your own records — every figure checked, every action needs your OK."}</p>
@@ -267,7 +267,7 @@ export function AskWorkspace() {
           <button type="button" onClick={() => setShowKeys((v) => !v)} className="hidden h-8 items-center gap-1 rounded-[var(--radius-sm)] px-2 text-xs text-[var(--muted)] hover:bg-[var(--surface-2)] sm:inline-flex" aria-expanded={showKeys}>
             <Keyboard size={13} aria-hidden="true" /> Shortcuts
           </button>
-          <AiCapacityPill />
+          <span className="hidden sm:inline-flex"><AiCapacityPill /></span>
           {turns.length > 0 && (
             <button type="button" onClick={newChat} className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] px-2.5 text-xs font-medium text-[var(--ink-2)] hover:bg-[var(--surface-2)] lg:hidden">
               <MessageSquarePlus size={14} aria-hidden="true" /> New

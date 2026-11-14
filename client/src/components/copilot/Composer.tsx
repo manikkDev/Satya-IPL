@@ -28,6 +28,7 @@ export const Composer = forwardRef<ComposerHandle, {
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
+    el.style.overflowY = el.scrollHeight > 220 ? "auto" : "hidden";
   }, [value]);
 
   return (

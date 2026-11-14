@@ -217,11 +217,11 @@ export function readTools() {
         return {
           ref: x.supplierId ? ctx.sources.add({ kind: "supplier", id: x.supplierId, label: x.supplier }) : null,
           supplierId: x.supplierId, supplier: x.supplier, invoices: x.invoices, outstanding: amt(x.outstanding), overdue: amt(x.overdue), disputed: amt(x.disputed),
-          sharePct: share, msme: x.msme, riskScore: rk.score ?? null, riskBand: rk.band ?? null,
+          sharePct: share, msmeSupplier: x.msme, riskScore: rk.score ?? null, riskBand: rk.band ?? null,
           riskFactors: (rk.factors || []).slice(0, 3).map((f) => f.label),
         };
       });
-      const view = { totalOutstanding: total, suppliers: rows, riskMethod: risk.ok ? risk.data?.method : null, riskNote: risk.ok ? risk.data?.note : null };
+      const view = { totalOutstanding: total, suppliers: rows, riskMethod: risk.ok ? risk.data?.method : null, riskNote: risk.ok ? risk.data?.note : null, fields: "riskBand/riskScore = rule-based supplier risk (open issues, master-data checks), not MSME status; msmeSupplier = micro/small supplier" };
       return {
         data: view,
         view,
