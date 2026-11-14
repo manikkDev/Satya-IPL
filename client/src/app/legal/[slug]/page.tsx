@@ -36,8 +36,12 @@ export default async function LegalPage({ params }: { params: Promise<{ slug: st
       </div>
 
       <main className="mx-auto max-w-3xl px-5 py-10">
+        <p className="mb-6 rounded-[var(--radius-md)] border border-[var(--possible)]/40 bg-[var(--possible-soft)] px-4 py-3 text-sm leading-relaxed text-[var(--ink-2)]">
+          <span className="font-medium text-[var(--ink)]">Prototype.</span> Satya is a student project with fictional demo data — not a
+          commercial service. Please don’t upload real business or personal data.
+        </p>
         <p className="text-xs text-[var(--muted)]">
-          Last updated: {page.updated} · Version {page.version}
+          Last updated: {page.updated} · {page.version}
         </p>
         <h1 className="v2-display mt-3 text-4xl text-[var(--ink)]">{page.title}</h1>
         <p className="mt-4 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--accent-soft)] p-4 text-[15px] leading-relaxed text-[var(--ink)]">

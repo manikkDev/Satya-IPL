@@ -1,7 +1,9 @@
 // Legal page content (docs/plan/07 §4). Scaffolds for the team to review with
 // a qualified adviser before real customers. Every page shows "Last updated"
 // and a version, and opens with a plain-language summary.
-// Fields marked [TEAM] are placeholders the human team must fill.
+// Satya is a student/hackathon prototype with no registered legal entity yet.
+// These pages say so plainly instead of carrying unfilled placeholders;
+// replace them with reviewed terms before onboarding real customers.
 
 export type LegalSection = { heading: string; paragraphs: string[] };
 export type LegalPage = {
@@ -13,8 +15,8 @@ export type LegalPage = {
   sections: LegalSection[];
 };
 
-const UPDATED = "29 October 2026";
-const VERSION = "0.1 (draft — pending legal review)";
+const UPDATED = "14 November 2026";
+const VERSION = "Prototype notice — not a binding agreement";
 
 export const LEGAL_PAGES: LegalPage[] = [
   {
@@ -28,8 +30,8 @@ export const LEGAL_PAGES: LegalPage[] = [
       {
         heading: "Who we are",
         paragraphs: [
-          "Satya ([TEAM legal entity name]) is the data fiduciary for the personal data processed through this service, under the Digital Personal Data Protection Act, 2023 and the DPDP Rules, 2025.",
-          "Contact: [TEAM registered address] · privacy@[TEAM domain]",
+          "Satya is a prototype built by a student project team. It is not operated by a registered company and is not offered as a commercial service. The workspace contains a fictional demo company; please do not upload real business or personal data. If Satya is ever offered to real customers, a registered entity will act as data fiduciary under the Digital Personal Data Protection Act, 2023 and the DPDP Rules, 2025, and these pages will be replaced.",
+          "Contact: use the GitHub repository for this project to reach the team — there is no dedicated privacy mailbox for the prototype.",
         ],
       },
       {
@@ -57,7 +59,7 @@ export const LEGAL_PAGES: LegalPage[] = [
       {
         heading: "Retention, security and breaches",
         paragraphs: [
-          "We keep business records while your account is active and delete them within [TEAM period] after termination, unless law requires longer.",
+          "Demo records are fictional and may be reset or deleted at any time without notice. Nothing in the prototype should be relied on as a record of real transactions.",
           "We encrypt data in transit, mask bank account numbers, isolate each organisation's records, and keep a tamper-evident audit log.",
           "If a breach affects your personal data, we will notify you and the Data Protection Board as required by law.",
         ],
@@ -65,14 +67,14 @@ export const LEGAL_PAGES: LegalPage[] = [
       {
         heading: "Your rights",
         paragraphs: [
-          "You may request access, correction or erasure of your personal data, nominate a representative, and raise a grievance. Write to privacy@[TEAM domain].",
+          "If you entered any personal data despite the notice above, you may ask the team to correct or erase it through the project’s GitHub repository.",
           "This service is for businesses and is not intended for children.",
           "We do not currently use a Consent Manager; if that changes we will update this policy.",
         ],
       },
       {
         heading: "Grievance Officer",
-        paragraphs: ["[TEAM name], [TEAM email], [TEAM address]. See Grievance Redressal for response timelines."],
+        paragraphs: ["No grievance officer is appointed for this prototype. Raise any concern through the project’s GitHub repository; see Grievance Redressal."],
       },
     ],
   },
@@ -112,7 +114,7 @@ export const LEGAL_PAGES: LegalPage[] = [
       {
         heading: "General",
         paragraphs: [
-          "We may suspend accounts that misuse the service. Liability is limited to fees paid in the preceding 12 months. These terms are governed by the laws of India; jurisdiction: [TEAM city].",
+          "The prototype is provided free and as-is, without any warranty. Demo accounts may be reset or removed at any time. It does not move money, file returns or give tax advice, and no figure in it should be relied on for a real business decision.",
         ],
       },
     ],
@@ -159,7 +161,7 @@ export const LEGAL_PAGES: LegalPage[] = [
         heading: "Security, breaches, deletion",
         paragraphs: [
           "Measures: encryption in transit, per-organisation isolation, masked bank details, tamper-evident audit logs, role-based access.",
-          "We notify customers of personal-data breaches without undue delay. On termination we delete customer data within [TEAM period] and can provide an export on request.",
+          "The prototype holds only fictional demo data, so no customer data processing agreement applies. This addendum describes how a future commercial version would be expected to work and is not in force.",
           "Customers may audit compliance once per year on reasonable notice.",
         ],
       },
@@ -194,7 +196,7 @@ export const LEGAL_PAGES: LegalPage[] = [
       {
         heading: "Limitations and problems",
         paragraphs: [
-          "AI can misread unusual document layouts — low-confidence fields are always marked for your review. Report problems to support@[TEAM domain].",
+          "AI can misread unusual document layouts — low-confidence fields are always marked for your review. Report problems through the project’s GitHub repository.",
         ],
       },
     ],
@@ -208,7 +210,7 @@ export const LEGAL_PAGES: LegalPage[] = [
     sections: [
       {
         heading: "Grievance Officer",
-        paragraphs: ["[TEAM name] · grievance@[TEAM domain] · [TEAM address]"],
+        paragraphs: ["Satya is a prototype without an appointed grievance officer. Please raise concerns through the project’s GitHub repository; the team aims to respond within a reasonable time but makes no statutory commitment."],
       },
       {
         heading: "Timelines",
