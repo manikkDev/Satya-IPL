@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SiteHeader } from "@/components/landing/site-header";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { LEGAL_PAGES, legalPage } from "@/content/legal/pages";
@@ -19,24 +20,20 @@ export default async function LegalPage({ params }: { params: Promise<{ slug: st
 
   return (
     <div className="v2 min-h-screen bg-[var(--paper)]">
-      <header className="border-b border-[var(--line)] bg-[var(--surface)]">
-        <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-5">
-          <Link href="/" className="text-lg font-semibold tracking-tight text-[var(--ink)]">
-            satya<span className="text-[var(--accent)]">.</span>
-          </Link>
-          <nav className="flex gap-4 text-sm text-[var(--muted)]" aria-label="Legal">
-            {LEGAL_PAGES.map((item) => (
-              <Link
-                key={item.slug}
-                href={`/legal/${item.slug}`}
-                className={item.slug === page.slug ? "font-medium text-[var(--accent-strong)]" : "hover:text-[var(--ink)]"}
-              >
-                {item.title.replace(" Policy", "").replace(" of Service", "")}
-              </Link>
-            ))}
-          </nav>
-        </div>
-      </header>
+      <SiteHeader />
+      <div className="border-b border-[var(--line)] bg-[var(--surface)]">
+        <nav className="mx-auto flex max-w-3xl gap-5 overflow-x-auto px-5 py-3 text-sm text-[var(--muted)]" aria-label="Legal">
+          {LEGAL_PAGES.map((item) => (
+            <Link
+              key={item.slug}
+              href={`/legal/${item.slug}`}
+              className={item.slug === page.slug ? "whitespace-nowrap font-medium text-[var(--accent-strong)]" : "whitespace-nowrap hover:text-[var(--ink)]"}
+            >
+              {item.title.replace(" Policy", "").replace(" of Service", "")}
+            </Link>
+          ))}
+        </nav>
+      </div>
 
       <main className="mx-auto max-w-3xl px-5 py-10">
         <p className="text-xs text-[var(--muted)]">

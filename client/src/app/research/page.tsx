@@ -4,6 +4,7 @@
 // telemetry is fabricated.
 
 import Link from "next/link";
+import { SiteHeader } from "@/components/landing/site-header";
 import { FlaskConical, CheckCheck, ShieldCheck, Gauge } from "lucide-react";
 
 export const metadata = {
@@ -50,6 +51,8 @@ const SUITES = [
 
 export default function ResearchPage() {
   return (
+    <>
+    <SiteHeader />
     <main className="mx-auto max-w-3xl px-6 py-14">
       <p className="text-xs font-semibold uppercase tracking-widest text-[var(--accent)]">Research</p>
       <h1 className="mt-2 text-3xl font-semibold text-[var(--ink)]">How we know it works</h1>
@@ -99,5 +102,6 @@ export default function ResearchPage() {
         <Link href="/app/ask" className="text-[var(--accent)] underline">ask Satya</Link>.
       </p>
     </main>
+    </>
   );
 }
