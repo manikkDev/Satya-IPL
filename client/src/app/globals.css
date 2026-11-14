@@ -264,19 +264,34 @@
 
 .bar-anim { transition: width 600ms cubic-bezier(0.22, 0.8, 0.3, 1); }
 
-/* Entrance motion — pure CSS so it can never get stuck half-faded when the
-   main thread is busy or the tab is in the background. */
+/* Entrance motion (UI_SPEC §4): content fades in, 150–220ms ease-out — no
+   slide-in of whole pages. Pure CSS so it can never get stuck half-faded
+   when the main thread is busy or the tab is in the background. */
 @keyframes satya-rise {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-.rise { animation: satya-rise 220ms cubic-bezier(0.21, 0.65, 0.36, 1) both; }
-.rise-stagger > * { animation: satya-rise 240ms cubic-bezier(0.21, 0.65, 0.36, 1) both; }
+@keyframes satya-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.rise { animation: satya-rise 200ms ease-out both; }
+.fade-in { animation: satya-fade 180ms ease-out both; }
+.rise-stagger > * { animation: satya-rise 200ms ease-out both; }
 .rise-stagger > *:nth-child(2) { animation-delay: 30ms; }
 .rise-stagger > *:nth-child(3) { animation-delay: 60ms; }
 .rise-stagger > *:nth-child(4) { animation-delay: 90ms; }
 .rise-stagger > *:nth-child(5) { animation-delay: 120ms; }
 .rise-stagger > *:nth-child(n+6) { animation-delay: 150ms; }
+
+/* Page rhythm (UI_SPEC §2): sections 32–40px apart, cards 16–24px apart. */
+.page-stack > * + * { margin-top: 2.25rem; }
+@media (max-width: 639px) { .page-stack > * + * { margin-top: 2rem; } }
+
+/* AI status dot in the "Ask Satya" button (green = on, amber = limited). */
+.satya-status-dot { width: 8px; height: 8px; border-radius: 9999px; box-shadow: 0 0 0 2px var(--surface); }
+.satya-status-dot[data-state="on"] { background: var(--confirmed); }
+.satya-status-dot[data-state="limited"] { background: var(--saffron); }
 
 /* Wide tables scroll inside their card on narrow screens instead of
    pushing the page sideways. */
@@ -289,20 +304,17 @@
 .satya-v2-answer table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 14px; }
 .satya-v2-answer th, .satya-v2-answer td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; }
 
-/* AI capacity pill (shell top bar) */
+/* AI status (AiCapacityPill / Ask Satya): a dot + plain words, no quota bars. */
 .satya-ai-pill { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); background: transparent; border: 0; padding: 2px 0; cursor: help; font-family: inherit; }
 .satya-ai-pill-text { white-space: nowrap; }
-.satya-ai-pill-track { width: 56px; height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; display: inline-block; }
-.satya-ai-pill-fill { display: block; height: 100%; border-radius: 2px; background: var(--muted); transition: width 400ms ease; }
-.satya-ai-pill[data-tone="low"], .satya-ai-pill[data-tone="empty"] { color: var(--possible); }
-.satya-ai-pill[data-tone="low"] .satya-ai-pill-fill { background: var(--possible); }
 .satya-ai-pill-tip { max-width: 300px; font-size: 13px; line-height: 1.55; }
 .satya-ai-pill-tip p { margin: 0 0 4px; }
 .satya-ai-pill-tip-title { font-weight: 650; }
 .satya-ai-pill-tip-note { opacity: 0.8; margin-top: 6px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .rise, .rise-stagger > * { animation: none; }
-  .bar-anim, .satya-ai-pill-fill, .card-hover { transition: none; }
+  .rise, .fade-in, .rise-stagger > * { animation: none; }
+  .bar-anim, .card-hover { transition: none; }
   html { scroll-behavior: auto; }
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
