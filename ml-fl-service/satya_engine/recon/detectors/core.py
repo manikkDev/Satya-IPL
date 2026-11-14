@@ -99,7 +99,7 @@ def duplicate_invoice_suspect(docs):
         original, *dups = sorted(group, key=lambda d: d["observedAt"])
         findings.append(_finding(
             "DUPLICATE_INVOICE_SUSPECT", "high", "PROBABLE",
-            f"Invoice {' / '.join(sorted({d['number'] for d in group}))} from {seller} appears {len(group)} times — confirm whether one obligation or revised billing",
+            f"Invoice {' / '.join(sorted({d['number'] for d in group}))} from {group[0]['seller']['name']} appears {len(group)} times — confirm whether one obligation or revised billing",
             [{"documentId": d["id"]} for d in group],
             str(D(group[0]["totals"]["grand"]) * (len(group) - 1)) if group[0].get("totals") else None))
         original_id = original["id"]
@@ -153,7 +153,7 @@ def exact_duplicate(docs):
         if len(group) >= 2:
             findings.append(_finding(
                 "DUP_EXACT_INVOICE", "high", "CONFIRMED",
-                f"Invoice {number} from {seller} recorded {len(group)} times with identical totals — one obligation recorded twice",
+                f"Invoice {group[0]['number']} from {group[0]['seller']['name']} recorded {len(group)} times with identical totals — one obligation recorded twice",
                 [{"documentId": d["id"]} for d in group]))
     return findings
 

@@ -84,8 +84,8 @@ router.get("/", handle(async (req, res) => {
       findings: f?.findings || 0,
       severity: { critical: f?.critical || 0, high: f?.high || 0, medium: f?.medium || 0, low: f?.low || 0 },
       topSeverity: sevRank(f) >= 4 ? "critical" : sevRank(f) === 3 ? "high" : sevRank(f) === 2 ? "medium" : sevRank(f) === 1 ? "low" : null,
-      openValue: balances?.recordedPayable || balances?.canonicalOutstanding || null,
-      disputedValue: balances?.disputedExposure || null,
+      openValue: balances?.recordedOutstanding ?? balances?.recordedPayable ?? balances?.canonicalOutstanding ?? null,
+      disputedValue: balances?.disputedOutstanding ?? balances?.disputedExposure ?? null,
       recommendation: snap?.result?.recommendation?.action || null,
     };
   });
@@ -99,9 +99,12 @@ router.get("/:id", handle(async (req, res) => {
   const snapshot = req.query.snapshot
     ? await Snapshot.findOne(snapFilter).lean()
     : await Snapshot.findOne({ groupId: kase.groupId, caseId: kase.id, scenario: false }).sort({ createdAt: -1 }).lean();
-  const findings = await Finding.find({ groupId: kase.groupId, caseId: kase.id }).lean();
+  // Findings of the snapshot being viewed (older snapshots keep their own rows).
+  const findings = await Finding.find({ groupId: kase.groupId, caseId: kase.id, ...(snapshot?.id ? { snapshotId: snapshot.id } : {}) }).lean();
   const decisions = await Decision.find({ groupId: kase.groupId, caseId: kase.id }).sort({ createdAt: -1 }).lean();
-  const documents = await Document.find({ groupId: kase.groupId, id: { $in: kase.subjectIds } }).lean();
+  // The whole evidence chain the engine checked, not just the case subjects.
+  const docIds = [...new Set([...(kase.subjectIds || []), ...(snapshot?.inputs?.documentIds || [])])];
+  const documents = await Document.find({ groupId: kase.groupId, id: { $in: docIds } }).lean();
   res.json({ ...kase.toObject(), snapshot: snapshot?.result || null, snapshotId: snapshot?.id || null, findings, decisions, documents });
 }));
 

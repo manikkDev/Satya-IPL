@@ -86,7 +86,23 @@ router.get("/dashboard/today", handle(async (req, res) => {
     return { kind: "MSME_45", documentId: d.id, supplier: sup?.legalName ?? d.seller?.name ?? "Supplier", dueDate: dl.dueDate, daysLeft: dl.daysLeft, amount: money(fromPaise(openOf(d))), clockBasis: dl.clockBasis };
   }).filter((d) => d.daysLeft < 30).sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 8);
 
-  const cleanOutstanding = invoices.filter((d) => !flaggedDocIds.has(d.id)).reduce((s, d) => s + openOf(d), 0n);
+  // Net position from each case's latest engine snapshot: what is owed on
+  // delivered/accepted goods after payments and credits, and what is recorded
+  // but not supported (counted once, however many findings describe it).
+  const caseRows = await Case.find({ ...f, latestSnapshotId: { $exists: true, $ne: null } }, { latestSnapshotId: 1 }).lean();
+  const snaps = await Snapshot.find({ groupId: req.scope.groupId, id: { $in: caseRows.map((c) => c.latestSnapshotId) } }, { "result.balances": 1 }).lean();
+  let netSupported = 0n, netDisputed = 0n, haveNet = false;
+  for (const snap of snaps) {
+    const b = snap.result?.balances;
+    if (b?.supportedOutstanding !== undefined) {
+      haveNet = true;
+      netSupported += toPaise(b.supportedOutstanding);
+      netDisputed += toPaise(b.disputedOutstanding ?? "0");
+    }
+  }
+  const cleanOutstanding = haveNet
+    ? netSupported
+    : invoices.filter((d) => !flaggedDocIds.has(d.id)).reduce((s, d) => s + openOf(d), 0n);
   const dueWeek = deadlines.filter((d) => d.daysLeft <= 7 && d.daysLeft >= 0).reduce((s, d) => s + toPaise(d.amount), 0n);
 
   const topSlice = sorted.slice(0, 10);
@@ -98,7 +114,7 @@ router.get("/dashboard/today", handle(async (req, res) => {
   const human = (x) => (x?.data ? { ...x, data: { ...x.data, message: humanizeWith(names, x.data.message) } } : x);
 
   res.json({
-    moneyAtRisk: money(fromPaise(findings.reduce((s, x) => s + findingAmount(x), 0n))),
+    moneyAtRisk: money(fromPaise(haveNet ? netDisputed : findings.reduce((s, x) => s + findingAmount(x), 0n))),
     holds: { count: holdCases.length, amount: money(fromPaise(holdDocs.reduce((s, d) => s + toPaise(grandOf(d)), 0n))) },
     approvalsWaiting: draftDocs,
     deadlines,

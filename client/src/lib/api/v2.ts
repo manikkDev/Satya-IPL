@@ -312,9 +312,9 @@ const moneyOf = (v: unknown, currency = "INR") =>
  *  {supported, disputed, recorded} Money objects. Accepts both. */
 const normalizeBalances = (raw: Record<string, unknown> | undefined) => {
   if (!raw) return undefined;
-  const supported = moneyOf(raw.supported ?? raw.evidenceSupportedPayable ?? raw.supportedOutstanding);
-  const recorded = moneyOf(raw.recorded ?? raw.recordedPayable ?? raw.recordedOutstanding ?? raw.canonicalOutstanding);
-  const disputed = moneyOf(raw.disputed ?? raw.disputedExposure);
+  const supported = moneyOf(raw.supported ?? raw.supportedOutstanding ?? raw.evidenceSupportedPayable);
+  const recorded = moneyOf(raw.recorded ?? raw.recordedOutstanding ?? raw.recordedPayable ?? raw.canonicalOutstanding);
+  const disputed = moneyOf(raw.disputed ?? raw.disputedOutstanding ?? raw.disputedExposure);
   if (!supported && !recorded && !disputed) return undefined;
   const d = disputed ?? { amount: Math.max(0, Number(recorded?.amount ?? 0) - Number(supported?.amount ?? 0)).toFixed(2), currency: "INR" };
   return {

@@ -44,7 +44,7 @@ router.get("/summary", handle(async (req, res) => {
   const latest = new Map();
   for (const s of snaps) if (!latest.has(s.caseId) || new Date(s.createdAt) > new Date(latest.get(s.caseId).createdAt)) latest.set(s.caseId, s);
   let openValue = 0n;
-  for (const s of latest.values()) openValue += toPaise(s.result?.balances?.evidenceSupportedPayable);
+  for (const s of latest.values()) openValue += toPaise(s.result?.balances?.supportedOutstanding ?? s.result?.balances?.evidenceSupportedPayable);
 
   // aging: open cases grouped by oldest subject-doc date buckets
   const openDocs = await Document.find({ groupId: req.scope.groupId, id: { $in: openCases.flatMap((c) => c.subjectIds) } }).select("date").lean();

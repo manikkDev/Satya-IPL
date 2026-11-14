@@ -25,9 +25,9 @@ function PillBody({ usage, isAdmin }: { usage: AiUsage; isAdmin: boolean }) {
 
   const label = exhausted
     ? `AI capacity used up · evidence-only answers · resets ${reset}`
-    : remaining === null
-      ? `AI capacity available · resets ${reset}`
-      : `AI capacity ≈ ${remaining.toLocaleString("en-IN")} requests left today · resets ${reset}`;
+    : low && remaining !== null
+      ? `AI capacity low · ≈ ${remaining.toLocaleString("en-IN")} requests left · resets ${reset}`
+      : "AI assistant available";
 
   return (
     <Tooltip>

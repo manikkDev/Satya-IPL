@@ -118,3 +118,13 @@ def test_endpoint_auth_and_flag(monkeypatch, auth):
     assert response.json()["balances"]["recordedPayable"] == "141600"
     monkeypatch.delenv("FEATURE_V2_RECON_V2")
     assert call("POST", "/v2/reconcile/case", json=payload, headers=auth).status_code == 404
+
+
+def test_net_balances_subtract_payments_and_never_double_count_disputes():
+    b = reconcile_case(flagship())["balances"]
+    from decimal import Decimal as D
+    paid, credited = D(b["paidToDate"]), D(b["creditedToDate"])
+    assert D(b["recordedOutstanding"]) == max(D("0"), D(b["recordedPayable"]) - paid - credited)
+    assert D(b["supportedOutstanding"]) == max(D("0"), D(b["evidenceSupportedPayable"]) - paid - credited)
+    assert D(b["disputedOutstanding"]) == D(b["recordedOutstanding"]) - D(b["supportedOutstanding"])
+    assert D(b["disputedOutstanding"]) <= D(b["recordedOutstanding"])

@@ -677,6 +677,11 @@ class CaseBalances(Contract):
     disputedExposure: DecimalString
     itcAtRisk: DecimalString
     msmeOverdue: DecimalString | None = None
+    paidToDate: DecimalString | None = None
+    creditedToDate: DecimalString | None = None
+    recordedOutstanding: DecimalString | None = None
+    supportedOutstanding: DecimalString | None = None
+    disputedOutstanding: DecimalString | None = None
 
 
 class Ambiguity(Contract):

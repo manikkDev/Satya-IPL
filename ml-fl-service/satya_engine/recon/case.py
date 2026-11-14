@@ -96,8 +96,19 @@ def _balances(ledger, docs, findings):
     for f in findings:
         if f["amount"] and f["severity"] == "high":
             disputed += D(f["amount"])
+    # Net position: what has already been settled (payments + credit notes)
+    # comes off both views. Disputed = recorded-but-unsupported, so one
+    # over-billing seen by several findings is never counted twice.
+    paid = sum((c.paid_value for lines in ledger.values() for c in lines.values()), D("0"))
+    credited = sum((c.credited_value for lines in ledger.values() for c in lines.values()), D("0"))
+    zero = D("0")
+    recorded_out = max(zero, recorded - paid - credited)
+    supported_out = max(zero, supported - paid - credited)
     return {"recordedPayable": str(recorded), "evidenceSupportedPayable": str(supported),
-            "disputedExposure": str(disputed), "itcAtRisk": str(disputed)}
+            "disputedExposure": str(disputed), "itcAtRisk": str(disputed),
+            "paidToDate": str(paid), "creditedToDate": str(credited),
+            "recordedOutstanding": str(recorded_out), "supportedOutstanding": str(supported_out),
+            "disputedOutstanding": str(max(zero, recorded_out - supported_out))}
 
 
 def _lines_view(ledger):

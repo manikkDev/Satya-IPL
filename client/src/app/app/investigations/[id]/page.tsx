@@ -11,6 +11,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/v2/confirm-dialog";
 import { CaseWorkflow } from "@/components/v2/case-workflow";
+import { toPaise } from "@/lib/format";
 import { useSession } from "@/components/v2/session";
 import { Sparkles, FileSearch, FileDown, X, ArrowUpRight, GitBranch } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
@@ -330,9 +331,18 @@ export default function InvestigationDetailPage() {
       {/* recommendation banner */}
       <div className="glow-accent relative overflow-hidden rounded-[var(--radius-md)] border border-[var(--line)] border-l-4 border-l-[var(--sev-high)] bg-[var(--surface)] p-5 shadow-[var(--shadow-2)]">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--sev-high)]">Recommended next step</p>
-        <p className="mt-2 text-base font-medium leading-relaxed text-[var(--ink)]">
-          {recommendation?.reasons?.length ? recommendation.reasons.join(" ") : "Review the issues below and decide the next step."}
-        </p>
+        {recommendation?.reasons?.length ? (
+          <ul className="mt-2 space-y-1.5">
+            {recommendation.reasons.map((reason: string, i: number) => (
+              <li key={i} className="flex gap-2 text-[15px] leading-relaxed text-[var(--ink)]">
+                <span aria-hidden="true" className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--sev-high)]" />
+                {reason}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-base font-medium leading-relaxed text-[var(--ink)]">Review the issues below and decide the next step.</p>
+        )}
         <div className="mt-4 flex flex-wrap gap-2">
           {recommendation?.action && <ActionButton action={recommendation.action} amount={recommendation.scope?.holdAmount} onClick={() => setPendingDecision(recommendation.action)} disabled={deciding} />}
           {recommendation?.scope?.approveAmount && (
@@ -372,7 +382,7 @@ export default function InvestigationDetailPage() {
           </>
         )}
       </div>
-      {balances && [balances.supported, balances.disputed, balances.recorded].every((v) => !Number(typeof v === "object" ? v?.amount : v) || !Number(v)) && (
+      {balances && [balances.supported, balances.disputed, balances.recorded].every((v) => toPaise(v as Parameters<typeof toPaise>[0]) === BigInt(0)) && (
         <p className="text-xs leading-relaxed text-[var(--muted)]">
           Nothing has been delivered, invoiced or paid against this order yet — the amounts fill in as goods arrive and bills are recorded. If invoices exist, check that they reference this PO.
         </p>
@@ -574,7 +584,7 @@ export default function InvestigationDetailPage() {
                 <div className="mt-4 rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-4 py-3 text-xs text-[var(--ink-2)]">
                   <p className="font-medium text-[var(--ink)]">Scenario result — not saved</p>
                   <p className="mt-1">
-                    Owed: <Money value={b?.evidenceSupportedPayable || b?.recordedPayable || "0"} /> · Recorded: <Money value={b?.recordedPayable || "0"} /> · Under question: <Money value={b?.disputedExposure || "0"} /> · Findings: {f?.length ?? 0}
+                    Owed: <Money value={b?.supportedOutstanding ?? b?.evidenceSupportedPayable ?? "0"} /> · Recorded: <Money value={b?.recordedOutstanding ?? b?.recordedPayable ?? "0"} /> · Under question: <Money value={b?.disputedOutstanding ?? b?.disputedExposure ?? "0"} /> · Findings: {f?.length ?? 0}
                   </p>
                 </div>
               );
