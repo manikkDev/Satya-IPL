@@ -35,12 +35,12 @@ function StageCell({ label, icon: Icon, value, display, max, tone }: { label: st
   const pct = Number(max) > 0 ? Math.min(100, (Number(value) / Number(max)) * 100) : 0;
   return (
     <div className="min-w-[96px] flex-1">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--muted)]">
+      <div className="flex items-center gap-1.5 text-[13px] font-medium text-[var(--muted)]">
         <Icon size={12} aria-hidden="true" /> {label}
       </div>
       <p className="tnum mt-1 text-base font-semibold" style={{ color: tone ?? "var(--ink)" }}>{display ?? value}</p>
       <Progress value={pct} tone={tone ?? "var(--accent)"} className="mt-1.5 h-[4px]" />
-      <p className="tnum mt-1 text-[11px] text-[var(--muted)]">{Number(max) > 0 ? `${Math.round(pct)}%` : "—"}</p>
+      <p className="tnum mt-1 text-[13px] text-[var(--muted)]">{Number(max) > 0 ? `${Math.round(pct)}%` : "—"}</p>
     </div>
   );
 }
@@ -99,9 +99,9 @@ export default function OrderDetailPage() {
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-[var(--accent)]">Purchase order{order.fy ? ` · FY ${order.fy}` : ""}</p>
+            <p className="text-xs font-medium text-[var(--accent)]">Purchase order{order.fy ? ` · FY ${order.fy}` : ""}</p>
             <div className="mt-1 flex flex-wrap items-center gap-3">
-              <h1 className="font-code text-xl font-semibold tracking-tight text-[var(--ink)]">{order.number}</h1>
+              <h1 className="type-page-title font-code">{order.number}</h1>
               {order.revision > 0 && <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-xs text-[var(--ink-2)]" title="Revision">Rev {order.revision}</span>}
               <StatusBadge status={order.status} />
             </div>
@@ -433,7 +433,7 @@ function ActivityTrail({ activity, history }: { activity: Activity | undefined; 
               <p className="tnum text-xs text-[var(--muted)]"><DateText value={e.at} withTime /></p>
             </div>
             {e.body ? <p className="mt-0.5 text-xs leading-relaxed text-[var(--ink-2)]">{e.body}</p> : null}
-            {e.who ? <p className="mt-0.5 text-[11px] text-[var(--muted)]">{e.who}</p> : null}
+            {e.who ? <p className="mt-0.5 text-[13px] text-[var(--muted)]">{e.who}</p> : null}
           </li>
         ))}
       </ol>

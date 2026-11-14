@@ -64,7 +64,7 @@ const PILL_CLASSES: Record<PillTone, string> = {
 
 function Pill({ tone = "muted", children }: { tone?: PillTone; children: React.ReactNode }) {
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium", PILL_CLASSES[tone])}>
+    <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[13px] font-medium", PILL_CLASSES[tone])}>
       {children}
     </span>
   );
@@ -73,9 +73,9 @@ function Pill({ tone = "muted", children }: { tone?: PillTone; children: React.R
 function Field({ label, value, mono, sub }: { label: string; value?: React.ReactNode; mono?: boolean; sub?: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-wide text-[var(--muted)]">{label}</p>
+      <p className="text-[13px] text-[var(--muted)]">{label}</p>
       <p className={cn("mt-1 text-sm text-[var(--ink)]", mono && "font-code")}>{value ?? "—"}</p>
-      {sub ? <p className="mt-0.5 text-[11px] leading-snug text-[var(--muted)]">{sub}</p> : null}
+      {sub ? <p className="mt-0.5 text-[13px] leading-snug text-[var(--muted)]">{sub}</p> : null}
     </div>
   );
 }
@@ -83,9 +83,9 @@ function Field({ label, value, mono, sub }: { label: string; value?: React.React
 function Kpi({ label, value, sub, warn }: { label: string; value: React.ReactNode; sub?: string; warn?: boolean }) {
   return (
     <div className="rounded-[var(--radius-sm)] bg-[var(--surface-2)]/60 p-3.5">
-      <p className="text-[11px] text-[var(--muted)]">{label}</p>
+      <p className="text-[13px] text-[var(--muted)]">{label}</p>
       <p className={cn("tnum mt-1.5 text-lg font-semibold tracking-tight", warn ? "text-[var(--sev-high)]" : "text-[var(--ink)]")}>{value}</p>
-      {sub ? <p className="mt-0.5 text-[11px] leading-snug text-[var(--muted)]">{sub}</p> : null}
+      {sub ? <p className="mt-0.5 text-[13px] leading-snug text-[var(--muted)]">{sub}</p> : null}
     </div>
   );
 }
@@ -95,9 +95,9 @@ function Meter({ label, pct }: { label: string; pct?: string }) {
   const value = Math.min(100, Math.max(0, Number(pct ?? 0) || 0));
   return (
     <div className="flex items-center gap-2">
-      <span className="w-14 shrink-0 text-[11px] uppercase tracking-wide text-[var(--muted)]">{label}</span>
+      <span className="w-14 shrink-0 text-[13px] text-[var(--muted)]">{label}</span>
       <Progress value={value} className="h-[4px] flex-1" />
-      <span className="tnum w-9 shrink-0 text-right text-[11px] text-[var(--ink-2)]">{value}%</span>
+      <span className="tnum w-9 shrink-0 text-right text-[13px] text-[var(--ink-2)]">{value}%</span>
     </div>
   );
 }
@@ -227,12 +227,12 @@ export default function SupplierDetailPage() {
           </span>
           <div>
             <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-xl font-semibold tracking-tight text-[var(--ink)]">{supplier.name}</h1>
-              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[11px] font-medium text-[var(--accent-strong)]">
+              <h1 className="type-page-title">{supplier.name}</h1>
+              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[13px] font-medium text-[var(--accent-strong)]">
                 <ShieldCheck size={11} /> Active supplier
               </span>
               {supplier.msme && (
-                <span className="rounded-full border border-[var(--likely)]/30 bg-[var(--likely-soft)] px-2.5 py-1 text-[11px] font-medium text-[var(--likely)]">
+                <span className="rounded-full border border-[var(--likely)]/30 bg-[var(--likely-soft)] px-2.5 py-1 text-[13px] font-medium text-[var(--likely)]">
                   <Term of="MSME">{supplier.msme} enterprise</Term>
                 </span>
               )}
@@ -323,7 +323,7 @@ export default function SupplierDetailPage() {
                     >
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-code text-xs font-medium text-[var(--accent-strong)]">{o.number}</p>
-                        <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+                        <p className="mt-0.5 text-[13px] text-[var(--muted)]">
                           <DateText value={o.date} /> · {STATUS_LABEL[o.status] ?? o.status.replaceAll("_", " ")}
                         </p>
                       </div>
@@ -334,7 +334,7 @@ export default function SupplierDetailPage() {
                       </div>
                       <div className="shrink-0 text-right">
                         <Money value={o.value} className="text-sm font-medium text-[var(--ink)]" />
-                        <p className={cn("mt-0.5 text-[11px]", o.issueCount ? "font-medium text-[var(--sev-high)]" : "text-[var(--muted)]")}>
+                        <p className={cn("mt-0.5 text-[13px]", o.issueCount ? "font-medium text-[var(--sev-high)]" : "text-[var(--muted)]")}>
                           {o.issueCount ? `${o.issueCount} open issue${o.issueCount === 1 ? "" : "s"}` : "no issues"}
                         </p>
                       </div>
@@ -363,14 +363,14 @@ export default function SupplierDetailPage() {
                     <li key={p.id} className="flex items-center gap-4 px-5 py-3.5">
                       <div className="min-w-0 flex-1">
                         <p className="font-code text-xs font-medium text-[var(--ink)]">{p.utr ?? "No bank reference"}</p>
-                        <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+                        <p className="mt-0.5 text-[13px] text-[var(--muted)]">
                           {p.date ? <DateText value={p.date} /> : "—"}
                           {p.mode ? <> · {p.mode}</> : null}
                           {p.status === "partial" && p.allocatedTotal ? <> · <Money value={p.allocatedTotal} /> allocated</> : null}
                         </p>
                       </div>
                       <Money value={paymentAmount(p)} className="shrink-0 text-sm font-medium text-[var(--ink)]" />
-                      <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium", PILL_CLASSES[st.tone])}>{st.label}</span>
+                      <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[13px] font-medium", PILL_CLASSES[st.tone])}>{st.label}</span>
                     </li>
                   );
                 })}
@@ -393,7 +393,7 @@ export default function SupplierDetailPage() {
                     >
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-medium text-[var(--ink)]">{c.title}</p>
-                        <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+                        <p className="mt-0.5 text-[13px] text-[var(--muted)]">
                           {(c as { findingCount?: number }).findingCount
                             ? `${(c as { findingCount?: number }).findingCount} issue${(c as { findingCount?: number }).findingCount === 1 ? "" : "s"} under review`
                             : "Under review"}
@@ -415,7 +415,7 @@ export default function SupplierDetailPage() {
               <div className="p-5 pb-0">
                 <CardTitle icon={Hourglass} hint="45-day rule">MSME payment deadlines</CardTitle>
               </div>
-              <p className="px-5 pb-3 text-[11px] leading-relaxed text-[var(--muted)]">
+              <p className="px-5 pb-3 text-[13px] leading-relaxed text-[var(--muted)]">
                 Dues to {supplier.msme ?? "micro & small"} suppliers must be paid within {supplier.paymentTermsDays ?? 45} days of acceptance —
                 after that, interest runs at 3× the RBI rate.
               </p>
@@ -432,7 +432,7 @@ export default function SupplierDetailPage() {
                       <li key={m.documentId ?? i} className="flex items-center gap-4 px-5 py-3">
                         <div className="min-w-0 flex-1">
                           <p className="font-code text-xs font-medium text-[var(--ink)]">{m.invoice ?? m.documentId ?? "Invoice"}</p>
-                          <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+                          <p className="mt-0.5 text-[13px] text-[var(--muted)]">
                             due {m.dueDate ? <DateText value={m.dueDate} /> : "—"}
                           </p>
                         </div>
@@ -473,7 +473,7 @@ export default function SupplierDetailPage() {
               <Field label="Supplier ID" value={supplier.id} mono />
             </div>
             <div className="mt-5 space-y-2">
-              <p className="text-[11px] uppercase tracking-wide text-[var(--muted)]">GST registrations</p>
+              <p className="text-[13px] text-[var(--muted)]">GST registrations</p>
               {(supplier.gstins ?? []).map((g) => {
                 const state = gstStateName(g.stateCode ?? g.gstin?.slice(0, 2));
                 const panOk = Boolean(supplier.pan && panFromGstin(g.gstin) === supplier.pan);
@@ -483,7 +483,7 @@ export default function SupplierDetailPage() {
                       <span className="font-code text-xs font-medium text-[var(--ink)]">{g.gstin}</span>
                       <Pill tone="good">{g.status || "active"}</Pill>
                     </div>
-                    <p className="mt-1 text-[11px] text-[var(--muted)]">
+                    <p className="mt-1 text-[13px] text-[var(--muted)]">
                       {state ?? `State code ${g.stateCode ?? "—"}`}
                       {panOk ? " · PAN inside GSTIN matches" : ""}
                     </p>
@@ -497,7 +497,7 @@ export default function SupplierDetailPage() {
           {/* bank accounts */}
           <Card>
             <CardTitle icon={Landmark} hint={`${(supplier.bankAccounts ?? []).length} on file`}>Bank accounts</CardTitle>
-            <p className="-mt-2 mb-4 text-[11px] leading-relaxed text-[var(--muted)]">
+            <p className="-mt-2 mb-4 text-[13px] leading-relaxed text-[var(--muted)]">
               Account changes need a second person to approve before use.
             </p>
             <div className="space-y-2">
@@ -511,10 +511,10 @@ export default function SupplierDetailPage() {
                       <Pill tone={st.tone}>{st.label}</Pill>
                     </div>
                     <p className="mt-1 font-code text-xs text-[var(--ink)]">{acct.masked ?? acct.accountMasked ?? "••••"}</p>
-                    <p className="mt-0.5 font-code text-[11px] text-[var(--muted)]">
+                    <p className="mt-0.5 font-code text-[13px] text-[var(--muted)]">
                       IFSC {acct.ifsc || "—"}{branch ? ` · branch ${branch}` : ""}
                     </p>
-                    {acct.holderName ? <p className="mt-1 text-[11px] text-[var(--muted)]">Account holder: {acct.holderName}</p> : null}
+                    {acct.holderName ? <p className="mt-1 text-[13px] text-[var(--muted)]">Account holder: {acct.holderName}</p> : null}
                   </div>
                 );
               })}
@@ -531,18 +531,18 @@ export default function SupplierDetailPage() {
               <div className="space-y-2">
                 {supplier.contacts!.map((c, i) => (
                   <div key={i} className="flex items-start gap-3 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-[11px] font-semibold text-[var(--accent-strong)]">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-[13px] font-semibold text-[var(--accent-strong)]">
                       {(c.name || "?").trim().slice(0, 1).toUpperCase()}
                     </span>
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-[var(--ink)]">{c.name || "Contact"}</p>
                       {c.email ? (
-                        <a href={`mailto:${c.email}`} className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
+                        <a href={`mailto:${c.email}`} className="mt-0.5 flex items-center gap-1.5 truncate text-[13px] text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
                           <Mail size={11} /> {c.email}
                         </a>
                       ) : null}
                       {c.phone ? (
-                        <a href={`tel:${c.phone.replace(/\s/g, "")}`} className="mt-0.5 flex items-center gap-1.5 font-code text-[11px] text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
+                        <a href={`tel:${c.phone.replace(/\s/g, "")}`} className="mt-0.5 flex items-center gap-1.5 font-code text-[13px] text-[var(--muted)] transition-colors hover:text-[var(--ink)]">
                           <Phone size={11} /> {c.phone}
                         </a>
                       ) : null}
@@ -561,11 +561,11 @@ export default function SupplierDetailPage() {
                 const state = gstStateName(addr.stateCode);
                 return (
                   <div key={i} className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5">
-                    <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted)]">{addr.label || `Address ${i + 1}`}</p>
+                    <p className="text-[13px] font-medium text-[var(--muted)]">{addr.label || `Address ${i + 1}`}</p>
                     <p className="mt-1 text-sm leading-relaxed text-[var(--ink)]">
                       {[addr.line1, [addr.city, state, addr.pin].filter(Boolean).join(" – ")].filter(Boolean).join(", ")}
                     </p>
-                    {addr.stateCode ? <p className="mt-0.5 text-[11px] text-[var(--muted)]">GST state code {addr.stateCode}</p> : null}
+                    {addr.stateCode ? <p className="mt-0.5 text-[13px] text-[var(--muted)]">GST state code {addr.stateCode}</p> : null}
                   </div>
                 );
               })}

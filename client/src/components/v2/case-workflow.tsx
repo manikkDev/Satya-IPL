@@ -125,7 +125,7 @@ export function CaseWorkflow({
 
       {/* reminders */}
       <div className="mt-6">
-        <p className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.08em] text-[var(--muted)]">
+        <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--muted)]">
           <AlarmClock size={13} aria-hidden="true" /> Reminders
         </p>
         {(reminders.data?.items ?? []).length === 0 ? (
@@ -178,7 +178,7 @@ export function CaseWorkflow({
       {/* supplier messages */}
       <div className="mt-6">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <p className="mr-auto flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.08em] text-[var(--muted)]">
+          <p className="mr-auto flex items-center gap-1.5 text-xs font-medium text-[var(--muted)]">
             <MessageCircle size={13} aria-hidden="true" /> Supplier messages
           </p>
           {canAct ? (

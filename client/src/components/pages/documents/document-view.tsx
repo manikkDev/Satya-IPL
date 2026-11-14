@@ -56,7 +56,7 @@ export function DocumentView({ id }: { id: string }) {
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <p className="mb-1.5 text-xs font-medium uppercase tracking-[0.12em] text-[var(--accent)]">{docTypeLabel(doc.type)}</p>
+          <p className="mb-1.5 text-xs font-medium text-[var(--accent)]">{docTypeLabel(doc.type)}</p>
           <h1 className="font-code break-all text-[22px] font-semibold leading-tight text-[var(--ink)]">{doc.number ?? doc.externalRef ?? doc.id}</h1>
           <p className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
             <DateText value={doc.date} /> <StatusBadge status={doc.status} />
@@ -89,7 +89,7 @@ export function DocumentView({ id }: { id: string }) {
           <div className="table-scroll">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-y border-[var(--line)] bg-[var(--surface-2)]/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">
+                <tr className="border-y border-[var(--line)] bg-[var(--surface-2)]/60 text-[13px] font-semibold text-[var(--muted)]">
                   <th scope="col" className="px-4 py-2.5 text-left">#</th>
                   <th scope="col" className="px-4 py-2.5 text-left">Description</th>
                   <th scope="col" className="px-4 py-2.5 text-left">HSN</th>

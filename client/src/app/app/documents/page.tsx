@@ -286,8 +286,8 @@ export default function DocumentsPage() {
   return (
     <FadeIn className="space-y-5">
       <PageHeader
-        title="Documents"
-        description="Drop invoices, delivery notes and other supplier paperwork — Satya reads them, you check and confirm. Nothing counts as evidence until you do."
+        title="Invoices & documents"
+        description="Upload supplier invoices, delivery notes and receipts. Satya reads each one; you check what it found and confirm. Nothing counts until you confirm it."
       />
 
       {ack === false ? <AiNotice onAccept={accept} /> : null}
@@ -314,10 +314,10 @@ export default function DocumentsPage() {
         <div className="grid h-12 w-12 place-items-center rounded-full bg-[var(--surface-2)] transition-colors group-hover:bg-[var(--accent-soft)]">
           {busy ? <LoaderCircle size={22} className="animate-spin text-[var(--accent)] motion-reduce:animate-none" aria-hidden="true" /> : <UploadCloud size={22} className="text-[var(--accent)]" aria-hidden="true" />}
         </div>
-        <p className="mt-4 text-sm font-medium text-[var(--ink)]">
+        <p className="mt-4 text-base font-medium text-[var(--ink)]">
           {busy ? "Uploading and reading…" : ack === false ? "Accept the notice above to start uploading" : "Drop files here, or click to choose"}
         </p>
-        <p className="mt-1 text-xs text-[var(--muted)]">PDF, photo (PNG, JPEG, WebP), Excel, CSV or e-invoice JSON — up to {MAX_UPLOAD_MB} MB each</p>
+        <p className="mt-1 text-[14px] text-[var(--muted)]">PDF, photo (PNG, JPEG, WebP), Excel, CSV or e-invoice JSON — up to {MAX_UPLOAD_MB} MB each</p>
         <input
           ref={fileInput}
           type="file"
@@ -376,15 +376,15 @@ export default function DocumentsPage() {
       )}
 
       <Card>
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
-          <FileSpreadsheet size={15} className="text-[var(--muted)]" aria-hidden="true" /> Importing in bulk?
+        <h2 className="flex items-center gap-2 text-[17px] font-semibold text-[var(--ink)]">
+          <FileSpreadsheet size={18} className="text-[var(--muted)]" aria-hidden="true" /> Bringing in a lot at once?
         </h2>
-        <p className="mt-1.5 text-sm leading-relaxed text-[var(--muted)]">
-          Bank statements and GST returns have their own column-mapped importers, so every row is checked before it is saved.
+        <p className="mt-1.5 text-[15px] leading-relaxed text-[var(--muted)]">
+          Tally exports, bank statements and GSTR-2B have their own importers that check every row before it is saved.
         </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <LinkBtn href="/app/payments" icon={Landmark}>Bank statement CSV → Payments</LinkBtn>
-          <LinkBtn href="/app/compliance" icon={FileUp}>GSTR-2B JSON → Compliance</LinkBtn>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <LinkBtn href="/app/imports" icon={FileUp} variant="primary">Go to Import data</LinkBtn>
+          <LinkBtn href="/app/payments" icon={Landmark}>Bank statement → Payments</LinkBtn>
         </div>
       </Card>
     </FadeIn>

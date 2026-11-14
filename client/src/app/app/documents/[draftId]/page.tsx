@@ -137,8 +137,8 @@ function FilePreview({ fileId, fallbackName }: { fileId?: string; fallbackName: 
       <div className="flex h-full flex-col items-center justify-center text-[var(--muted)]">
         <FileText size={36} aria-hidden="true" />
         <p className="mt-3 text-xs">Preview isn&apos;t available for this file.</p>
-        <p className="mt-1 text-[11px]">{mocksEnabled() ? "Mock mode — no real file stored." : "Use the fields on the right and the filename below."}</p>
-        <p className="mt-2 font-code text-[11px] text-[var(--ink-2)]">{filename}</p>
+        <p className="mt-1 text-[13px]">{mocksEnabled() ? "Mock mode — no real file stored." : "Use the fields on the right and the filename below."}</p>
+        <p className="mt-2 font-code text-[13px] text-[var(--ink-2)]">{filename}</p>
       </div>
     );
   }
@@ -397,7 +397,7 @@ function DraftReview({ draftId }: { draftId: string }) {
           </Link>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-semibold text-[var(--ink)]">{displayName}</h1>
+              <h1 className="type-page-title">{displayName}</h1>
               <StatusBadge status={draft.status} />
             </div>
             <p className="text-xs text-[var(--muted)]">
@@ -456,7 +456,7 @@ function DraftReview({ draftId }: { draftId: string }) {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* preview */}
         <Card pad={false} className="p-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Document preview</h2>
+          <h2 className="text-xs font-semibold text-[var(--muted)]">Document preview</h2>
           <div className="mt-3 min-h-[480px] rounded-[var(--radius-sm)] bg-[var(--surface-2)] p-1">
             <FilePreview fileId={draft.fileId} fallbackName={displayName} />
           </div>
@@ -472,7 +472,7 @@ function DraftReview({ draftId }: { draftId: string }) {
           {hasFields ? (
             fields.map((group) => (
               <section key={group.group} className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-1)]">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">{group.group}</h2>
+                <h2 className="text-xs font-semibold text-[var(--muted)]">{group.group}</h2>
                 <div className="mt-3 space-y-3">
                   {group.items.map((item: FieldItem) => {
                     const conf = CONFIDENCE[item.confidence];
@@ -484,7 +484,7 @@ function DraftReview({ draftId }: { draftId: string }) {
                             type="button"
                             title={item.quote ? "Show where this was found" : item.source}
                             onClick={() => item.quote && setHighlight(item.quote)}
-                            className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", conf.classes)}
+                            className={cn("rounded-full px-2 py-0.5 text-[13px] font-medium", conf.classes)}
                           >
                             {conf.label}
                           </button>
@@ -499,7 +499,7 @@ function DraftReview({ draftId }: { draftId: string }) {
                             item.confidence === "high" ? "border-[var(--line)] focus:border-[var(--accent)]" : "border-[var(--possible)] focus:border-[var(--accent)]",
                           )}
                         />
-                        <p className="mt-0.5 text-[11px] text-[var(--muted)]">{item.source}</p>
+                        <p className="mt-0.5 text-[13px] text-[var(--muted)]">{item.source}</p>
                       </div>
                     );
                   })}
@@ -509,7 +509,7 @@ function DraftReview({ draftId }: { draftId: string }) {
           ) : (
             /* nothing extracted — let the reviewer key the essentials by hand */
             <section className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-1)]">
-              <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+              <h2 className="flex items-center gap-2 text-xs font-semibold text-[var(--muted)]">
                 <PenLine size={13} aria-hidden="true" /> Type it in yourself
               </h2>
               <p className="mt-1.5 text-xs leading-relaxed text-[var(--muted)]">
@@ -527,7 +527,7 @@ function DraftReview({ draftId }: { draftId: string }) {
                       value={values[f.name] ?? ""}
                       placeholder={f.placeholder}
                       onChange={(event) => setValues((prev) => ({ ...prev, [f.name]: event.target.value }))}
-                      className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface-2)]/50 px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)]"
+                      className="mt-1 h-10 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface-2)]/50 px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)]"
                     />
                   </div>
                 ))}
@@ -537,7 +537,7 @@ function DraftReview({ draftId }: { draftId: string }) {
 
           {lines.length > 0 && (
             <section className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Lines</h2>
+              <h2 className="text-xs font-semibold text-[var(--muted)]">Lines</h2>
               <div className="table-scroll mt-2">
                 <table className="w-full text-xs">
                   <thead>
@@ -585,7 +585,7 @@ function DraftReview({ draftId }: { draftId: string }) {
 
           {(suggestions.supplier || suggestions.po) && (
             <section className="rounded-[var(--radius-md)] border border-[var(--accent)]/30 bg-[var(--accent-soft)]/50 p-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--accent-strong)]">Suggested links — confirm or change</h2>
+              <h2 className="text-xs font-semibold text-[var(--accent-strong)]">Suggested links — confirm or change</h2>
               <div className="mt-2 flex flex-wrap gap-2">
                 {suggestions.supplier && <span className="rounded-full border border-[var(--accent)]/25 bg-[var(--surface)] px-3 py-1 text-xs text-[var(--ink-2)]">Supplier: {suggestions.supplier}</span>}
                 {suggestions.po && <span className="rounded-full border border-[var(--accent)]/25 bg-[var(--surface)] px-3 py-1 text-xs text-[var(--ink-2)]">Order: {suggestions.po}</span>}

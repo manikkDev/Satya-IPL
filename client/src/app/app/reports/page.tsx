@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong.");
 
-const th = "px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)]";
+const th = "px-4 py-2.5 text-[13px] font-semibold text-[var(--muted)]";
 const td = "px-4 py-3 text-sm text-[var(--ink-2)]";
 
 function SectionSkeleton({ rows = 4 }: { rows?: number }) {
@@ -124,7 +124,7 @@ export default function ReportsPage() {
   if (mocks) {
     return (
       <FadeIn className="space-y-5">
-        <PageHeader title="Reports" description="Payables ageing, spend by supplier and open findings — exportable for your CA." />
+        <PageHeader title="Reports" description="How old your unpaid bills are, who you spend the most with, and open issues — each table exports to CSV for your CA." />
         <EmptyState icon={FileBarChart} title="Reports need the live server" body="Demo mode has no ledger to report on. Connect to a Satya server to see ageing, spend and findings." />
       </FadeIn>
     );
@@ -136,7 +136,7 @@ export default function ReportsPage() {
     <FadeIn className="space-y-5">
       <PageHeader
         title="Reports"
-        description={<>Payables ageing, spend by supplier and open findings for <strong className="font-medium text-[var(--ink-2)]">{activeEntity?.legalName ?? "this entity"}</strong> — as of <DateText value={asOf} /> (IST). Every figure comes from recorded documents; export any table as CSV.</>}
+        description={<>How old your unpaid bills are, who you spend the most with, and open issues for <strong className="font-medium text-[var(--ink-2)]">{activeEntity?.legalName ?? "this entity"}</strong> — as of <DateText value={asOf} /> (IST). Every figure comes from recorded documents; export any table as CSV.</>}
       />
 
       {/* ---------- payables ageing ---------- */}

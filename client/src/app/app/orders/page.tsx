@@ -113,7 +113,7 @@ export default function OrdersPage() {
 
   const columns = useMemo<ColumnDef<OrderListRow, unknown>[]>(
     () => [
-      { accessorKey: "number", header: "PO number", cell: ({ row }) => <Link href={`/app/orders/${row.original.id}`} className="whitespace-nowrap font-code text-xs font-medium text-[var(--accent-strong)] underline-offset-2 hover:underline">{row.original.number}</Link> },
+      { accessorKey: "number", header: "PO number", cell: ({ row }) => <Link href={`/app/orders/${row.original.id}`} className="whitespace-nowrap font-code text-[14px] font-medium text-[var(--accent-strong)] underline-offset-2 hover:underline dark:text-[var(--accent)]">{row.original.number}</Link> },
       { accessorKey: "supplier", header: "Supplier", cell: ({ row }) => <span className="line-clamp-2 min-w-40 text-[var(--ink)]">{row.original.supplier}</span> },
       { accessorKey: "date", header: "Dated", cell: ({ row }) => <DateText value={row.original.date} className="whitespace-nowrap" /> },
       { accessorKey: "value", header: "Value", cell: ({ row }) => <Money value={row.original.value} className="whitespace-nowrap font-medium text-[var(--ink)]" /> },
@@ -133,11 +133,11 @@ export default function OrdersPage() {
     <FadeIn className="space-y-5">
       <PageHeader
         title="Orders"
-        description="Purchase orders — what was agreed, what arrived, what is owed."
+        description="Every purchase order with how much has been delivered, billed and paid. Open one to see its full trail."
         actions={
           <Link
             href="/app/orders/new"
-            className="inline-flex items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] transition-colors hover:bg-[var(--accent-strong)]"
+            className="inline-flex h-10 items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--accent)] px-4 text-[15px] font-medium text-[var(--on-accent)] transition-colors hover:bg-[var(--accent-strong)]"
           >
             <Plus size={16} aria-hidden="true" /> New purchase order
           </Link>
@@ -147,23 +147,23 @@ export default function OrdersPage() {
       <div className="flex flex-wrap items-center gap-3">
         <input
           type="search" value={query} onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by number or supplier…" aria-label="Search orders"
-          className="h-9 w-64 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] placeholder:text-[var(--muted)]"
+          placeholder="Search by PO number or supplier…" aria-label="Search orders"
+          className="sm:w-72 h-10 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] placeholder:text-[var(--muted)]"
         />
         <select
           value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status"
-          className="h-9 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] px-2 text-sm text-[var(--ink-2)] outline-none transition-colors focus:border-[var(--accent)]"
+          className="h-10 rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-2 text-sm text-[var(--ink-2)] outline-none transition-colors focus:border-[var(--accent)]"
         >
           {STATUS_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
         <select
           value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort orders"
-          className="h-9 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] px-2 text-sm text-[var(--ink-2)] outline-none transition-colors focus:border-[var(--accent)]"
+          className="h-10 rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-2 text-sm text-[var(--ink-2)] outline-none transition-colors focus:border-[var(--accent)]"
         >
           {SORT_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
         <Chip active={hasIssues} onClick={() => setHasIssues((v) => !v)}>Has issues</Chip>
-        {isFetching && !isLoading ? <span className="text-xs text-[var(--muted)]">Updating…</span> : null}
+        {isFetching && !isLoading ? <span className="text-[14px] text-[var(--muted)]">Updating…</span> : null}
       </div>
 
       {error ? (
@@ -177,8 +177,10 @@ export default function OrdersPage() {
         </>
       ) : (
         <EmptyState
-          title="No orders match"
-          body="Try widening the filters, or create your first purchase order."
+          title={debounced || status || hasIssues ? "No orders match" : "No purchase orders yet"}
+          body={debounced || status || hasIssues ? "Try a different search, or clear the filters." : "Create a purchase order here — GST and HSN are worked out for you — or import your existing POs from Tally."}
+          secondaryLabel={debounced || status || hasIssues ? undefined : "Import from Tally"}
+          secondaryHref={debounced || status || hasIssues ? undefined : "/app/imports"}
           actionLabel="New purchase order"
           onAction={() => router.push("/app/orders/new")}
         />

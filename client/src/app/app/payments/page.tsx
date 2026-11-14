@@ -52,7 +52,7 @@ function StatusPill({ status }: { status?: string }) {
   const Icon = meta.icon;
   return (
     <span
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[11px] font-medium leading-none"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[13px] font-medium leading-none"
       style={{ color: meta.color, background: meta.bg, borderColor: `color-mix(in srgb, ${meta.color} 32%, transparent)` }}
     >
       <Icon size={12} aria-hidden="true" /> {meta.label}
@@ -165,7 +165,7 @@ function ImportCsv({ entityId, onDone }: { entityId: string; onDone: () => void 
                 <select
                   value={mapping[field]}
                   onChange={(e) => setMapping((m) => ({ ...m, [field]: e.target.value }))}
-                  className="mt-1 h-9 w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] px-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]"
+                  className="mt-1 h-10 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]"
                 >
                   <option value="">— skip —</option>
                   {headers.map((h) => <option key={h} value={h}>{h}</option>)}
@@ -242,7 +242,7 @@ export default function PaymentsPage() {
     <FadeIn className="space-y-5">
       <PageHeader
         title="Payments"
-        description="Bank transfers matched to the invoices they paid. Unclear ones wait for your call — Satya never guesses."
+        description="Money that left your bank, matched to the bills it paid. When a payment could belong to more than one bill, it waits for you to decide."
         actions={<Btn variant="secondary" icon={UploadCloud} onClick={() => setImporting((v) => !v)} aria-expanded={importing}>Import bank CSV</Btn>}
       />
 
@@ -255,11 +255,11 @@ export default function PaymentsPage() {
       {/* filter bar */}
       <div className="flex flex-col gap-2.5 md:flex-row md:flex-wrap md:items-center">
         <div className="relative md:w-64">
-          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" aria-hidden="true" />
+          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" aria-hidden="true" />
           <input
             type="search" value={query} onChange={(e) => setQuery(e.target.value)}
             placeholder="Search supplier, UTR, number…" aria-label="Search payments"
-            className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] pl-9 pr-3 text-sm text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
+            className="h-10 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] pl-9 pr-3 text-sm text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
           />
         </div>
         <div className="-mx-1 overflow-x-auto px-1">
@@ -268,8 +268,8 @@ export default function PaymentsPage() {
               <button
                 key={value} type="button" aria-pressed={status === value} onClick={() => setStatus(value)}
                 className={cn(
-                  "whitespace-nowrap rounded-[calc(var(--radius-sm)-3px)] px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60",
-                  status === value ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]" : "text-[var(--muted)] hover:text-[var(--ink)]",
+                  "whitespace-nowrap rounded-[calc(var(--radius-sm)-3px)] px-3 py-1.5 text-[14px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60",
+                  status === value ? "bg-[var(--ink)] text-[var(--paper)]" : "text-[var(--ink-2)] hover:text-[var(--ink)]",
                 )}
               >
                 {label}
@@ -281,7 +281,7 @@ export default function PaymentsPage() {
           <ArrowDownUp size={13} className="text-[var(--muted)]" aria-hidden="true" />
           <select
             value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort payments"
-            className="h-9 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] px-2 text-sm text-[var(--ink-2)] outline-none transition-colors focus:border-[var(--accent)]"
+            className="h-10 rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-2 text-sm text-[var(--ink-2)] outline-none transition-colors focus:border-[var(--accent)]"
           >
             {SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>

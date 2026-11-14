@@ -31,7 +31,7 @@ const LANES: { id: string; label: string }[] = [
   { id: "finding", label: "Issues" },
 ];
 
-const LANE_X: Record<string, number> = Object.fromEntries(LANES.map((lane, i) => [lane.id, 90 + i * 195]));
+const LANE_X: Record<string, number> = Object.fromEntries(LANES.map((lane, i) => [lane.id, 100 + i * 215]));
 
 const EDGE_STYLE: Record<Certainty | "DUPLICATE", { width: number; style: string; color: string; arrow: string }> = {
   CONFIRMED: { width: 2.5, style: "solid", color: "#0f766e", arrow: "triangle" },
@@ -73,7 +73,7 @@ function ListView({ graph, onSelect }: { graph: GraphPayload; onSelect: (node: G
         if (!nodes.length) return null;
         return (
           <section key={lane.id}>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">{lane.label}</h3>
+            <h3 className="text-xs font-semiboldr text-[var(--muted)]">{lane.label}</h3>
             <ul className="mt-2 space-y-1.5">
               {nodes.map((node) => (
                 <li key={node.id}>
@@ -244,17 +244,17 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
           selector: "node",
           style: {
             shape: "round-rectangle",
-            width: 168,
-            height: 52,
+            width: 188,
+            height: 60,
             "background-color": "#ffffff",
             "border-width": 1.5,
             "border-color": "#e3e0d8",
             label: "data(label)",
-            "font-size": 10,
+            "font-size": 12,
             "font-family": "Inter, sans-serif",
             color: "#14213d",
             "text-wrap": "wrap",
-            "text-max-width": "150px",
+            "text-max-width": "172px",
             "text-valign": "center",
             "text-halign": "center",
             "line-height": 1.35,
@@ -454,7 +454,7 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
               <div className="pointer-events-none absolute inset-0" aria-hidden="true">
                 {LANES.filter((lane) => filtered.nodes.some((n) => n.stage === lane.id)).map((lane) => (
                   <div key={lane.id} className="absolute top-0 bottom-0 border-l border-dashed border-[var(--line)]" style={{ left: LANE_X[lane.id] - 96 }}>
-                    <span className="absolute left-2 top-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--muted)]">{lane.label}</span>
+                    <span className="absolute left-2 top-2 text-[13px] font-semiboldr text-[var(--muted)]">{lane.label}</span>
                   </div>
                 ))}
               </div>

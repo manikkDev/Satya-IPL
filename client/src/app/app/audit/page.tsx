@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 const PAGE_SIZE = 50;
 
 const selectCls =
-  "h-9 w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] px-2.5 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)]";
+  "h-10 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-2.5 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)]";
 const labelCls = "mb-1 block text-xs font-medium text-[var(--muted)]";
 
 const shortId = (id?: string | null) => (id ? (id.length > 14 ? `…${id.slice(-8)}` : id) : "—");
@@ -248,8 +248,8 @@ export default function AuditPage() {
   return (
     <FadeIn className="space-y-5">
       <PageHeader
-        title="Review history"
-        description="Who did what, when — every change recorded in Satya, newest first. Entries are chained by fingerprint, so any edit after the fact shows up below."
+        title="Activity log"
+        description="Every change and decision in Satya — who did it and when, newest first. Each entry is linked to the one before it, so any later edit shows up."
         actions={rows.length ? <Btn variant="secondary" size="sm" onClick={exportCsv}>Export CSV</Btn> : undefined}
       />
 
@@ -322,7 +322,7 @@ export default function AuditPage() {
       ) : (
         <div className="space-y-3">
           <Card pad={false} className="overflow-hidden">
-            <div className="hidden grid-cols-[170px_minmax(0,1fr)_minmax(0,200px)] gap-x-4 border-b border-[var(--line)] bg-[var(--surface-2)]/60 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)] sm:grid">
+            <div className="hidden grid-cols-[170px_minmax(0,1fr)_minmax(0,200px)] gap-x-4 border-b border-[var(--line)] bg-[var(--surface-2)]/60 px-4 py-2.5 text-[13px] font-semibold text-[var(--muted)] sm:grid">
               <span>When (IST)</span><span>Who · what</span><span className="text-right">Object</span>
             </div>
             <ol aria-label="Review history entries">

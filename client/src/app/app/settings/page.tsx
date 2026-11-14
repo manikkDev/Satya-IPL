@@ -7,7 +7,7 @@
 // controls.
 
 import { useState } from "react";
-import { PageHeader, FadeIn } from "@/components/ui/v2";
+import { PageHeader, FadeIn, BtnLink } from "@/components/ui/v2";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PolicyEditor } from "@/components/pages/settings/policy-editor";
 import { EntitiesPanel, PeoplePanel, NumberingPanel, AiPanel, SuppliersPanel, ItemsPanel } from "@/components/pages/settings/panels";
@@ -26,7 +26,11 @@ export default function SettingsPage() {
   const [tab, setTab] = useState<string>("policy");
   return (
     <FadeIn className="space-y-5">
-      <PageHeader title="Settings" description="Rules, entities, people and masters for your group." />
+      <PageHeader
+        title="Settings"
+        description="Approval rules, company details, people, numbering and master data for your workspace."
+        actions={<BtnLink href="/app/setup" variant="secondary" size="sm">Setup checklist</BtnLink>}
+      />
 
       <Tabs value={tab} onValueChange={setTab}>
         <div className="-mx-1 overflow-x-auto px-1 pb-1">

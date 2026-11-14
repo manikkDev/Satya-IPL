@@ -61,7 +61,7 @@ function EvidenceDrawer({ evidence, onClose }: { evidence: Evidence; onClose: ()
         {evidence.locator?.quote && (
           <div>
             <dt className="text-[var(--muted)]">Source text</dt>
-            <dd className="mt-1 rounded-[var(--radius-sm)] bg-[var(--accent-soft)] px-3 py-2 font-code text-[11px] leading-relaxed text-[var(--accent-strong)]">“{evidence.locator.quote}”</dd>
+            <dd className="mt-1 rounded-[var(--radius-sm)] bg-[var(--accent-soft)] px-3 py-2 font-code text-[13px] leading-relaxed text-[var(--accent-strong)]">“{evidence.locator.quote}”</dd>
           </div>
         )}
         <div>
@@ -104,7 +104,7 @@ function FindingCard({ finding, onAsk, onEvidence }: { finding: Finding; onAsk: 
             <Money value={finding.exposure} /> at risk
           </span>
         ) : null}
-        {finding.harmlessVariance ? <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[11px] text-[var(--muted)]">harmless variance</span> : null}
+        {finding.harmlessVariance ? <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[13px] text-[var(--muted)]">harmless variance</span> : null}
       </div>
       <h3 className="mt-2.5 text-sm font-semibold text-[var(--ink)]">{finding.title}</h3>
       <p className="mt-1.5 text-sm leading-relaxed text-[var(--ink-2)]">{finding.explanation}</p>
@@ -125,7 +125,7 @@ function FindingCard({ finding, onAsk, onEvidence }: { finding: Finding; onAsk: 
             key={evidence.id}
             type="button"
             onClick={() => onEvidence(evidence)}
-            className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] px-2 py-0.5 text-[11px] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent-strong)]"
+            className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] px-2 py-0.5 text-[13px] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent-strong)]"
           >
             <FileSearch size={11} aria-hidden="true" /> {fieldHint(evidence.field, evidence.documentType)}
           </button>
@@ -314,7 +314,7 @@ export default function InvestigationDetailPage() {
   return (
     <FadeIn className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold tracking-tight text-[var(--ink)]">{caseData.title}</h1>
+        <h1 className="type-page-title">{caseData.title}</h1>
         <StatusBadge status={caseData.status} />
         <button
           type="button"
@@ -330,7 +330,7 @@ export default function InvestigationDetailPage() {
 
       {/* recommendation banner */}
       <div className="glow-accent relative overflow-hidden rounded-[var(--radius-md)] border border-[var(--line)] border-l-4 border-l-[var(--sev-high)] bg-[var(--surface)] p-5 shadow-[var(--shadow-2)]">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--sev-high)]">Recommended next step</p>
+        <p className="text-[13px] font-semibold text-[var(--sev-high)]">Recommended next step</p>
         {recommendation?.reasons?.length ? (
           <ul className="mt-2 space-y-1.5">
             {recommendation.reasons.map((reason: string, i: number) => (
@@ -420,7 +420,7 @@ export default function InvestigationDetailPage() {
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full text-left text-sm">
                     <thead>
-                      <tr className="border-b border-[var(--line)] text-[11px] uppercase tracking-wide text-[var(--muted)]">
+                      <tr className="border-b border-[var(--line)] text-[13px] text-[var(--muted)]">
                         <th className="py-2 pr-4 font-medium">Order line</th>
                         <th className="py-2 pr-4 text-right font-medium">Ordered</th>
                         <th className="py-2 pr-4 text-right font-medium">Received</th>

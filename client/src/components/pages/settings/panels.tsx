@@ -222,7 +222,7 @@ export function NumberingPanel() {
           <div className="table-scroll">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-y border-[var(--line)] bg-[var(--surface-2)]/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">
+                <tr className="border-y border-[var(--line)] bg-[var(--surface-2)]/60 text-[13px] font-semibold text-[var(--muted)]">
                   <th scope="col" className="px-5 py-2.5 text-left">Document</th>
                   <th scope="col" className="px-5 py-2.5 text-left">Pattern</th>
                   <th scope="col" className="px-5 py-2.5 text-left">Next number</th>
@@ -248,7 +248,7 @@ export function NumberingPanel() {
           <div className="table-scroll">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-y border-[var(--line)] bg-[var(--surface-2)]/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">
+                <tr className="border-y border-[var(--line)] bg-[var(--surface-2)]/60 text-[13px] font-semibold text-[var(--muted)]">
                   <th scope="col" className="px-5 py-2.5 text-left">Document</th>
                   <th scope="col" className="px-5 py-2.5 text-right">Up to</th>
                   <th scope="col" className="px-5 py-2.5 text-left">Roles</th>
@@ -358,7 +358,7 @@ export function ItemsPanel() {
       <div className="table-scroll">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[var(--line)] bg-[var(--surface-2)]/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">
+            <tr className="border-b border-[var(--line)] bg-[var(--surface-2)]/60 text-[13px] font-semibold text-[var(--muted)]">
               <th scope="col" className="px-4 py-2.5 text-left">Code</th>
               <th scope="col" className="px-4 py-2.5 text-left">Description</th>
               <th scope="col" className="px-4 py-2.5 text-left">HSN</th>

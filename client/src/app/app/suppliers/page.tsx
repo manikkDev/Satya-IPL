@@ -55,7 +55,7 @@ export default function SuppliersPage() {
         header: "MSME",
         cell: ({ row }) =>
           row.original.msme ? (
-            <span className="whitespace-nowrap rounded-full bg-[var(--likely-soft)] px-2 py-0.5 text-[11px] font-medium capitalize text-[var(--likely)]">
+            <span className="whitespace-nowrap rounded-full bg-[var(--likely-soft)] px-2 py-0.5 text-[13px] font-medium capitalize text-[var(--likely)]">
               <Term of="MSME">{row.original.msme}</Term>
             </span>
           ) : (
@@ -93,16 +93,16 @@ export default function SuppliersPage() {
     <FadeIn className="space-y-5">
       <PageHeader
         title="Suppliers"
-        description="Vendor master — registration, tax and bank details, with a transparent risk score built from open issues and master-data checks."
+        description="Everyone you buy from: GST and MSME registration, bank accounts, what you owe them, and a risk score that shows how it was worked out."
       />
 
       <div className="flex flex-wrap items-center gap-3">
         <input
           type="search" value={query} onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name or GSTIN…" aria-label="Search suppliers"
-          className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] sm:w-72 bg-[var(--surface)] px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] placeholder:text-[var(--muted)]"
+          className="h-10 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] sm:w-72 bg-[var(--surface)] px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] placeholder:text-[var(--muted)]"
         />
-        <span className="text-xs text-[var(--muted)]">{items.length} supplier{items.length === 1 ? "" : "s"}</span>
+        <span className="text-[14px] text-[var(--muted)]">{items.length} supplier{items.length === 1 ? "" : "s"}</span>
       </div>
 
       {error ? (
@@ -110,7 +110,7 @@ export default function SuppliersPage() {
       ) : isLoading ? (
         <Skeleton className="h-72 w-full" />
       ) : items.length === 0 ? (
-        <EmptyState title={query ? "No suppliers match" : "No suppliers yet"} body={query ? "Try a different name or GSTIN." : "Suppliers appear here once they are added to your master or imported with documents."} />
+        <EmptyState title={query ? "No suppliers match" : "No suppliers yet"} body={query ? "Try a different name or GSTIN." : "Suppliers are added automatically when you import Tally ledgers or confirm an invoice. You can also add one in Settings."} actionLabel={query ? undefined : "Import data"} actionHref={query ? undefined : "/app/imports"} secondaryLabel={query ? undefined : "Add in Settings"} secondaryHref={query ? undefined : "/app/settings"} />
       ) : (
         <DataTable data={items} columns={columns} onRowClick={(row) => router.push(`/app/suppliers/${row.id}`)} ariaLabel="Suppliers" />
       )}
