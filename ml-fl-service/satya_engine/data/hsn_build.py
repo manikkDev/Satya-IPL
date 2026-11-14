@@ -123,6 +123,9 @@ def build_hsn(directory_path, output_path, *, code_column, description_column, d
     if rates_path is not None:
         rules, rate_sources = reviewed_rates(Path(rates_path))
         sources.extend(rate_sources)
+        # schedule-run / sub-heading repairs (india/hsn_repair.py)
+        from ..india.hsn_repair import repair_rules
+        rules, _log = repair_rules(rules, codes.keys())
     artifact = HsnArtifact(
         version=datetime.now(timezone.utc).strftime("%Y%m%d"), builtAt=stamp,
         sources=sources, codes=sorted(codes.values(), key=lambda item: item["code"]),

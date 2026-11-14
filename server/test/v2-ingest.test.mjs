@@ -65,7 +65,7 @@ test("v2 ingest: upload sniffing, dedupe, extraction pipeline, confirm", async (
   });
 
   await t.test("seed a needs_review draft for the confirm path", async () => {
-    await mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/satya", { dbName: "satya" });
+    await mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/satya", { dbName: process.env.APP_DB_NAME || "satya" });
     const me = await (await fetch(`${BASE}/api/v2/me`, { headers: { authorization: `Bearer ${analyst}` } })).json();
     draftId = `drf_test_${Date.now()}`;
     await ExtractionDraft.create({

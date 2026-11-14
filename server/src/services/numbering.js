@@ -15,15 +15,19 @@ const defaultPattern = (docType) =>
 
 // One atomic findOneAndUpdate per issue; on FY rollover it inserts a fresh
 // series entry for that year and retries once (unique sequence guaranteed).
+// $elemMatch is required: two separate dotted conditions can be satisfied by
+// DIFFERENT array elements, and the positional $ then bumps the wrong series
+// (series undefined -> TypeError issuing a second doc type in one FY).
 export const nextNumber = async (entityId, groupId, entityCode, docType, fy, attempt = 0) => {
   await ensurePolicy(entityId, groupId);
   const updated = await Policy.findOneAndUpdate(
-    { entityId, "numbering.docType": docType, "numbering.fy": fy },
+    { entityId, numbering: { $elemMatch: { docType, fy } } },
     { $inc: { "numbering.$.nextSeq": 1 } },
-    { new: true }
+    { returnDocument: "after" }
   );
   if (updated) {
     const series = updated.numbering.find((n) => n.docType === docType && n.fy === fy);
+    if (!series) throw new Error(`Numbering series ${docType}/${fy} missing after increment`);
     return { number: renderNumber(series.pattern, { entityCode, docType, fy, seq: series.nextSeq - 1 }), seq: series.nextSeq - 1, fy };
   }
   // No series for this FY yet — create one starting at 2, then take seq 1.

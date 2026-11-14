@@ -14,7 +14,7 @@ const EvalRun = mongoose.model("EvalRun", new mongoose.Schema({
 // GET /research/model-info — engine's published model card, proxied.
 router.get("/model-info", handle(async (req, res) => {
   try {
-    res.json(await engineGet("/v2/model-info"));
+    res.json(await engineGet("/v2/models/status"));
   } catch {
     res.json({
       model: "satya-reconciliation", status: "unavailable",

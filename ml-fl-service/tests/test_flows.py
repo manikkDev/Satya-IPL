@@ -35,11 +35,51 @@ def test_igst_on_intrastate_flagged():
     assert "TAX_TYPE_MISMATCH" in codes
 
 
-def test_two_payments_same_invoice_flagged():
-    docs = [doc("I-1", "INVOICE_IN", [line(1, 1, 100)])]
-    links = [
-        {"fromId": "P-1", "toId": "I-1", "kind": "SETTLES", "certainty": "CONFIRMED", "basis": "reference"},
-        {"fromId": "P-2", "toId": "I-1", "kind": "SETTLES", "certainty": "CONFIRMED", "basis": "reference"},
-    ]
-    codes = {f["code"] for f in reconcile_case(type(flagship()).model_validate(req(docs, links)))["findings"]}
+def _settles(pid, amount, inv="I-1"):
+    return {"fromId": pid, "toId": inv, "kind": "SETTLES", "certainty": "CONFIRMED", "basis": "reference",
+            "amount": {"amount": str(amount), "currency": "INR"}}
+
+
+def _payment(pid, amount, utr, date="2026-10-05"):
+    return doc(pid, "PAYMENT_OUT", [], date=date,
+               payment={"amount": str(amount), "utr": utr, "mode": "NEFT", "valueDate": date})
+
+
+def _invoice(grand=118):
+    return doc("I-1", "INVOICE_IN", [line(1, 1, 100)], totals=totals(100, 9, 9, 0, grand))
+
+
+def _codes(docs, links):
+    return [f["code"] for f in reconcile_case(type(flagship()).model_validate(req(docs, links)))["findings"]]
+
+
+def test_same_amount_paid_twice_beyond_invoice_is_duplicate():
+    docs = [_invoice(), _payment("P-1", 118, "UTR1"), _payment("P-2", 118, "UTR2", "2026-10-07")]
+    codes = _codes(docs, [_settles("P-1", 118), _settles("P-2", 118)])
     assert "DUP_PAYMENT" in codes
+
+
+def test_same_utr_on_two_payments_is_duplicate():
+    docs = [_invoice(), _payment("P-1", 59, "UTRX"), _payment("P-2", 59, "utrx")]
+    codes = _codes(docs, [_settles("P-1", 59), _settles("P-2", 59)])
+    assert "DUP_PAYMENT" in codes
+
+
+def test_split_payment_within_invoice_is_not_duplicate():
+    # two equal halves of one invoice: a legitimate split, not a double pay
+    docs = [_invoice(), _payment("P-1", 59, "UTR1"), _payment("P-2", 59, "UTR2")]
+    codes = _codes(docs, [_settles("P-1", 59), _settles("P-2", 59)])
+    assert "DUP_PAYMENT" not in codes
+    assert "PAY_SPLIT" in codes
+
+
+def test_unequal_split_within_invoice_is_not_duplicate():
+    docs = [_invoice(), _payment("P-1", 100, "UTR1"), _payment("P-2", 18, "UTR2")]
+    codes = _codes(docs, [_settles("P-1", 100), _settles("P-2", 18)])
+    assert "DUP_PAYMENT" not in codes
+
+
+def test_same_amount_far_apart_beyond_invoice_is_not_duplicate():
+    docs = [_invoice(), _payment("P-1", 118, "UTR1", "2026-10-01"), _payment("P-2", 118, "UTR2", "2026-12-01")]
+    codes = _codes(docs, [_settles("P-1", 118), _settles("P-2", 118)])
+    assert "DUP_PAYMENT" not in codes

@@ -1,0 +1,4 @@
+# file: /w/satya_engine/auth.py
+# hypothesis_version: 6.142.4
+
+[401, 'NODE_INTERNAL_TOKEN', 'change-me', 'replace-me']

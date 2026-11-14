@@ -1,0 +1,4 @@
+# file: /w/satya_engine/match/vendor_dedupe.py
+# hypothesis_version: 6.142.4
+
+[0.0, 0.05, 0.3, 0.4, 0.7, 0.85, 1.0, 'POSSIBLE', 'PROBABLE', '[^a-z0-9 ]', 'a', 'b', 'bankAccountMasked', 'certainty', 'clusters', 'gstin', 'id', 'name', 'note', 'pairs', 'pan', 'pincode', 'reasons', 'same GSTIN', 'same PAN', 'same bank account', 'same pincode', 'score', 'supplierIds']

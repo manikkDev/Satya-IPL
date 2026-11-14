@@ -6,6 +6,7 @@ import { validateGstin } from "../../lib/gstin.js";
 import { maskAccount, accountHash } from "../../services/bankAccounts.js";
 import { requirePermission } from "../../auth/rbac.js";
 import { fail, handle } from "./util.js";
+import { supplierSummary } from "../../services/supplierSummary.js";
 
 const router = express.Router();
 
@@ -23,7 +24,15 @@ const supplierSchema = z.object({
   msme: z.boolean().optional(),
   paymentTermsDays: z.number().int().min(0).max(365).optional(),
   contacts: z.array(z.object({ name: z.string().max(120), email: z.string().email().optional(), phone: z.string().max(20).optional() })).max(10).optional(),
+  addresses: z.array(z.object({
+    label: z.string().max(60).optional(), line1: z.string().max(200).optional(), line2: z.string().max(200).optional(),
+    city: z.string().max(80).optional(), state: z.string().max(80).optional(), stateCode: z.string().regex(/^\d{2}$/).optional(),
+    pin: z.string().regex(/^\d{6}$/).optional(), country: z.string().max(60).optional(),
+  }).strict()).max(10).optional(),
   tags: z.array(z.string().max(40)).max(20).optional(),
+  aatoBand: z.enum(["<5cr", "5-10cr", ">=10cr"]).optional(),
+  einvoiceApplicable: z.boolean().optional(),
+  tdsSection: z.string().regex(/^19[0-9][A-Z]{0,2}$/i).optional(),
 }).strict();
 
 const bankAccountSchema = z.object({
@@ -35,11 +44,35 @@ const bankAccountSchema = z.object({
 const invalidFields = (parsed) =>
   parsed.error.issues.map((i) => ({ field: i.path.join("."), message: i.message }));
 
-const view = (s) => ({
-  id: s.id, legalName: s.legalName, tradeNames: s.tradeNames, gstins: s.gstins,
-  pan: s.pan, udyam: s.udyam, msme: s.msme, bankAccounts: s.bankAccounts,
-  paymentTermsDays: s.paymentTermsDays, contacts: s.contacts, tags: s.tags,
-});
+// Address shapes vary by source (seed `address{}`, master `addresses[]`,
+// pincode vs pin, state name vs code) — normalise to the fields the client
+// reads: {label, line1, line2, city, state, stateCode, pin, country}.
+const normAddress = (a) => (a && typeof a === "object" ? {
+  label: a.label ?? undefined, line1: a.line1 ?? a.address ?? a.street ?? undefined, line2: a.line2 ?? undefined,
+  city: a.city ?? undefined, state: a.state ?? a.stateName ?? undefined, stateCode: a.stateCode ?? undefined,
+  pin: a.pin ?? a.pincode ?? a.postalCode ?? undefined, country: a.country ?? "IN",
+} : null);
+const addressesOf = (s) => {
+  const list = [...(Array.isArray(s.addresses) ? s.addresses : []), ...(s.address && !Array.isArray(s.address) ? [s.address] : [])].map(normAddress).filter(Boolean);
+  return list;
+};
+
+const view = (s) => {
+  const addresses = addressesOf(s);
+  const primary = addresses[0] || null;
+  return {
+    id: s.id, legalName: s.legalName, tradeNames: s.tradeNames, gstins: s.gstins,
+    pan: s.pan, udyam: s.udyam, msme: s.msme,
+    // masked only — account numbers are never stored in clear
+    bankAccounts: (s.bankAccounts || []).map((b) => ({ id: b.id, accountMasked: b.accountMasked, masked: b.accountMasked, ifsc: b.ifsc, holderName: b.holderName, accountHash: b.accountHash, status: b.status, proposedBy: b.proposedBy, approvedBy: b.approvedBy })),
+    paymentTermsDays: s.paymentTermsDays, contacts: s.contacts || [], tags: s.tags,
+    // additive
+    addresses, address: primary,
+    city: primary?.city ?? null, state: primary?.state ?? null, stateCode: primary?.stateCode ?? s.gstins?.[0]?.stateCode ?? null, pin: primary?.pin ?? null,
+    gstin: s.gstins?.[0]?.gstin ?? null,
+    aatoBand: s.aatoBand ?? null, einvoiceApplicable: s.einvoiceApplicable ?? null, tdsSection: s.tdsSection ?? null,
+  };
+};
 
 router.get("/", handle(async (req, res) => {
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
@@ -72,6 +105,21 @@ router.get("/:id", handle(async (req, res) => {
   res.json(view(supplier));
 }));
 
+// GET /suppliers/:id/summary?entityId — supplier 360 for the UI and copilot:
+// what we ordered, received, were invoiced, paid and still owe, what is
+// disputed, open findings, MSME position and aged payables. Exact paise
+// money; scoped to the caller's entities (or one entity via ?entityId).
+router.get("/:id/summary", handle(async (req, res) => {
+  const supplier = await Supplier.findOne({ id: req.params.id, groupId: req.scope.groupId }).lean();
+  if (!supplier) throw fail(404, "NOT_FOUND", "Supplier not found");
+  let entityIds = req.scope.entityIds;
+  if (req.query.entityId) {
+    if (!entityIds.includes(String(req.query.entityId))) throw fail(404, "NOT_FOUND", "Entity not found");
+    entityIds = [String(req.query.entityId)];
+  }
+  res.json(await supplierSummary(req.scope.groupId, entityIds, supplier, view(supplier)));
+}));
+
 router.patch("/:id", requirePermission("master.manage"), handle(async (req, res) => {
   const parsed = supplierSchema.partial().safeParse(req.body);
   if (!parsed.success) throw fail(422, "VALIDATION_FAILED", "Check the supplier details", { fields: invalidFields(parsed) });
@@ -84,7 +132,7 @@ router.patch("/:id", requirePermission("master.manage"), handle(async (req, res)
   const supplier = await Supplier.findOneAndUpdate(
     { id: req.params.id, groupId: req.scope.groupId },
     { $set: parsed.data },
-    { new: true }
+    { returnDocument: "after" }
   ).lean();
   if (!supplier) throw fail(404, "NOT_FOUND", "Supplier not found");
   res.json(view(supplier));

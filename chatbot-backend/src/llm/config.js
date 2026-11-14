@@ -63,7 +63,7 @@ export function llmConfigFromEnv(env = process.env) {
     groqEnabled: Boolean(env.GROQ_KEY || env.GROQ_API_KEY) && env.SATYA_LLM_PROVIDER !== "off",
     maxKeyAttempts: Number(env.AI_MAX_KEY_ATTEMPTS) || 6,
     requestBudgetMs: Number(env.AI_REQUEST_BUDGET_MS) || 25_000,
-    dbUri: env.DB_URI || "",
+    dbUri: env.MONGO_URI || env.DB_URI || "",
     dbName: env.APP_DB_NAME || "satya",
     hasKeys: keys.length > 0,
   };

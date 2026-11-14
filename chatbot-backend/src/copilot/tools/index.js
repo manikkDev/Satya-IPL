@@ -110,7 +110,7 @@ export function createTools({ call, rag = null, scope = {} }) {
       const q = new URLSearchParams(Object.fromEntries(Object.entries(args).filter(([, v]) => v))).toString();
       const r = await call(`/api/v2/findings${q ? `?${q}` : ""}`);
       if (!r.ok) return { data: null, missing: `findings (${r.error})` };
-      const items = (r.data?.items || r.data || []).slice(0, 25).map(slimFinding);
+      const items = (r.data?.items || r.data || []).slice(0, 25).map(flattenFinding).map(slimFinding);
       items.forEach((f, i) => {
         if (f.exposure != null) factMoney(registry, `${f.title} exposure`, money(f.exposure) || f.exposure?.min, { documentIds: f.documentIds });
         for (const e of (f.evidence || []).slice(0, 3)) evd(registry, e);
@@ -127,9 +127,10 @@ export function createTools({ call, rag = null, scope = {} }) {
       parameters: { type: "object", properties: { findingId: { type: "string" } }, required: ["findingId"] },
     },
     async run({ findingId }, { registry }) {
-      const r = await call(`/api/v2/findings?findingId=${encodeURIComponent(findingId)}`);
-      const list = r.ok ? r.data?.items || r.data || [] : [];
-      const f = list.find((x) => x.id === findingId) || list[0];
+      const r = await call(`/api/v2/findings?findingId=${encodeURIComponent(findingId)}&status=all&limit=5`);
+      const list = (r.ok ? r.data?.items || r.data || [] : []).map(flattenFinding);
+      // exact id only — never explain a different finding than was asked for
+      const f = list.find((x) => x.id === findingId);
       if (!f) return { data: null, missing: `finding ${findingId}` };
       if (f.exposure != null) factMoney(registry, `${f.title} exposure`, money(f.exposure) || f.exposure?.min, { documentIds: f.documentIds });
       for (const step of f.calculation || []) {
@@ -151,9 +152,25 @@ export function createTools({ call, rag = null, scope = {} }) {
       const r = await call(`/api/v2/suppliers/${encodeURIComponent(supplierId)}/summary`);
       if (!r.ok) return { data: null, missing: `supplier ${supplierId} (${r.error})` };
       const d = r.data || {};
-      if (d.openPoAmount != null) factMoney(registry, `${d.name || "supplier"} open PO value`, d.openPoAmount);
-      if (d.outstanding != null) factMoney(registry, `${d.name || "supplier"} outstanding`, d.outstanding);
-      if (d.msme?.category) registry.addFact({ label: `${d.name || "supplier"} MSME category`, value: s(d.msme.category), unit: null });
+      const name = d.name || "supplier";
+      const openInvoiceIds = (d.openInvoices || []).map((i) => i.id);
+      // labels are what templates and the writer cite; order = answer order
+      factMoney(registry, `${name} outstanding (owed)`, d.outstanding, { documentIds: openInvoiceIds });
+      factMoney(registry, `${name} invoiced`, d.invoiced);
+      factMoney(registry, `${name} paid`, d.paid);
+      factMoney(registry, `${name} credit notes`, d.credited);
+      factMoney(registry, `${name} disputed (open issues)`, d.disputed, { documentIds: openInvoiceIds });
+      factMoney(registry, `${name} undisputed outstanding`, d.undisputedOutstanding);
+      factMoney(registry, `${name} payments not yet matched to invoices`, d.unallocatedPayments);
+      factMoney(registry, `${name} open PO value`, d.openPoAmount);
+      if (d.msme?.covered && money(d.msme.overdue) && money(d.msme.overdue) !== "0.00") factMoney(registry, `${name} MSME overdue`, d.msme.overdue);
+      if (d.msme?.category) registry.addFact({ label: `${name} MSME category`, value: s(d.msme.category), unit: null });
+      if (d.openFindings?.count != null) factQty(registry, `${name} open issues`, d.openFindings.count, "COUNT");
+      for (const inv of (d.openInvoices || []).slice(0, 5)) {
+        factMoney(registry, `invoice ${inv.number} outstanding`, inv.outstanding, { documentIds: [inv.id] });
+        evd(registry, { id: inv.id, label: `Invoice ${inv.number}`, documentId: inv.id });
+      }
+      for (const p of (d.recentPayments || []).slice(0, 3)) evd(registry, { id: p.id, label: `Payment ${p.number}`, documentId: p.id });
       return { data: d };
     },
   };
@@ -302,11 +319,11 @@ export function createTools({ call, rag = null, scope = {} }) {
         call(`/api/v2/documents?${params}`),
         call(`/api/v2/suppliers?q=${encodeURIComponent(query)}`),
       ]);
-      const items = [
-        ...(docs.ok ? (docs.data?.items || docs.data || []).map((d) => ({ kind: "document", id: d.id, number: d.number, type: d.type, supplier: d.seller?.name })) : []),
-        ...(sups.ok ? (sups.data?.items || sups.data || []).map((x) => ({ kind: "supplier", id: x.id, name: x.legalName || x.tradeName })) : []),
-      ];
-      return { data: { items: items.slice(0, 10) } };
+      // suppliers first and never truncated away by a page of that
+      // supplier's own documents (that hid the supplier from resolution)
+      const supplierItems = sups.ok ? (sups.data?.items || sups.data || []).slice(0, 5).map((x) => ({ kind: "supplier", id: x.id, name: x.legalName || x.tradeName })) : [];
+      const docItems = docs.ok ? (docs.data?.items || docs.data || []).map((d) => ({ kind: "document", id: d.id, number: d.number, type: d.type, supplier: d.seller?.name, caseId: d.caseId })) : [];
+      return { data: { items: [...supplierItems, ...docItems].slice(0, Math.max(10, supplierItems.length + 5)) } };
     },
   };
 
@@ -317,6 +334,23 @@ const pick = (obj, keys) => Object.fromEntries(keys.filter((k) => obj?.[k] != nu
 
 const slimDoc = (d, full = {}) =>
   pick({ ...d, ...full }, ["id", "type", "number", "date", "status", "seller", "buyer", "totals", "payment", "gst", "lifecycle", "links", "lines"]);
+
+/** Server findings keep engine detail under `data`; lift it to the top level. */
+export const flattenFinding = (f) => {
+  if (!f || typeof f !== "object") return f;
+  const d = f.data || {};
+  const evidence = f.evidence || d.evidence || [];
+  return {
+    ...d,
+    ...f,
+    title: f.title || d.title || (f.code || d.code || "Finding").replaceAll("_", " ").toLowerCase(),
+    explanation: f.explanation || d.explanation || d.message,
+    exposure: f.exposure ?? d.exposure ?? (d.amount != null ? { amount: String(d.amount) } : undefined),
+    evidence,
+    documentIds: f.documentIds || d.documentIds || [...new Set(evidence.map((e) => e?.documentId).filter(Boolean))],
+    caseId: f.caseId || d.caseId,
+  };
+};
 
 const slimFinding = (f, { full = false } = {}) =>
   pick(f, ["id", "code", "title", "severity", "certainty", "exposure", "explanation", "recommendedAction", "whatResolvesIt", "documentIds", "candidates", "harmlessVariance",

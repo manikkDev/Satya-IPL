@@ -1,0 +1,4 @@
+# file: /w/satya_engine/anomaly.py
+# hypothesis_version: 6.142.4
+
+[0.0, 1.0, 200, '0', '0.01', '1.4826', '10', 'auto', 'baseline', 'documentId', 'explanation', 'isolation_forest', 'lineNo', 'method', 'robust_z', 'score', 'scores', 'sku']

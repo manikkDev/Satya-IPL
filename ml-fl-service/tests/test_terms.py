@@ -32,6 +32,25 @@ def test_ewaybill_missing_above_50k():
     assert "TAX_EWAYBILL_MISSING" in codes
 
 
+def test_ewaybill_recorded_on_gst_block_is_not_missing():
+    docs = [doc("I-1", "INVOICE_IN", [line(1, 1, 60000)],
+                gst={"ewayBillNo": "331000123456"},
+                totals={"taxable": "60000", "cgst": "5400", "sgst": "5400",
+                        "igst": "0", "cess": "0", "roundOff": "0", "grand": "70800"})]
+    codes = {f["code"] for f in reconcile_case(_req(docs))["findings"]}
+    assert "TAX_EWAYBILL_MISSING" not in codes
+
+
+def test_po_own_lines_count_as_ordered_without_self_refs():
+    po_line = {"lineNo": 1, "description": "Bearing", "qty": "12", "uom": "EA", "rate": "100"}
+    grn_line = line(1, 5, 100, po="PO-9")
+    docs = [doc("PO-9", "PO", [po_line]), doc("G-1", "GRN", [grn_line])]
+    result = reconcile_case(_req(docs))
+    row = next(l for l in result["ledger"] if l["poId"] == "PO-9")
+    assert row["ordered"] == "12"
+    assert row["received"] == "5"
+
+
 def test_pay_combined_flagged():
     docs = [doc("I-1", "INVOICE_IN", [line(1, 1, 100)]), doc("I-2", "INVOICE_IN", [line(1, 1, 100)])]
     links = [

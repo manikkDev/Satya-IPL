@@ -87,10 +87,12 @@ test("v2 documents: PO lifecycle, DoA, SoD, numbering, verify", async (t) => {
   });
 
   await t.test("a different approver (ap_manager) approves; SoD blocks creator-approval", async () => {
+    // compute (a draft edit) bumps the revision, so read the current one
+    const current = (await call(`/api/v2/documents/${docId}`, manager)).data.revision;
     // analyst created it but lacks po.approve entirely
-    const selfApprove = await call(`/api/v2/documents/${docId}/approve`, analyst, { expectedRevision: 2 });
+    const selfApprove = await call(`/api/v2/documents/${docId}/approve`, analyst, { expectedRevision: current });
     assert.ok([403].includes(selfApprove.response.status));
-    const { response, data } = await call(`/api/v2/documents/${docId}/approve`, manager, { expectedRevision: 2, comment: "ok" });
+    const { response, data } = await call(`/api/v2/documents/${docId}/approve`, manager, { expectedRevision: current, comment: "ok" });
     assert.equal(response.status, 200);
     assert.equal(data.status, "approved");
     assert.equal(data.approvals.at(-1).comment, "ok");

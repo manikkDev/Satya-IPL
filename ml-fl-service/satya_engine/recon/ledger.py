@@ -51,17 +51,26 @@ def events(documents, links, knowledge_time=None):
                 (l.toId for l in link_index.get(doc.id, [])
                  if l.kind in {"FULFILS", "RECEIVES", "BILLS", "SETTLES"}
                  and l.certainty == "CONFIRMED"), None)
+            po_line_no = refs.poLineNo if refs else None
+            # A PO's own lines ARE its ordered quantity: they need no
+            # self-reference (created-in-app POs never carry one).
+            if doc.type == "PO" and not po_id:
+                po_id = doc.id
+            if doc.type == "PO" and po_id == doc.id and po_line_no is None:
+                po_line_no = line.lineNo
             if not po_id:
                 continue
             event = {
                 "docId": doc.id, "docType": doc.type, "kind": kind, "poId": po_id,
-                "poLineNo": refs.poLineNo if refs else None,
+                "poLineNo": po_line_no,
                 "supplierId": doc.seller.supplierId,
                 "currency": doc.currency, "date": doc.date,
                 "observedAt": doc.observedAt,
                 "qty": D(line.qty) if line.qty is not None else None,
                 "rate": D(line.rate) if line.rate is not None else None,
                 "lineTotal": D(line.lineTotal) if line.lineTotal is not None else None,
+                "acceptedQty": D(line.acceptedQty) if line.acceptedQty is not None else None,
+                "rejectedQty": D(line.rejectedQty) if line.rejectedQty is not None else None,
                 "uom": line.uom, "status": doc.status,
             }
             stream.append(event)
@@ -97,6 +106,16 @@ class LineCounter:
         elif kind == "accepted":
             if event["docType"] == "QC" and event.get("rejected"):
                 self.rejected += qty
+            elif event["docType"] == "QC":
+                # a QC line's qty is what was INSPECTED; accepted is
+                # acceptedQty, else inspected minus rejected, else inspected
+                rejected = event.get("rejectedQty")
+                accepted = event.get("acceptedQty")
+                if accepted is None:
+                    accepted = qty - rejected if rejected is not None else qty
+                self.accepted += accepted
+                if rejected is not None:
+                    self.rejected += rejected
             else:
                 self.accepted += qty
         elif kind == "returned":

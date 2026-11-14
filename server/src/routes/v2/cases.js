@@ -25,22 +25,33 @@ router.get("/", handle(async (req, res) => {
   const { status, kind } = req.query;
   const page = Math.max(1, Number(req.query.page) || 1);
   const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize) || 10));
-  const filter = { groupId: req.scope.groupId };
-  if (status) filter.status = status;
-  if (kind) filter.kind = kind;
-  if (req.query.entityId) filter.entityId = req.query.entityId;
+  // scoped to the entities the user may see (was group-wide)
+  const filter = { groupId: req.scope.groupId, entityId: { $in: req.scope.entityIds } };
+  if (status) filter.status = String(status);
+  if (kind) filter.kind = String(kind);
+  if (req.query.entityId) {
+    if (!req.scope.entityIds.includes(String(req.query.entityId))) throw fail(404, "NOT_FOUND", "Entity not found");
+    filter.entityId = String(req.query.entityId);
+  }
   if (req.query.q && String(req.query.q).trim()) {
     const rx = { $regex: String(req.query.q).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
     filter.$or = [{ id: rx }, { title: rx }, { subjectIds: rx }];
   }
-  const cases = await Case.find(filter).sort({ updatedAt: -1 }).limit(500).lean();
-  if (!cases.length) return res.json({ items: [], total: 0, page, pageSize, pages: 0 });
+  // paginate in the DB and load only the page's snapshot SUMMARIES — this
+  // used to pull every full snapshot (graph + ledger) for up to 500 cases
+  const [total, cases] = await Promise.all([
+    Case.countDocuments(filter),
+    Case.find(filter, { id: 1, title: 1, kind: 1, status: 1, entityId: 1, subjectIds: 1, revision: 1, createdAt: 1, updatedAt: 1, latestSnapshotId: 1 })
+      .sort({ updatedAt: -1, _id: -1 }).skip((page - 1) * pageSize).limit(pageSize).lean(),
+  ]);
+  if (!cases.length) return res.json({ items: [], total, page, pageSize, pages: Math.max(total ? 1 : 0, Math.ceil(total / pageSize)) });
 
   const ids = cases.map((c) => c.id);
+  const SNAP_SUMMARY = { id: 1, caseId: 1, createdAt: 1, "result.balances": 1, "result.recommendation.action": 1 };
   // findings per case (severity counts) + latest live snapshot per case
   const [findingAgg, snapshots] = await Promise.all([
     Finding.aggregate([
-      { $match: { groupId: req.scope.groupId, caseId: { $in: ids } } },
+      { $match: { groupId: req.scope.groupId, caseId: { $in: ids }, status: "open" } },
       { $group: {
         _id: "$caseId",
         findings: { $sum: 1 },
@@ -50,11 +61,16 @@ router.get("/", handle(async (req, res) => {
         low: { $sum: { $cond: [{ $eq: ["$severity", "low"] }, 1, 0] } },
       } },
     ]),
-    Snapshot.find({ caseId: { $in: ids }, scenario: false }).sort({ createdAt: -1 }).lean(),
+    Snapshot.aggregate([
+      { $match: { groupId: req.scope.groupId, caseId: { $in: ids }, scenario: false } },
+      { $sort: { createdAt: -1 } },
+      { $group: { _id: "$caseId", doc: { $first: "$$ROOT" } } },
+      { $replaceRoot: { newRoot: "$doc" } },
+      { $project: SNAP_SUMMARY },
+    ]),
   ]);
   const stats = new Map(findingAgg.map((f) => [f._id, f]));
-  const latestSnap = new Map();
-  for (const s of snapshots) if (!latestSnap.has(s.caseId)) latestSnap.set(s.caseId, s);
+  const latestSnap = new Map(snapshots.map((s) => [s.caseId, s]));
 
   const sevRank = (f) => (f?.critical ? 4 : f?.high ? 3 : f?.medium ? 2 : f?.low ? 1 : 0);
   const items = cases.map((c) => {
@@ -73,8 +89,7 @@ router.get("/", handle(async (req, res) => {
       recommendation: snap?.result?.recommendation?.action || null,
     };
   });
-  const start = (page - 1) * pageSize;
-  res.json({ items: items.slice(start, start + pageSize), total: items.length, page, pageSize, pages: Math.max(1, Math.ceil(items.length / pageSize)) });
+  res.json({ items, total, page, pageSize, pages: Math.max(1, Math.ceil(total / pageSize)) });
 }));
 
 router.get("/:id", handle(async (req, res) => {
@@ -83,9 +98,9 @@ router.get("/:id", handle(async (req, res) => {
   if (req.query.snapshot) snapFilter.id = req.query.snapshot;
   const snapshot = req.query.snapshot
     ? await Snapshot.findOne(snapFilter).lean()
-    : await Snapshot.findOne({ caseId: kase.id, scenario: false }).sort({ createdAt: -1 }).lean();
-  const findings = await Finding.find({ caseId: kase.id }).lean();
-  const decisions = await Decision.find({ caseId: kase.id }).sort({ createdAt: -1 }).lean();
+    : await Snapshot.findOne({ groupId: kase.groupId, caseId: kase.id, scenario: false }).sort({ createdAt: -1 }).lean();
+  const findings = await Finding.find({ groupId: kase.groupId, caseId: kase.id }).lean();
+  const decisions = await Decision.find({ groupId: kase.groupId, caseId: kase.id }).sort({ createdAt: -1 }).lean();
   const documents = await Document.find({ groupId: kase.groupId, id: { $in: kase.subjectIds } }).lean();
   res.json({ ...kase.toObject(), snapshot: snapshot?.result || null, snapshotId: snapshot?.id || null, findings, decisions, documents });
 }));
@@ -130,7 +145,7 @@ const enrichGraph = async (g, kase) => {
   const keepEdges = edges.filter((e) => reached.has(e.source) && reached.has(e.target));
 
   // stamp severity onto nodes whose docs appear in open findings
-  const findings = await Finding.find({ caseId: kase.id, status: "open" }).lean();
+  const findings = await Finding.find({ groupId: kase.groupId, caseId: kase.id, status: "open" }).lean();
   const sevByDoc = new Map();
   for (const f of findings) {
     for (const ev of f.evidence || f.data?.evidence || []) {
@@ -148,7 +163,7 @@ const enrichGraph = async (g, kase) => {
 // GET /cases/:id/graph — Neo4j first, snapshot.graph fallback (never blocks).
 router.get("/:id/graph", handle(async (req, res) => {
   const kase = await loadCase(req);
-  const snapshot = await Snapshot.findOne({ caseId: kase.id, scenario: false }).sort({ createdAt: -1 }).lean();
+  const snapshot = await Snapshot.findOne({ groupId: kase.groupId, caseId: kase.id, scenario: false }).sort({ createdAt: -1 }).lean();
   try {
     const g = await caseGraph(kase.groupId, snapshot?.id);
     if (g.nodes?.length) return res.json({ ...(await enrichGraph(g, kase)), snapshotId: snapshot?.id || null });
@@ -181,10 +196,10 @@ router.get("/:id/evidence-pack", handle(async (req, res) => {
   const kase = await loadCase(req);
   const { default: Audit } = await import("../../models/Audit.js");
   const { default: DocumentLink } = await import("../../models/DocumentLink.js");
-  const snapshot = await Snapshot.findOne({ caseId: kase.id, scenario: false }).sort({ createdAt: -1 }).lean();
+  const snapshot = await Snapshot.findOne({ groupId: kase.groupId, caseId: kase.id, scenario: false }).sort({ createdAt: -1 }).lean();
   const [findings, decisions, documents, audit] = await Promise.all([
-    Finding.find({ caseId: kase.id }).lean(),
-    Decision.find({ caseId: kase.id }).sort({ createdAt: -1 }).lean(),
+    Finding.find({ groupId: kase.groupId, caseId: kase.id }).lean(),
+    Decision.find({ groupId: kase.groupId, caseId: kase.id }).sort({ createdAt: -1 }).lean(),
     Document.find({ groupId: kase.groupId, id: { $in: kase.subjectIds } }).lean(),
     Audit.find({ groupId: kase.groupId, action: { $regex: kase.id } }).sort({ createdAt: 1 }).limit(100).lean(),
   ]);
@@ -210,10 +225,11 @@ router.post("/:id/decisions", handle(async (req, res) => {
   if (!action) throw fail(422, "VALIDATION_FAILED", "action is required");
   // SoD: cannot decide a finding on a document you created
   if (findingId) {
-    const finding = await Finding.findOne({ id: findingId, caseId: kase.id }).lean();
-    const docIds = finding?.data?.documentIds || [];
+    const finding = await Finding.findOne({ groupId: kase.groupId, id: String(findingId), caseId: kase.id }).lean();
+    if (!finding) throw fail(404, "NOT_FOUND", "Finding not found on this case");
+    const docIds = [...new Set([...(finding.data?.documentIds || []), ...(finding.data?.evidence || []).map((e) => e?.documentId).filter(Boolean)])];
     if (docIds.length) {
-      const mine = await Document.exists({ id: { $in: docIds }, createdBy: actor(req) });
+      const mine = await Document.exists({ groupId: kase.groupId, id: { $in: docIds }, createdBy: actor(req) });
       if (mine) return res.status(403).json({ error: { code: "SOD_VIOLATION", message: "You cannot decide a finding on a document you created", requestId: req.id } });
     }
   }
@@ -223,7 +239,7 @@ router.post("/:id/decisions", handle(async (req, res) => {
     actor: actor(req), actorRole: [...(req.scope.rolesByEntity["*"] || []), ...(req.scope.rolesByEntity[kase.entityId] || [])][0],
     expectedRevision: req.body?.expectedRevision,
   });
-  if (findingId) await Finding.updateOne({ id: findingId }, { $set: { status: action === "APPROVE" ? "resolved" : action === "PLACE_ON_HOLD" ? "accepted_risk" : "open" } });
+  if (findingId) await Finding.updateMany({ groupId: kase.groupId, caseId: kase.id, id: String(findingId) }, { $set: { status: action === "APPROVE" ? "resolved" : action === "PLACE_ON_HOLD" ? "accepted_risk" : "open" } });
   const job = await enqueue("reconcile", { caseId: kase.id, reviews: review ? { [review.kind || "manual"]: review } : {} }, req.scope.groupId);
   res.status(201).json({ decision, job: { id: job.id, status: job.status } });
 }));

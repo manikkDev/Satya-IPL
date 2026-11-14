@@ -1,0 +1,4 @@
+# file: /w/satya_engine/india/tax.py
+# hypothesis_version: 6.142.4
+
+[100, '.2f', '0', '0.00', '100', '5-10cr', '50000', '5000000', '<5cr', '>=10cr', 'CHARGE_RATE_MISSING', 'EXPWOP', 'EXPWP', 'GSTIN_INVALID', 'GSTIN_STATE_MISMATCH', 'INR', 'SEZWOP', 'SEZWP', 'amountInWords', 'buyer', 'cess', 'cessRate', 'cessRateOverride', 'cgst', 'charge.gstRate', 'charges', 'checksumValid', 'code', 'currency', 'discountPct', 'effectiveFrom', 'einvoiceExpected', 'ewayBillRequired', 'flags', 'grand', 'gstRate', 'gstRateOverride', 'hsn', 'hsnDigitsRequired', 'igst', 'lineNo', 'lineTotal', 'lines', 'message', 'notificationRef', 'override', 'payableBy', 'qty', 'rate', 'rateSource', 'recipient', 'roundOff', 'seller', 'sgst', 'stateCode', 'supplier', 'taxSummary', 'taxable', 'taxableValue', 'tds194qApplicable', 'totals', 'utWithoutLegislature', 'utgst', 'warnings', 'wellFormed', 'zeroRated']

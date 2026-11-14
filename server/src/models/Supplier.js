@@ -33,7 +33,15 @@ const supplierSchema = new mongoose.Schema(
     bankAccounts: { type: [bankSchema], default: [] },
     paymentTermsDays: { type: Number, default: 30 },
     contacts: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    // [{label, line1, line2, city, state, stateCode, pin, country}]
+    addresses: { type: [mongoose.Schema.Types.Mixed], default: [] },
     tags: { type: [String], default: [] },
+    // supplier's aggregate annual turnover band — drives e-invoice
+    // applicability (>= ₹5 cr) in compliance screening; unset = unknown
+    aatoBand: { type: String, enum: ["<5cr", "5-10cr", ">=10cr"] },
+    einvoiceApplicable: { type: Boolean },
+    // default TDS section for payments to this supplier ("194Q", "194C", "194J"...)
+    tdsSection: { type: String, trim: true, uppercase: true },
   },
   { timestamps: true, minimize: false }
 );

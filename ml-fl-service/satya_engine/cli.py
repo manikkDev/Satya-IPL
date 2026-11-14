@@ -20,7 +20,22 @@ def main(argv=None):
     hsn.add_argument("--retrieved-at", required=True, help="Actual source retrieval timestamp with offset")
     hsn.add_argument("--reviewed-rates", help="Reviewed total-GST extraction JSON with primary source hashes")
     hsn.add_argument("--output", required=True)
+    repair = commands.add_parser("repair-hsn", help="Apply schedule-run repairs to an existing HSN master artifact")
+    repair.add_argument("--input", required=True)
+    repair.add_argument("--output", required=True)
     args = parser.parse_args(argv)
+    if args.command == "repair-hsn":
+        import gzip
+        from .india.hsn_master import HsnArtifact
+        from .india.hsn_repair import repair_artifact
+        with gzip.open(args.input, "rb") as stream:
+            payload = json.loads(stream.read())
+        repaired, log = repair_artifact(payload)
+        artifact = HsnArtifact.model_validate(repaired).model_dump(exclude_none=True)
+        with open(args.output, "xb") as out:
+            out.write(gzip.compress(json.dumps(artifact, ensure_ascii=True, separators=(",", ":")).encode(), mtime=0))
+        print(json.dumps({"version": artifact["version"], "changes": len(log), "output": args.output}))
+        return
     result = build_hsn(
         args.hsn_xlsx or args.hsn_csv, args.output,
         code_column=args.code_column, description_column=args.description_column,

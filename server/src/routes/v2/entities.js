@@ -81,7 +81,7 @@ router.patch("/:id", requirePermission("entity.manage"), handle(async (req, res)
   const entity = await Entity.findOneAndUpdate(
     { id: req.params.id, groupId: req.scope.groupId },
     { $set: parsed.data },
-    { new: true }
+    { returnDocument: "after" }
   ).lean();
   if (!entity) throw fail(404, "NOT_FOUND", "Entity not found");
   res.json(view(entity));

@@ -21,6 +21,45 @@ export function deterministicAnswer(intent, registry, ctx = {}) {
   const base = { followUps: followUpsFor(intent), responseMode: "evidence_only" };
 
   switch (intent) {
+    case "supplier_balance": {
+      const s = ctx.retrieved?.get_supplier_summary || {};
+      const name = s.name || "the supplier";
+      const fact = (suffix) => F[`${s.name || "supplier"} ${suffix}`];
+      const ref = (id) => (id ? `{{${id}}}` : null);
+      const owed = fact("outstanding (owed)");
+      const openCount = s.counts?.openInvoices ?? (s.openInvoices || []).length;
+      const head = owed
+        ? `We owe **${name}** ${ref(owed)} across ${openCount} open invoice${openCount === 1 ? "" : "s"}.`
+        : `I couldn't find an outstanding balance for **${name}** in your records.`;
+      const why = [
+        fact("invoiced") && `Invoiced ${ref(fact("invoiced"))}, paid ${ref(fact("paid")) || "—"}${fact("credit notes") ? `, credit notes ${ref(fact("credit notes"))}` : ""}.`,
+        fact("disputed (open issues)") && `${ref(fact("disputed (open issues)"))} of that is tied up in open issues; the undisputed part is ${ref(fact("undisputed outstanding"))}.`,
+        fact("payments not yet matched to invoices") && s.unallocatedPayments?.amount !== "0.00" && `${ref(fact("payments not yet matched to invoices"))} of payments are not yet matched to invoices — matching them may reduce what is owed.`,
+        fact("MSME overdue") && `MSME (${s.msme?.category}) supplier: ${ref(fact("MSME overdue"))} is past the 45-day MSMED deadline.`,
+      ].filter(Boolean);
+      const invoices = (s.openInvoices || []).slice(0, 5).map((inv) => {
+        const id = F[`invoice ${inv.number} outstanding`];
+        return `${inv.number} (${inv.date})${id ? ` — ${ref(id)} open` : ""}${inv.overdueDays ? `, ${inv.overdueDays} days overdue` : ""}`;
+      });
+      const byCode = new Map();
+      for (const f of s.openFindings?.items || []) {
+        const key = `${String(f.code || "issue").replaceAll("_", " ").toLowerCase()} (${f.severity})`;
+        byCode.set(key, (byCode.get(key) || 0) + 1);
+      }
+      const issues = [...byCode].slice(0, 4).map(([k, n]) => (n > 1 ? `${k} ×${n}` : k));
+      return {
+        answerMarkdown: [
+          head,
+          why.length ? `\n**Why:**\n\n${bullet(why)}` : "",
+          invoices.length ? `\n**Open invoices:**\n\n${bullet(invoices)}` : "",
+          issues.length ? `\n**Open issues on this supplier (${s.openFindings?.count}):**\n\n${bullet(issues)}` : "",
+          missing,
+        ].filter(Boolean).join("\n"),
+        certainty: registry.weakestCertainty(),
+        followUps: [`Show open invoices for ${name}`, `Which ${name} issues are blocking payment?`, `Draft a reminder to ${name}`],
+        responseMode: "evidence_only",
+      };
+    }
     case "status":
     case "lookup": {
       const lines = [

@@ -74,19 +74,90 @@ def tax_type_mismatch(docs):
     return findings
 
 
+DUP_PAYMENT_WINDOW_DAYS = 10
+
+
+def _settled_amount(link, payment):
+    """Amount a payment applies to one invoice: link amount, else the payment's
+    allocation row for that invoice, else the payment amount when it has no
+    allocation detail. None when unknowable."""
+    amt = (link.get("amount") or {}).get("amount") if isinstance(link.get("amount"), dict) else link.get("amount")
+    if amt not in (None, ""):
+        return D(str(amt))
+    pay = (payment or {}).get("payment") or {}
+    for a in pay.get("allocations") or []:
+        if a.get("documentId") == link["toId"]:
+            return D(str(a["amount"]))
+    if pay.get("amount") not in (None, "") and not pay.get("allocations"):
+        return D(str(pay["amount"]))
+    return None
+
+
+def _day_gap(a, b):
+    from datetime import date
+    try:
+        return abs((date.fromisoformat(a) - date.fromisoformat(b)).days)
+    except (TypeError, ValueError):
+        return None
+
+
 def duplicate_payment(docs, links):
-    """DUP_PAYMENT — two settled payments targeting the same invoice."""
+    """DUP_PAYMENT — an invoice paid twice, not merely paid in parts.
+
+    Two payments on one invoice are a legitimate split unless there is
+    duplicate evidence:
+      * the same bank reference (UTR) on both payments, or
+      * the same amount within a short value-date window AND the payments
+        together exceed the invoice value (no split explanation).
+    Splits summing to no more than the invoice value are reported only as
+    PAY_SPLIT (low) by payment_split_combined.
+    """
+    by_id = {d["id"]: d for d in docs}
     settled = {}
     for l in links:
         if l["kind"] == "SETTLES" and l["certainty"] == "CONFIRMED":
-            settled.setdefault(l["toId"], []).append(l["fromId"])
+            settled.setdefault(l["toId"], []).append(l)
     findings = []
-    for invoice_id, payers in settled.items():
-        if len(payers) > 1:
+    for invoice_id, inv_links in settled.items():
+        payers = list(dict.fromkeys(l["fromId"] for l in inv_links))
+        if len(payers) < 2:
+            continue
+        invoice = by_id.get(invoice_id) or {}
+        grand = (invoice.get("totals") or {}).get("grand")
+        rows = []
+        for l in inv_links:
+            p = by_id.get(l["fromId"]) or {}
+            pay = p.get("payment") or {}
+            rows.append({
+                "id": l["fromId"],
+                "utr": (pay.get("utr") or "").strip().upper() or None,
+                "date": pay.get("valueDate") or p.get("date"),
+                "amount": _settled_amount(l, p),
+            })
+        known = [r["amount"] for r in rows if r["amount"] is not None]
+        total = sum(known, D(0)) if len(known) == len(rows) else None
+        exceeds = grand is not None and total is not None and total > D(str(grand))
+
+        suspects = set()
+        reason = None
+        for i, a in enumerate(rows):
+            for b in rows[i + 1:]:
+                if a["id"] == b["id"]:
+                    continue
+                if a["utr"] and a["utr"] == b["utr"]:
+                    suspects.update({a["id"], b["id"]})
+                    reason = f"the same bank reference {a['utr']}"
+                elif (exceeds and a["amount"] is not None and a["amount"] == b["amount"]
+                      and (_day_gap(a["date"], b["date"]) or 0) <= DUP_PAYMENT_WINDOW_DAYS):
+                    suspects.update({a["id"], b["id"]})
+                    reason = reason or (f"the same amount {a['amount']} within {DUP_PAYMENT_WINDOW_DAYS} days, "
+                                        f"together exceeding the invoice value {grand}")
+        if suspects:
             findings.append(_finding(
                 "DUP_PAYMENT", "high", "PROBABLE",
-                f"Invoice {invoice_id} settled by {len(payers)} payments — verify not a double pay",
-                [{"documentId": invoice_id}] + [{"documentId": p} for p in payers]))
+                f"Invoice {invoice_id} looks paid twice: {len(suspects)} payments share {reason} — verify before the next payment run",
+                [{"documentId": invoice_id}] + [{"documentId": p} for p in sorted(suspects)],
+                str(total - D(str(grand))) if exceeds else None))
     return findings
 
 

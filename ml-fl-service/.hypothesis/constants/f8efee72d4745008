@@ -1,0 +1,4 @@
+# file: /w/satya_engine/business_matching.py
+# hypothesis_version: 6.142.4
+
+[0.15, 0.2, 0.25, 0.4, 0.5, 1.0, 100, 500, '0', 'INVOICE', 'MODEL_ARTIFACT_DIR', '[^a-z0-9]', '[a-z0-9.]+', '\\d+(?:\\.\\d+)?', 'artifactSha256', 'calibration', 'coefficient', 'description', 'evaluation.json', 'evaluationScope', 'featureSchema', 'features', 'heuristic', 'intercept', 'kind', 'lineId', 'message', 'model.json', 'modelVersion', 'poId', 'poLineId', 'price_similarity', 'probability', 'quantity', 'quantity_similarity', 'ready', 'recordId', 'reference_agreement', 'reference_conflict', 'runs/satya-linkage', 'score', 'sku', 'sku_agreement', 'status', 'suggestion_only', 'task', 'token_overlap', 'unitPrice']

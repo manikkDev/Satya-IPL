@@ -1,0 +1,4 @@
+# file: /w/satya_engine/india/gstin.py
+# hypothesis_version: 6.142.4
+
+['A', 'B', 'C', 'F', 'G', 'H', 'J', 'L', 'P', 'T', '[0-9A-Z]{14}', 'body of individuals', 'checksumValid', 'company', 'entityTypeHint', 'firm', 'government', 'individual', 'local authority', 'panEmbedded', 'registrationState', 'stateCode', 'trust', 'unknown', 'wellFormed']

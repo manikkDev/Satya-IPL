@@ -1,0 +1,4 @@
+# file: /w/satya_engine/match/assign.py
+# hypothesis_version: 6.142.4
+
+[1e-09, 0.7, 10.0, 'anchorId', 'assignments', 'candidateId', 'id', 'probability', 'unassigned_anchors', 'unassigned_pool']

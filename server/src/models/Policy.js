@@ -30,6 +30,7 @@ const policySchema = new mongoose.Schema(
     approvals: { requireMakerChecker: { type: Boolean, default: true } },
     termsTemplates: { type: [termsSchema], default: [] },
     autoConfirmHighConfidence: { type: Boolean, default: false }, // ingestion: default OFF
+    revision: { type: Number, default: 0 }, // optimistic concurrency for PUT /policies (numbering $inc does not bump it)
   },
   { timestamps: true, minimize: false }
 );

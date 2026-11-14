@@ -87,6 +87,11 @@ export function understandFallback(message) {
   entities.amounts = grab(/(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d{1,2})?)/gi, text);
   entities.dates = grab(/\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{4}\b/gi, text);
   entities.periods = grab(/\b(?:fy[\s-]*\d{2,4}(?:-\d{2,4})?|\d{4}-\d{2})\b/gi, text);
+  // supplier names: a run of Capitalised words after owe/pay/to/from/with/
+  // supplier/vendor ("How much do we owe Kaveri Pumps and why?")
+  entities.suppliers = [...new Set(grab(/\b(?:owe|owed to|owing|pay|paid|to|from|with|for|supplier|vendor)\s+((?:[A-Z][\w&.'-]*)(?:\s+(?:&\s+)?[A-Z][\w&.'-]*){0,5})/g, text)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 3 && !/^(PO|INV|GRN|UTR|GST|MSME|TDS|ITC|IRN)\b/.test(s)))];
 
   const q = text.toLowerCase();
   const hasEntityRef = Object.values(entities).some((list) => list.length);

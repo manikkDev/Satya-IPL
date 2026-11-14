@@ -26,6 +26,8 @@ const hsnSchema = new mongoose.Schema(
     rates: { type: [rateSchema], default: [] },
     uqc: String,
     artifactVersion: String,
+    ruleOnly: { type: Boolean, default: undefined }, // rate-rule holder whose prefix is not a directory code
+
   },
   { timestamps: true, minimize: false }
 );

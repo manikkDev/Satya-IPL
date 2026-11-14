@@ -1,0 +1,4 @@
+# file: /w/satya_engine/recon/detectors/core.py
+# hypothesis_version: 6.142.4
+
+['-', 'APPLIES', 'CONFIRMED', 'CREDITS', 'CREDIT_NOTE_IN', 'CREDIT_NOTE_OUT', 'CURRENCY_CONFLICT', 'DELIVERY_SHORTFALL', 'DOC_FY_CUTOFF', 'DUP_CROSS_ENTITY', 'DUP_EXACT_INVOICE', 'INVOICE_IN', 'INVOICE_NO_PO_LINK', 'PO', 'PROBABLE', 'QTY_OVER_DELIVERY', 'SETTLES', '__doc__', 'amount', 'cancelled', 'certainty', 'code', 'currency', 'date', 'documentId', 'entityId', 'evidence', 'fromId', 'fy', 'grand', 'gstin', 'high', 'id', 'kind', 'lineNo', 'lines', 'medium', 'message', 'name', 'number', 'observedAt', 'poId', 'rate', 'recon-detectors-v1', 'refs', 'reversed', 'ruleVersion', 'seller', 'severity', 'status', 'totals', 'type']

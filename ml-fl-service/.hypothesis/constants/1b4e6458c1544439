@@ -1,0 +1,4 @@
+# file: /w/satya_engine/match/pairs.py
+# hypothesis_version: 6.142.4
+
+[0.0, 0.05, 0.1, 0.5, 0.8, 0.95, 150, 'BILLS', 'CONFIRMED', 'DUPLICATE_OF', 'RECEIVES', 'SETTLES', 'Z', 'alpha', 'amount', 'anchor', 'candidate', 'card.json', 'certainty', 'conformal.json', 'conformalQHat', 'currency', 'dataSources', 'date', 'datetime', 'description', 'easy_negative', 'featureKeys', 'fromId', 'grand', 'grn_po_line', 'gstin', 'hard_negative', 'holdoutPairs', 'hsn', 'id', 'invoice_invoice_dup', 'invoice_po_line', 'kind', 'label', 'limitations', 'lines', 'logloss', 'metrics', 'model.ubj', 'name', 'number', 'pairs', 'pan', 'path', 'payment_invoice', 'positive', 'qHat', 'refs', 'reviewer', 'runs', 'satya-models', 'seed', 'seller', 'stateCode', 'task', 'toId', 'totals', 'trainPairs', 'trainedAt', 'type', 'uom', 'version']

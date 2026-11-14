@@ -49,7 +49,18 @@ const CREATE_PERMS = { PO: "po.create", PI_OUT: "po.create", PO_AMENDMENT: "po.c
 
 router.post("/draft", handle(async (req, res) => {
   assertPlainInput(req.body);
-  const parsed = draftSchema.safeParse(req.body);
+  // Parties default from the masters when the client sends only ids (the PO
+  // wizard posts supplierId + entityId): seller = supplier, buyer = entity.
+  const body = { ...(req.body || {}) };
+  if (!body.seller && body.supplierId) {
+    const sup = await Supplier.findOne({ id: String(body.supplierId), groupId: req.scope.groupId }).lean();
+    if (sup) body.seller = { name: sup.legalName, supplierId: sup.id, ...(sup.gstins?.[0]?.gstin ? { gstin: sup.gstins[0].gstin } : {}), ...(sup.gstins?.[0]?.stateCode ? { stateCode: sup.gstins[0].stateCode } : {}), ...(sup.pan ? { pan: sup.pan } : {}), ...(sup.udyam?.number && sup.udyam?.category ? { udyam: { number: sup.udyam.number, category: sup.udyam.category } } : {}) };
+  }
+  if (!body.buyer && body.entityId && req.scope.entityIds.includes(String(body.entityId))) {
+    const ent = await Entity.findOne({ id: String(body.entityId), groupId: req.scope.groupId }).lean();
+    if (ent) body.buyer = { name: ent.legalName, ...(ent.gstin ? { gstin: ent.gstin } : {}), ...(ent.stateCode ? { stateCode: ent.stateCode } : {}), ...(ent.pan ? { pan: ent.pan } : {}) };
+  }
+  const parsed = draftSchema.safeParse(body);
   if (!parsed.success) throw fail(422, "VALIDATION_FAILED", "Check the document details", { fields: parsed.error.issues.map((i) => ({ field: i.path.join("."), message: i.message })) });
   const data = parsed.data;
   const perm = CREATE_PERMS[data.type] || "doc.upload";
@@ -67,9 +78,16 @@ router.post("/draft", handle(async (req, res) => {
 
 router.patch("/:id", handle(async (req, res) => {
   assertPlainInput(req.body);
-  const parsed = patchSchema.safeParse(req.body);
-  if (!parsed.success) throw fail(422, "VALIDATION_FAILED", "Check the patch", { fields: parsed.error.issues.map((i) => i.path.join(".")) });
+  // accepts {expectedRevision, patch} (contract) or the bare fields (the PO
+  // wizard sends those) — bare patches skip the optimistic revision check
+  const body = req.body && typeof req.body === "object" && "patch" in req.body
+    ? req.body
+    : { patch: Object.fromEntries(Object.entries(req.body || {}).filter(([k]) => k !== "expectedRevision")), ...(req.body?.expectedRevision !== undefined ? { expectedRevision: req.body.expectedRevision } : {}) };
+  const parsed = patchSchema.safeParse(body);
+  if (!parsed.success) throw fail(422, "VALIDATION_FAILED", "Check the patch", { fields: parsed.error.issues.map((i) => ({ field: i.path.join("."), message: i.message })) });
   const doc = await loadDoc(req);
+  const perm = CREATE_PERMS[doc.type] || "doc.upload";
+  if (!scopeAllows(req.scope, perm, doc.entityId)) throw fail(403, "FORBIDDEN", "Your role cannot edit this document", { reason: `Requires ${perm}` });
   if (doc.status !== "draft") throw fail(409, "CONFLICT", `Only drafts can be edited (status: ${doc.status})`);
   expectRevision(doc, parsed.data);
   Object.assign(doc, parsed.data.patch);
@@ -79,8 +97,15 @@ router.patch("/:id", handle(async (req, res) => {
   res.json(view(doc));
 }));
 
+// Tax compute rewrites totals/lines, so it is a draft edit: it needs the
+// create permission for the doc type and a draft, and it bumps the revision
+// (an issued PO's totals are covered by its contentHash and must not move).
 router.post("/:id/compute", handle(async (req, res) => {
   const doc = await loadDoc(req);
+  const perm = CREATE_PERMS[doc.type] || "doc.upload";
+  if (!scopeAllows(req.scope, perm, doc.entityId)) throw fail(403, "FORBIDDEN", "Your role cannot edit this document", { reason: `Requires ${perm}` });
+  if (doc.status !== "draft") throw fail(409, "CONFLICT", `Only drafts can be recomputed (status: ${doc.status})`);
+  expectRevision(doc, req.body);
   const entity = await Entity.findOne({ id: doc.entityId }).lean();
   const request = {
     seller: { gstin: doc.seller?.gstin, stateCode: doc.seller?.stateCode },
@@ -104,8 +129,9 @@ router.post("/:id/compute", handle(async (req, res) => {
     const computed = (result.lines || []).find((l) => l.lineNo === line.lineNo);
     return computed ? { ...line, ...computed } : line;
   });
+  doc.revision += 1;
   await doc.save();
-  res.json(result);
+  res.json({ ...result, revision: doc.revision });
 }));
 
 // ---------- approval flow ----------

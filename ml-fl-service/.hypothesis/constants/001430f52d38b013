@@ -1,0 +1,4 @@
+# file: /w/satya_engine/match/candidates.py
+# hypothesis_version: 6.142.4
+
+[0.0, 0.05, 0.1, 0.15, 0.2, 0.3, 0.35, 0.4, 0.9, 0.97, 0.98, 'AMBIGUOUS', 'POSSIBLE', 'PROBABLE', 'abstainReason', 'amount_ratio', 'anchorId', 'candidateId', 'certainty', 'contributions', 'desc_token_set', 'explicit_ref', 'heuristic-v2', 'hsn_agree', 'method', 'modelVersion', 'party_same', 'predictionSet', 'probability', 'ref_exact', 'ref_prefix', 'ref_similarity', 'results', 'spec_conflict', 'version']

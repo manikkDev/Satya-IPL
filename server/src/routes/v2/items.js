@@ -59,7 +59,7 @@ router.patch("/:id", requirePermission("master.manage"), handle(async (req, res)
   const item = await Item.findOneAndUpdate(
     { id: req.params.id, groupId: req.scope.groupId },
     { $set: parsed.data },
-    { new: true }
+    { returnDocument: "after" }
   ).lean();
   if (!item) throw fail(404, "NOT_FOUND", "Item not found");
   res.json(view(item));

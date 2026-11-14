@@ -158,7 +158,7 @@ def ewaybill_missing(docs):
                  [{"documentId": d["id"]}], d["totals"]["grand"])
         for d in docs
         if d["type"] in {"INVOICE_IN", "DELIVERY_CHALLAN"} and d.get("totals")
-        and D(d["totals"]["grand"]) > 50000 and not d.get("ewayBillNo")
+        and D(d["totals"]["grand"]) > 50000 and not (d.get("gst") or {}).get("ewayBillNo")
         and d["status"] not in {"reversed", "cancelled"}
     ]
 

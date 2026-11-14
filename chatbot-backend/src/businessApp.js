@@ -7,11 +7,19 @@ import internalRouter from "./routes/internal.js";
 import { statusPage } from "./statusPage.js";
 import { initLlm, llmHealth } from "./llm/index.js";
 import { config, allowedOrigins } from "./config.js";
+import { makeOriginChecker } from "./lib/origins.js";
 import { requestId } from "./middleware/requestId.js";
 import { rateLimit, userKey } from "./middleware/rateLimit.js";
 
 const app = express();
-app.use(cors({ origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin)), allowedHeaders: ["Content-Type", "Authorization", "x-request-id", "x-internal-token"] }));
+// exact origins + safe preview wildcards (lib/origins.js); allowedOrigins
+// is the parsed list from config so both read the same env value
+const isAllowedOrigin = makeOriginChecker(allowedOrigins.join(","));
+app.use(cors({
+  origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-request-id", "x-internal-token"],
+}));
 app.use(requestId);
 // /internal mounts first: it carries page images and has its own larger
 // body limit, so it must run before the 64 kb parser consumes the stream.

@@ -63,3 +63,15 @@ and a warning rather than selecting a potentially wrong rate.
 Outstanding: obtain and review the official directory and applicable
 notifications (including amendments and historic rules), then add real
 date-change regression fixtures. This must happen before enabling tax defaults.
+
+## Repairs applied to the committed artifact (2026-11)
+
+`assets/hsn_master.json.gz` version `20261029-r1` is the original extraction
+passed through `python -m satya_engine.cli repair-hsn` (see
+`satya_engine/india/hsn_repair.py`): schedule labels re-derived from S.No.
+runs (Schedule II S.Nos. 96–640 had been labelled Schedule I at 5%), rates
+re-derived per schedule, 4-digit prefixes extended from leading sub-heading
+digits, and Schedule I S.No. 425 (water pumps) restored for the three
+directory codes that name those pumps. `tests/test_hsn_rates.py` pins the
+result. `build-hsn` applies the same repairs to new extractions. The server
+image carries a copy at `server/assets/hsn_master.json.gz` (keep in sync).

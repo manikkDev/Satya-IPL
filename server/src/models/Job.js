@@ -22,5 +22,6 @@ const jobSchema = new mongoose.Schema(
 
 jobSchema.index({ groupId: 1, id: 1 }, { unique: true });
 jobSchema.index({ status: 1, runAfter: 1 });
+jobSchema.index({ status: 1, leaseUntil: 1 });
 
 export default mongoose.model("Job", jobSchema);

@@ -1,0 +1,4 @@
+# file: /w/satya_engine/money.py
+# hypothesis_version: 6.142.4
+
+[100, 1000, 100000, 10000000, ' Only', '0.01', '1', 'Cannot spell amount', 'Crore', 'Hundred', 'Lakh', 'Minus ', 'Money must be finite', 'Thousand', 'f']
