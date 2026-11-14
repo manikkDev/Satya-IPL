@@ -27,7 +27,8 @@ const summary = {
 
 // five documents also carry the supplier's name — the old pipeline asked
 // "which one do you mean?" instead of answering
-const docs = Array.from({ length: 5 }, (_, i) => ({ id: `doc_${i}`, number: `KAV/DOC/${i}`, type: i % 2 ? "INVOICE_IN" : "PO", seller: { name: "Kaveri Pumps & Motors Ltd" } }));
+// (more than a page: the supplier must survive the search-result cap)
+const docs = Array.from({ length: 25 }, (_, i) => ({ id: `doc_${i}`, number: `KAV/DOC/${i}`, type: i % 2 ? "INVOICE_IN" : "PO", seller: { name: "Kaveri Pumps & Motors Ltd" } }));
 const calls = [];
 const call = (path) => {
   calls.push(path);

@@ -41,7 +41,12 @@ export function deterministicAnswer(intent, registry, ctx = {}) {
         const id = F[`invoice ${inv.number} outstanding`];
         return `${inv.number} (${inv.date})${id ? ` — ${ref(id)} open` : ""}${inv.overdueDays ? `, ${inv.overdueDays} days overdue` : ""}`;
       });
-      const issues = (s.openFindings?.items || []).slice(0, 4).map((f) => `${String(f.code || "issue").replaceAll("_", " ").toLowerCase()} (${f.severity})`);
+      const byCode = new Map();
+      for (const f of s.openFindings?.items || []) {
+        const key = `${String(f.code || "issue").replaceAll("_", " ").toLowerCase()} (${f.severity})`;
+        byCode.set(key, (byCode.get(key) || 0) + 1);
+      }
+      const issues = [...byCode].slice(0, 4).map(([k, n]) => (n > 1 ? `${k} ×${n}` : k));
       return {
         answerMarkdown: [
           head,

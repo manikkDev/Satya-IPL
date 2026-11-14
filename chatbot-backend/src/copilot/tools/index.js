@@ -319,11 +319,11 @@ export function createTools({ call, rag = null, scope = {} }) {
         call(`/api/v2/documents?${params}`),
         call(`/api/v2/suppliers?q=${encodeURIComponent(query)}`),
       ]);
-      const items = [
-        ...(docs.ok ? (docs.data?.items || docs.data || []).map((d) => ({ kind: "document", id: d.id, number: d.number, type: d.type, supplier: d.seller?.name })) : []),
-        ...(sups.ok ? (sups.data?.items || sups.data || []).map((x) => ({ kind: "supplier", id: x.id, name: x.legalName || x.tradeName })) : []),
-      ];
-      return { data: { items: items.slice(0, 10) } };
+      // suppliers first and never truncated away by a page of that
+      // supplier's own documents (that hid the supplier from resolution)
+      const supplierItems = sups.ok ? (sups.data?.items || sups.data || []).slice(0, 5).map((x) => ({ kind: "supplier", id: x.id, name: x.legalName || x.tradeName })) : [];
+      const docItems = docs.ok ? (docs.data?.items || docs.data || []).map((d) => ({ kind: "document", id: d.id, number: d.number, type: d.type, supplier: d.seller?.name, caseId: d.caseId })) : [];
+      return { data: { items: [...supplierItems, ...docItems].slice(0, Math.max(10, supplierItems.length + 5)) } };
     },
   };
 
