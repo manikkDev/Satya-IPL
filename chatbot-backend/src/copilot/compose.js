@@ -30,8 +30,12 @@ export function composeEvidenceAnswer(intent, { data = {}, missing = [], sources
   // exact sums the composer derives are registered like calculator results
   const sumMoney = (values) => {
     const v = exactSum(values);
-    bank?.addNumber(v);
+    bank?.addDerived(v, { op: "sum", inputs: values.map((x) => String(x ?? "0")) });
     return v;
+  };
+  const count = (items, idOf = (x) => x?.documentId || x?.id) => {
+    bank?.addDerived(items.length, { op: "count", items: items.map(idOf).filter(Boolean) });
+    return items.length;
   };
   void message;
   const head = (line) => `**${line}**`;
@@ -47,6 +51,9 @@ export function composeEvidenceAnswer(intent, { data = {}, missing = [], sources
     case "smalltalk":
       return out("**Hello — I'm Satya.** Ask me what's due, what we owe a supplier, MSME deadlines, GST credit at risk, or ask me to draft a supplier message or a payment run.", ["What needs my attention today?", "What is due this week?", "Which MSME payments are close to 45 days?"]);
     case "out_of_scope":
+      if (route.reason === "needs data Satya doesn't hold") {
+        return out("**I don't know — Satya doesn't hold your bank balance or forecasts, so I won't guess.** I can tell you what is due and when, which is the cash going out: try \"What is due this week?\" or \"How much cash do we need this month?\"", ["What is due this week?", "What should we pay first?"], "refusal");
+      }
       return out(`**I can't help with that.** ${route.reason === "instruction override attempt" ? "I follow Satya's rules and only work from your own records." : route.reason === "outside your workspace" ? "I can only see your own workspace's records — never another company's." : "I answer questions about your purchase orders, receipts, invoices, payments, suppliers and GST/MSME compliance."} For tax or legal positions, please check with your CA.`, ["What needs my attention today?", "Which suppliers do we owe the most?"], "refusal");
     case "general":
       return out("**I need a little more to go on.** Tell me the supplier, document number or period you mean — for example \"How much do we owe Kaveri Pumps?\", \"What's due this week?\" or \"Status of PO SATYAD/PO/26-27/100009\".", ["What needs my attention today?", "What is due this week?", "Which suppliers do we owe the most?"], "clarification");
@@ -240,8 +247,8 @@ export function composeEvidenceAnswer(intent, { data = {}, missing = [], sources
       const ordered = life.reduce((s, l) => s + (Number(l.ordered) || 0), 0);
       const received = life.reduce((s, l) => s + (Number(l.received) || 0), 0);
       const open = pay?.rows?.find((r) => r.documentId === doc.id);
-      bank?.addNumber(ordered);
-      bank?.addNumber(received);
+      bank?.addDerived(ordered, { op: "sum", inputs: life.map((l) => String(l.ordered ?? 0)) });
+      bank?.addDerived(received, { op: "sum", inputs: life.map((l) => String(l.received ?? 0)) });
       const kind = doc.type === "PO" ? "Purchase order" : doc.type === "INVOICE_IN" ? "Invoice" : doc.type === "PAYMENT_OUT" ? "Payment" : "Document";
       const headline = doc.type === "INVOICE_IN"
         ? (open ? `Invoice ${doc.number} has ${inr(open.outstanding)} outstanding${open.overdueDays ? `, ${open.overdueDays} days overdue` : `, due ${dateText(open.dueDate)}`}.` : `Invoice ${doc.number}${total ? ` (${inr(total)})` : ""} is fully settled.`)
@@ -250,7 +257,7 @@ export function composeEvidenceAnswer(intent, { data = {}, missing = [], sources
         `${kind} dated ${dateText(doc.date)}${doc.supplier ? ` from ${doc.supplier}` : ""}${total ? `, total ${inr(total)}` : ""}${cite(doc.ref)}.`,
         open && nonZero(open.disputed) ? `${inr(open.disputed)} of it is disputed (${open.issues.map(findingText).slice(0, 2).join("; ")}).` : null,
         open?.msme ? `MSME supplier — legal payment deadline ${dateText(open.msme.dueDate)}.` : null,
-        life.length ? `Ordered ${ordered}, received ${received} across ${plural(life.length, "line")}.` : null,
+        life.length ? `Ordered ${ordered}, received ${received} across ${plural(count(life, (l) => String(l.lineNo)), "line")}.` : null,
         doc.terms?.creditDays != null ? `Credit terms: ${doc.terms.creditDays} days.` : null,
       ])}${evidence()}`, ["What issues are open on this?", "Draft a clarification email to this supplier", "Show the money trail"]);
     }
@@ -259,7 +266,7 @@ export function composeEvidenceAnswer(intent, { data = {}, missing = [], sources
     case "allocation": {
       if (!pays) break;
       const unalloc = pays.rows.filter((r) => nonZero(r.unallocated));
-      return out(`${head(intent === "payments" ? `${plural(pays.totals.count, "payment")} totalling ${inr(pays.totals.paid)}.` : `${plural(unalloc.length, "payment")} (${inr(sumMoney(unalloc.map((r) => r.unallocated)))}) are not matched to invoices.`)}${why([
+      return out(`${head(intent === "payments" ? `${plural(pays.totals.count, "payment")} totalling ${inr(pays.totals.paid)}.` : `${plural(count(unalloc), "payment")} (${inr(sumMoney(unalloc.map((r) => r.unallocated)))}) are not matched to invoices.`)}${why([
         ...(intent === "payments" ? pays.rows : unalloc).slice(0, 5).map((r) => `${dateText(r.date)} — ${r.supplier}: ${inr(r.amount)}${r.utr ? ` (UTR ${r.utr})` : ""}${nonZero(r.unallocated) ? `, ${inr(r.unallocated)} unmatched` : ""}${cite(r.ref)}`),
         intent !== "payments" ? "Ask me to match one — e.g. \"allocate payment <UTR>\"." : null,
       ])}${evidence()}`, ["Which payments are unallocated?", "Draft a remittance advice"]);

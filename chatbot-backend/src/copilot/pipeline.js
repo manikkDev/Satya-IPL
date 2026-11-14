@@ -119,6 +119,19 @@ export async function runCopilot({ message, context = {}, auth, llm = null, call
     return finish({ content: resolved.clarify.content, answerType: "clarification", options: resolved.clarify.options, intent: route.intent, responseMode: "evidence_only" });
   }
 
+  // multi-step without a model: "draft a note to the supplier we owe most",
+  // "put the biggest issue's case on hold" — find the subject first
+  const SUPERLATIVE = /\b(most|top|biggest|largest|highest|worst|most serious|first)\b/i;
+  if (SUPERLATIVE.test(text) && ["draft_message", "supplier_balance", "payments"].includes(route.intent) && !resolved.supplierId) {
+    const r = await toolkit.run("supplier_exposure", { limit: 5 });
+    resolved.supplierId = r.data?.suppliers?.[0]?.supplierId || null;
+    if (resolved.supplierId) delete resolved.needs;
+  }
+  if (SUPERLATIVE.test(text) && ["decision", "assign", "reminder"].includes(route.intent) && !resolved.caseId) {
+    const r = await toolkit.run("list_findings", { severity: "critical,high", limit: 5 });
+    resolved.caseId = r.data?.items?.find((f) => f.caseId)?.caseId || null;
+    if (resolved.caseId) delete resolved.needs;
+  }
   const plan = planFor(route.intent, { entities: route.entities, resolved, message: text, today });
 
   /* ---- 3. agent loop (LLM) or deterministic plan ---------------------- */
@@ -222,7 +235,9 @@ export async function runCopilot({ message, context = {}, auth, llm = null, call
     }
     if (route.intent === "allocation" && !toolkit.called().includes("propose_allocation")) {
       const unalloc = (dataByTool(toolkit.results).payment_history?.rows || []).filter((r) => r.status !== "allocated");
-      if (unalloc.length === 1) await toolkit.run("propose_allocation", { paymentId: unalloc[0].id });
+      const named = route.entities.utrs.map((u) => u.toUpperCase());
+      const byUtr = unalloc.find((r) => r.utr && named.includes(String(r.utr).toUpperCase()));
+      if (byUtr || unalloc.length === 1) await toolkit.run("propose_allocation", { paymentId: (byUtr || unalloc[0]).id });
     }
     if (route.intent === "draft_message" && !toolkit.called().includes("draft_supplier_message") && resolved.supplierId) {
       await toolkit.run("draft_supplier_message", { supplierId: resolved.supplierId });
@@ -253,6 +268,9 @@ export async function runCopilot({ message, context = {}, auth, llm = null, call
         rate: verdict.claims ? Number((verdict.grounded / verdict.claims).toFixed(3)) : 1,
         citationsValid: verdict.citations.valid.length,
         citationsInvalid: verdict.citations.invalid.length,
+        // exact computations made by code (sums, calculator, counts, dates)
+        // with their inputs, so any figure can be recomputed by an auditor
+        derivations: bank.derivations.slice(0, 200),
       },
       responseMode: result.responseMode || "evidence_only",
       mode: result.responseMode === "agent" ? "llm" : "evidence_only",

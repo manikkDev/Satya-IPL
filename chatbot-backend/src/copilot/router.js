@@ -51,7 +51,7 @@ export function extractEntities(message, { today } = {}) {
       return v.replace(/\s+(?:about|regarding|re|on|for|with|over|asking|saying|that|and|in|to)\b.*$/i, "").trim();
     })
     .filter((x) => x.length >= 3 && !STOP.has(x.toLowerCase()) && !/^(?:msme|ims|gst|itc|tds|hsn|grn|irn|most|least|companies|company|customers|tenants|i|me|morning|evening)$/i.test(x) && !/^\d/.test(x) && !docRefs.some((d) => d.includes(x)) && !/^(?:gstr|rule|section|q[1-4]|fy)\b/i.test(x))
-    .filter((x) => !/\b(?:invoices?|payments?|issues?|deadline|deadlines|days|week|month|year|budget|lakh|crore|rupees|cash|approval|today|tomorrow|first|risk|exposure|summary|status|position|ledger)\b/i.test(x) || /\b(?:pvt|ltd|llp|industries|works|motors|pumps|valves?|castings|bearings|fasteners|electricals?)\b/i.test(x))
+    .filter((x) => !/\b(?:invoices?|payments?|bills?|dues?|clear|pay|need|issues?|deadline|deadlines|days|week|month|year|budget|lakh|crore|rupees|cash|approval|today|tomorrow|first|risk|exposure|summary|status|position|ledger|everything|someone|anyone|note|notes|missing)\b/i.test(x) || /\b(?:pvt|ltd|llp|industries|works|motors|pumps|valves?|castings|bearings|fasteners|electricals?)\b/i.test(x))
     .filter((x) => !new RegExp(`^(?:${MONTHS.join("|")}|${MON3.join("|")}|good|morning|hello|thanks|namaste)$`, "i").test(x))
     .filter((x, i, arr) => arr.indexOf(x) === i)
     .slice(0, 4);
@@ -121,7 +121,10 @@ const RX = {
   allocate: /\b(allocate|match (?:this|the|a) payment|apply (?:this|the) payment|which invoices? (?:does|did) (?:this |the )?(?:payment|utr)|settle (?:this|the) payment)\b/,
   unallocated: /\b(unallocated|unmatched|not (?:yet )?matched|unapplied) payments?\b|\bpayments? (?:that )?(?:are|is|aren't)? ?(?:still )?(?:not )?(?:yet )?(?:matched|allocated|unallocated|unmatched)\b/,
   ims: /\b(ims|invoice management system|accept or reject|accept\/reject)\b/,
-  gstr2b: /\b(gstr-?\s?2b|2b\b|2a\b|missing (?:in|from) (?:gstr|2b)|not (?:filed|uploaded) by (?:the )?supplier|supplier (?:hasn't|has not|didn't) filed)/,
+  gstr2b: /\b(gstr-?\s?2b|gstr-?\s?1\b|2b\b|2a\b|missing (?:in|from) (?:gstr|2b)|not (?:filed|uploaded) by (?:the )?supplier|suppliers? (?:hasn't|haven't|has not|have not|didn't|did not) (?:yet )?(?:filed|uploaded))/,
+  codeRequest: /\b(write|generate|give) (?:me )?(?:a |an |some )?(?:\w+ ){0,2}(?:script|code|program|macro|sql query|regex)\b/,
+  forecast: /\b(bank balance|cash balance|balance in (?:the |our )?bank|forecast|predict|projection|will (?:our|we|the) (?:cash|balance|bank)|next (?:month|year)'?s? (?:cash|balance|sales|revenue))\b/,
+  pronounOnly: /\b(them|they|it|this one|that one|him|her)\b/,
   s43bh: /\b43\s?b\s?\(?h\)?|43b\b/,
   msme: /\b(msme|msmed|micro|small enterprise|udyam|45[- ]day|45 days|section 15|interest under section 16)\b/,
   itc: /\b(itc|input (?:tax )?credit|rule 37|180[- ]days?|credit at risk|gst (?:at risk|exposure))\b/,
@@ -136,12 +139,23 @@ const RX = {
   payables: /\b(due (?:this|next) week|due (?:today|soon|in)|overdue|what(?:'s| is) due|payables?|bills? (?:due|to pay)|how much do we owe(?! \w+ \w)|total (?:we )?owe|cash (?:needed|required|outflow)|outstanding (?:bills|invoices|payables))\b/,
   supplierMoney: /\b(owe|owed|owing|balance|outstanding|account|statement|ledger|position with|dues?|summary of|how are we with|history with|360)\b/,
   payments: /\b(payments?|paid|utr|remittance|transfers?|bank)\b/,
-  findings: /\b(issues?|findings?|problems?|exceptions?|flags?|flagged|discrepanc|duplicates?|mismatch(?:es)?|errors?|anomal|over-?billing|short (?:delivery|supply)|price variance|wrong)\b/,
+  findings: /\b(issues?|findings?|problems?|exceptions?|flags?|flagged|discrepanc|duplicates?|mismatch(?:es)?|errors?|anomal|over-?billing|billed (?:us )?more than|charged more than|short (?:delivery|supply)|price variance|wrong)\b/,
   explain: /\b(why|explain|reason|what happened|what's wrong|what is wrong|tell me (?:more )?about)\b/,
   briefing: /\b(brief(?:ing)?|today|this morning|what needs (?:my )?attention|what should i (?:look at|do|focus)|daily summary|overview|status update|where do we stand|top priorities|anything urgent)\b/,
   status: /\b(status|delivered|received|delivery|receipt|accepted|where is|track|stage|fulfil|progress)\b/,
   hsn: /\b(hsn|sac|gst rate (?:on|for)|tax rate (?:on|for)|rate of gst)\b/,
 };
+
+// everyday synonyms (owners say "late", "vendors", "lose credit", "go first")
+const widen = (re, extra) => new RegExp(`${re.source}|${extra.source}`, re.flags);
+RX.jailbreak = widen(RX.jailbreak, /\b(system override|override (?:mode|your rules)|you are (?:now )?(?:an? )?admin|admin (?:mode|now)|sudo)\b/);
+RX.draft = widen(RX.draft, /\b(write|reach out|send a note|drop a (?:note|line)) to\b/);
+RX.paymentRun = widen(RX.paymentRun, /\b((?:can|could) (?:only )?spend|to spend|should go first|go first|pay out first|which (?:invoices|bills) (?:first|to clear))\b/);
+RX.itc = widen(RX.itc, /\b(gst credit|tax credit|lose (?:the )?credit|credit (?:we )?could lose)\b/);
+RX.compare = widen(RX.compare, /\b(go(?:ne)? up|go(?:ne)? down|compared (?:with|to)|more than last|less than last)\b/);
+RX.exposure = widen(RX.exposure, /\b(top \d* ?vendors?|vendors? by|suppliers? by (?:amount|outstanding|dues)|which vendors?|biggest (?:dues|creditors))\b/);
+RX.payables = widen(RX.payables, /\b(late (?:bills|invoices|payments)|bills? (?:are|is) late|which bills|past due|unpaid (?:bills|invoices)|total payables|payables outstanding|outstanding payables)\b/);
+RX.supplierPaid = /\b(did we pay|have we paid|we paid|paid to|payments? (?:to|made to|history))\b/;
 
 /**
  * @returns {{intent:string, confidence:number, entities:object, reason:string}}
@@ -157,14 +171,21 @@ export function classify(message, { memory = {}, context = {}, today } = {}) {
   if (RX.jailbreak.test(lower)) return pick("out_of_scope", 0.95, "instruction override attempt");
   if (RX.otherTenant.test(lower)) return pick("out_of_scope", 0.95, "outside your workspace");
   if (RX.outOfScope.test(lower) && !/\b(invoice|supplier|payment|gst|po\b)/.test(lower)) return pick("out_of_scope", 0.9, "not procurement or payables");
+  if (RX.codeRequest.test(lower)) return pick("out_of_scope", 0.9, "not procurement or payables");
+  if (RX.forecast.test(lower)) return pick("out_of_scope", 0.85, "needs data Satya doesn't hold");
   if (RX.smalltalk.test(lower)) return pick("smalltalk", 0.95, "greeting");
+  const focusless = !memory.supplierId && !memory.caseId && !memory.documentId && !context.caseId && !context.documentId && !context.supplierId;
+  if (RX.pronounOnly.test(lower) && focusless && !hasDoc && !hasSupplier && !/\b(most|top|biggest|largest|first|all|every)\b/.test(lower)
+    && /\b(owe|balance|account|draft|email|whatsapp|remind|pay|status|hold|approve|assign)\b/.test(lower)) {
+    return pick("general", 0.4, "pronoun without a named record");
+  }
   if (RX.draft.test(lower)) return pick("draft_message", 0.9, "draft request");
   if (RX.ims.test(lower)) return pick("ims", 0.9, "IMS");
   if (RX.paymentRun.test(lower)) return pick("payment_run", 0.9, "what to pay");
   if (RX.allocate.test(lower)) return pick("allocation", 0.85, "allocate a payment");
-  if (RX.assign.test(lower) && (hasDoc || memory.caseId)) return pick("assign", 0.85, "assignment");
+  if (RX.assign.test(lower) && (hasDoc || memory.caseId || /\b(biggest|top|worst|most serious)\b/.test(lower))) return pick("assign", 0.85, "assignment");
   if (RX.reminder.test(lower)) return pick("reminder", 0.85, "reminder");
-  if (RX.decision.test(lower) && (hasDoc || memory.caseId || memory.documentId)) return pick("decision", 0.85, "decision on a case");
+  if (RX.decision.test(lower) && (hasDoc || memory.caseId || memory.documentId || /\b(biggest|top|worst|most serious)\b/.test(lower))) return pick("decision", 0.85, "decision on a case");
   if (RX.hsn.test(lower)) return pick("hsn", 0.85, "HSN/GST rate");
   if (RX.howTo.test(lower) && RX.glossary.test(lower) && !hasDoc && !/\b(our|we|my|us|this)\b/.test(lower)) return pick("how_to", 0.85, "glossary");
   if (RX.s43bh.test(lower)) return pick("s43bh", 0.9, "43B(h)");
@@ -183,7 +204,7 @@ export function classify(message, { memory = {}, context = {}, today } = {}) {
     const poLike = e.docRefs.some((d) => /\/PO\/|^PO[-/]/i.test(d)) || e.caseIds.length || context.caseId;
     return pick(poLike ? "case_status" : "document_lookup", 0.75, "named record");
   }
-  if (hasSupplier && RX.payments.test(lower) && !RX.supplierMoney.test(lower)) return pick("payments", 0.75, "supplier payments");
+  if (hasSupplier && ((RX.payments.test(lower) && !RX.supplierMoney.test(lower)) || RX.supplierPaid.test(lower))) return pick("payments", 0.75, "supplier payments");
   if (hasSupplier && (RX.supplierMoney.test(lower) || RX.explain.test(lower) || RX.findings.test(lower))) return pick("supplier_balance", 0.85, "supplier account");
   if (RX.payables.test(lower)) return pick("payables_due", 0.85, "payables due");
   if (RX.findings.test(lower)) return pick(RX.explain.test(lower) && e.codes.length ? "explain_finding" : "findings", 0.8, "issues");

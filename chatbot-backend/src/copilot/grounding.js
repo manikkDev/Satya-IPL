@@ -29,6 +29,19 @@ export class NumberBank {
     this.values = new Set(); // canonical decimal strings (trimmed)
     this.dates = new Set(); // YYYY-MM-DD
     this.identifiers = new Set(); // verbatim identifier strings (doc numbers, ids)
+    this.derivations = []; // exact computations made by code: {value, op, inputs|expr|items}
+  }
+
+  /**
+   * A value computed by code (exact sum, calculator expression, count, date
+   * offset). Logged with its inputs so an auditor can recompute it.
+   */
+  addDerived(value, how) {
+    if (value == null) return value;
+    if (how?.op === "date") this.addDate(value);
+    else this.addNumber(value);
+    if (this.derivations.length < 400) this.derivations.push({ value: String(value), ...how });
+    return value;
   }
 
   addNumber(raw) {

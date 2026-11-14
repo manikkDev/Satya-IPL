@@ -12,7 +12,7 @@
 
 import { ulid } from "ulid";
 import { amt, findingText } from "./read.js";
-import { parseExact, formatExact, sumMoney, inr } from "../exact.js";
+import { parseExact, formatExact, inr } from "../exact.js";
 import { extractClaims, INJECTION_MARKERS } from "../grounding.js";
 
 const s = (v) => (v == null ? "" : String(v));
@@ -23,7 +23,6 @@ const qs = (obj) => {
   const t = p.toString();
   return t ? `?${t}` : "";
 };
-const addDays = (ymd, n) => new Date(Date.parse(`${ymd}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
 
 /* ------------------------------------------------- trusted user intent */
 
@@ -94,7 +93,7 @@ export function proposalTools() {
         const claimed = extractClaims(`₹${String(args.budget).replace(/^₹/, "")}`).find((c) => c.kind === "amount")?.value ?? s(args.budget);
         if (sameAmount(claimed, trusted.amounts)) budget = formatExact(parseExact(claimed), 2);
       }
-      if (!budget && trusted.amounts.length === 1 && /\b(budget|have|available|cash|limit|only|up to|upto|within)\b/i.test(ctx.userMessage)) {
+      if (!budget && trusted.amounts.length === 1 && /\b(budget|have|available|cash|limit|only|up to|upto|within|spend|afford)\b/i.test(ctx.userMessage)) {
         budget = formatExact(parseExact(trusted.amounts[0]), 2);
       }
       const within = Math.min(Math.max(Number(args.dueWithinDays) || 7, 0), 90);
@@ -127,9 +126,10 @@ export function proposalTools() {
           why: reasonLine(row) + (disputed > 0n ? `; ${inr(formatExact(disputed, 2))} held back (${issues[0] || "disputed"})` : ""),
         });
       }
-      const total = sumMoney(picked.map((p) => p.amount));
-      const heldBack = sumMoney(picked.map((p) => p.heldBack || "0").concat(excluded.filter((e) => e.why.startsWith("fully")).map((e) => e.amount)));
-      const msmeCount = picked.filter((p) => p.msmeDueDate).length;
+      const total = ctx.sum(picked.map((p) => p.amount));
+      const heldBack = ctx.sum(picked.map((p) => p.heldBack || "0").concat(excluded.filter((e) => e.why.startsWith("fully")).map((e) => e.amount)));
+      if (budget) ctx.expr(`${budget} - ${total}`);
+      const msmeCount = ctx.count(picked.filter((p) => p.msmeDueDate));
       for (const p of [...picked, ...excluded]) p.ref = ctx.sources.add({ kind: "document", id: p.documentId, type: "INVOICE_IN", caseId: p.caseId, number: p.invoice, label: `Invoice ${p.invoice}` });
       const id = cardId();
       const card = {
@@ -166,7 +166,7 @@ export function proposalTools() {
         confirmLabel: "Save run for approval",
         permission: "payment.release.maker",
       };
-      const data = { budget, total, remaining: remaining != null ? formatExact(remaining, 2) : null, heldBack, picked, excluded, count: picked.length, excludedCount: excluded.length };
+      const data = { budget, total, remaining: remaining != null ? formatExact(remaining, 2) : null, heldBack, picked, excluded, count: ctx.count(picked), excludedCount: ctx.count(excluded) };
       return {
         data,
         view: { budget, total, remaining: data.remaining, heldBackForDisputes: heldBack, picked: picked.slice(0, 15), excluded: excluded.slice(0, 10), note: "Proposal only; card shown to the user for confirmation" },
@@ -336,7 +336,7 @@ export function proposalTools() {
       const requested = ctx.trusted.action;
       const action = requested || recommended;
       const target = args.findingId && open.some((f) => f.id === args.findingId) ? args.findingId : (action === "PLACE_ON_HOLD" ? blocking[0]?.id : docGaps[0]?.id) || undefined;
-      const exposure = sumMoney(blocking.map((f) => f.data?.amount || "0"));
+      const exposure = ctx.sum(blocking.map((f) => f.data?.amount || "0"));
       const id = cardId();
       const caseRef = ctx.sources.add({ kind: "case", id: c.id, label: c.title || c.id });
       const card = {
@@ -477,7 +477,7 @@ export function proposalTools() {
     async run(args, ctx) {
       const kase = await ctx.call(`/api/v2/cases/${encodeURIComponent(args.caseId)}`);
       if (!kase.ok) return { missing: `case ${args.caseId} (${kase.error})` };
-      const dueDate = ctx.trusted.dates[0] || (/\btomorrow\b/i.test(ctx.userMessage) ? addDays(ctx.today, 1) : /\bnext week\b/i.test(ctx.userMessage) ? addDays(ctx.today, 7) : addDays(ctx.today, 2));
+      const dueDate = ctx.trusted.dates[0] || ctx.dateAdd(ctx.today, /\btomorrow\b/i.test(ctx.userMessage) ? 1 : /\bnext week\b/i.test(ctx.userMessage) ? 7 : 2);
       const open = (kase.data.findings || []).filter((f) => f.status === "open");
       const fallbackNote = `Follow up on ${kase.data.title || kase.data.id}: ${open.length ? [...new Set(open.map((f) => findingText(f.code)))].slice(0, 2).join("; ") : "check status"}`;
       const note = args.note && !INJECTION_MARKERS.test(args.note) ? s(args.note).slice(0, 300) : fallbackNote;

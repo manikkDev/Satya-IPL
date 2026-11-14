@@ -9,6 +9,7 @@
 import { readTools } from "./read.js";
 import { proposalTools } from "./proposals.js";
 import { trustedIntent } from "./proposals.js";
+import { sumMoney, evaluate } from "../exact.js";
 
 export const VIEW_LIMIT = 9000; // chars of JSON per tool result shown to the model
 
@@ -31,6 +32,16 @@ export function createToolkit({ call, rag = null, scope = {}, sources, bank, use
     call, rag, scope, sources, bank, userMessage, buyerName,
     today: today || new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10),
     trusted: trustedIntent(userMessage),
+    // exact derivations, logged so the evaluator can recompute every figure
+    sum: (values) => bank.addDerived(sumMoney(values), { op: "sum", inputs: values.map((v) => String(v ?? "0")) }),
+    expr: (expression) => {
+      const out = evaluate(expression);
+      bank.addDerived(out.rounded, { op: "expr", expr: expression });
+      bank.addNumber(out.value);
+      return out;
+    },
+    count: (items, idOf = (x) => x?.documentId || x?.id) => bank.addDerived(items.length, { op: "count", items: items.map(idOf).filter(Boolean).slice(0, 100) }),
+    dateAdd: (from, days) => bank.addDerived(new Date(Date.parse(`${from}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10), { op: "date", from, days }),
   };
   const log = [];
   const tables = [];

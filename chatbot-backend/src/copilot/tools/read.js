@@ -7,7 +7,7 @@
 // Free text that came from documents/people is wrapped with untrusted().
 
 import { docLabel, untrusted } from "../sources.js";
-import { formatExact, parseExact, sumMoney, evaluate } from "../exact.js";
+import { formatExact, parseExact } from "../exact.js";
 
 export const amt = (x) => (x && typeof x === "object" && "amount" in x ? x.amount : x ?? null);
 const s = (v) => (v == null ? "" : String(v));
@@ -213,7 +213,7 @@ export function readTools() {
       const total = amt(pay.data?.totals?.outstanding) || "0";
       const rows = (pay.ok ? pay.data?.bySupplier || [] : []).slice(0, limit).map((x) => {
         const rk = riskById.get(x.supplierId) || {};
-        const share = parseExact(total) ? evaluate(`round(${amt(x.outstanding)} / ${total} * 100, 1)`).value : "0";
+        const share = parseExact(total) ? ctx.expr(`round(${amt(x.outstanding)} / ${total} * 100, 1)`).value : "0";
         return {
           ref: x.supplierId ? ctx.sources.add({ kind: "supplier", id: x.supplierId, label: x.supplier }) : null,
           supplierId: x.supplierId, supplier: x.supplier, invoices: x.invoices, outstanding: amt(x.outstanding), overdue: amt(x.overdue), disputed: amt(x.disputed),
@@ -271,14 +271,14 @@ export function readTools() {
       const overdue = rows.filter((x) => x.daysLeft < 0);
       const dueWeek = rows.filter((x) => x.daysLeft >= 0 && x.daysLeft <= 7);
       const totals = {
-        count: rows.length,
-        outstanding: sumMoney(rows.map((x) => x.outstanding)),
-        overdueCount: overdue.length,
-        overdueAmount: sumMoney(overdue.map((x) => x.outstanding)),
-        dueThisWeekCount: dueWeek.length,
-        dueThisWeekAmount: sumMoney(dueWeek.map((x) => x.outstanding)),
-        interestEstimate: sumMoney(rows.map((x) => x.interestEstimate || "0")),
-        s43bhExpenseAtRisk: sumMoney(rows.filter((x) => x.s43bhAtRisk).map((x) => x.s43bhExpenseAtRisk || "0")),
+        count: ctx.count(rows),
+        outstanding: ctx.sum(rows.map((x) => x.outstanding)),
+        overdueCount: ctx.count(overdue),
+        overdueAmount: ctx.sum(overdue.map((x) => x.outstanding)),
+        dueThisWeekCount: ctx.count(dueWeek),
+        dueThisWeekAmount: ctx.sum(dueWeek.map((x) => x.outstanding)),
+        interestEstimate: ctx.sum(rows.map((x) => x.interestEstimate || "0")),
+        s43bhExpenseAtRisk: ctx.sum(rows.filter((x) => x.s43bhAtRisk).map((x) => x.s43bhExpenseAtRisk || "0")),
       };
       const view = { totals, rows: rows.slice(0, 25), rule: "MSMED s.15: pay micro/small suppliers within agreed terms, never more than 45 days from acceptance (15 days if no written terms). s.16: compound interest at 3x RBI bank rate after that. Income-tax s.43B(h): if not paid within that limit, the expense is deductible only in the year it is paid.", interestBasis: pay.ok ? pay.data?.basis?.msmeInterest : null };
       return {
@@ -414,10 +414,14 @@ export function readTools() {
       });
       const byType = new Map();
       for (const f of all) {
-        const cur = byType.get(f.code) || { code: f.code, meaning: findingText(f.code), count: 0, exposure: "0" };
-        cur.count += 1;
-        cur.exposure = sumMoney([cur.exposure, f.amount || "0"]);
+        const cur = byType.get(f.code) || { code: f.code, meaning: findingText(f.code), list: [] };
+        cur.list.push(f);
         byType.set(f.code, cur);
+      }
+      for (const cur of byType.values()) {
+        cur.count = ctx.count(cur.list);
+        cur.exposure = ctx.sum(cur.list.map((f) => f.amount || "0"));
+        delete cur.list;
       }
       const items = all.slice(0, limit).map((f) => ({
         ref: ctx.sources.add({ kind: "finding", id: f.id, caseId: f.caseId, label: `${plainCode(f.code)} (${f.severity})` }),
@@ -557,9 +561,9 @@ export function readTools() {
         };
       });
       const totals = {
-        count: items.length,
-        paid: sumMoney(items.map((p) => amt(p.amount))),
-        unallocated: sumMoney(rows.map((x) => x.unallocated)),
+        count: ctx.count(items),
+        paid: ctx.sum(items.map((p) => amt(p.amount))),
+        unallocated: ctx.sum(rows.map((x) => x.unallocated)),
       };
       const view = { totals, rows };
       return {
@@ -630,8 +634,8 @@ export function readTools() {
       const A = tot(a);
       const B = tot(b);
       const change = (later, earlier) => {
-        const diff = evaluate(`${later} - ${earlier}`).rounded;
-        const pct = parseExact(earlier) ? evaluate(`(${later} - ${earlier}) / ${earlier} * 100`).rounded : null;
+        const diff = ctx.expr(`${later} - ${earlier}`).rounded;
+        const pct = parseExact(earlier) ? ctx.expr(`(${later} - ${earlier}) / ${earlier} * 100`).rounded : null;
         return { diff, pct };
       };
       const view = { ref: ctx.sources.add({ kind: "report", id: "/app/reports", label: "Period comparison" }),
@@ -730,9 +734,9 @@ export function readTools() {
       description: "Exact decimal calculator. Use for EVERY sum, difference, percentage or what-if — never do arithmetic yourself. Supports + - * / ( ), 18% of X, lakh/crore, sum(), min(), max(), round(x,2), pct(part,whole). Put figures copied from tool results.",
       parameters: { type: "object", properties: { expression: { type: "string" }, label: { type: "string", description: "what this computes, in words" } }, required: ["expression"] },
     },
-    async run({ expression, label }) {
+    async run({ expression, label }, ctx) {
       try {
-        const out = evaluate(expression);
+        const out = ctx.expr(expression);
         return { data: { expression: s(expression).slice(0, 300), label: s(label).slice(0, 120), result: out.value, rounded: out.rounded }, view: { label, expression, result: out.value, rounded: out.rounded }, summary: `${s(label) || "result"} = ${out.rounded}` };
       } catch (error) {
         return { data: null, view: { error: error.message }, missing: `calculation (${error.message})` };
