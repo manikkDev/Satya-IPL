@@ -44,7 +44,8 @@ export default function ResearchPage() {
         </p>
         <p className="text-[15px] text-[var(--muted)]">
           Source: Satya AP automation research (Nov 2026), 171 references. Live model results are on{" "}
-          <Link href="/research/model" className="text-[var(--accent)] underline underline-offset-[3px]">Model performance</Link>.
+          <Link href="/research/model" className="text-[var(--accent)] underline underline-offset-[3px]">Model performance</Link>. A printable{" "}
+          <Link href="/research/one-pager" className="text-[var(--accent)] underline underline-offset-[3px]">one-page summary</Link> is available.
         </p>
       </PitchHero>
 
