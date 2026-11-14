@@ -54,7 +54,7 @@ class Index:
             for key in doc.party_keys:
                 self.by_party[key].append(doc)
             core = core_number(doc.number)
-            if len(core) >= 3:
+            if len(core) >= 2:
                 self.by_number[core].append(doc)
                 dg = digits(doc.number)
                 if len(dg) >= 3 and dg != core:
@@ -70,7 +70,7 @@ def _ref_hits(frm, index):
     for token in sorted(set(frm.ref_text.replace("/", " ").replace("-", " ").split()) | {frm.ref_text}):
         core = core_number(token)
         for key in (core, digits(token)):
-            if key and len(key) >= 3:
+            if key and len(key) >= 2:
                 hits.extend(index.by_number.get(key, []))
     if not hits:  # noisy / embedded reference: fuzzy check docs sharing a digit suffix
         pool = {}

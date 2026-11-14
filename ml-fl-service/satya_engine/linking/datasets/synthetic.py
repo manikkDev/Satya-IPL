@@ -63,7 +63,11 @@ def world(seed, n_suppliers=10, months=10, source="synthetic"):
     rng = random.Random(seed)
     suppliers = [make_supplier(rng, f"{seed}_{i}") for i in range(n_suppliers)]
     for s in suppliers:
-        s["items"] = [make_item(rng, s["category"]) for _ in range(rng.randint(3, 10))]
+        items = {}
+        for _ in range(rng.randint(3, 10)):  # one price per catalogue item (same SKU = same item)
+            item = make_item(rng, s["category"])
+            items.setdefault(item["sku"], item)
+        s["items"] = list(items.values())
     po_style = rng.choice(["satya", "sap", "pur", "short"])
     start = date(2025, 4, 1) + timedelta(days=rng.randint(0, 200))
     docs, links = [], []

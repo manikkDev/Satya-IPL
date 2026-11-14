@@ -14,7 +14,7 @@ import unicodedata
 
 from rapidfuzz import fuzz
 
-PREFIXES = ("invoice", "inv", "bill", "tinv", "ti", "gst", "taxinv", "si", "po", "pur", "purchase",
+PREFIXES = ("invoice", "inv", "bill", "tinv", "ti", "gst", "taxinv", "po", "pur", "purchase",
             "order", "grn", "mrn", "gr", "dc", "pv", "pmt", "pay")
 FY_RE = re.compile(r"(?<!\d)(?:20)?(\d{2})\s*[-/]\s*(?:20)?(\d{2})(?!\d)")
 OCR_FOLD = str.maketrans({"o": "0", "i": "1", "l": "1", "s": "5", "b": "8", "z": "2", "g": "6", "q": "0"})
@@ -86,19 +86,28 @@ def compact(number):
     return NON_ALNUM.sub("", str(number or "").lower())
 
 
+def _numeric_token(token):
+    numeric_share = sum(ch.isdigit() for ch in token) / len(token)
+    if numeric_share >= 0.5:  # OCR confusions live in the numeric parts
+        token = token.translate(OCR_FOLD)
+    if token.isdigit():
+        token = token.lstrip("0") or "0"
+    return token
+
+
 def core_number(number):
-    """Core of a document number: no FY fragment, prefix, zero padding, OCR folded."""
+    """Core of a document number: no FY fragment, prefix or zero padding; OCR
+    confusions folded inside numeric tokens."""
     text = str(number or "").lower()
     text = FY_RE.sub(" ", text)
-    tokens = [t for t in NON_ALNUM.split(text) if t]
-    tokens = [t for t in tokens if t not in PREFIXES]
+    tokens = [t for t in NON_ALNUM.split(text) if t and t not in PREFIXES]
+    tokens = [_numeric_token(t) for t in tokens]
     joined = "".join(tokens)
     for prefix in PREFIXES:
-        if joined.startswith(prefix) and len(joined) > len(prefix) + 2:
+        if joined.startswith(prefix) and len(joined) > len(prefix) + 2 and joined[len(prefix)].isdigit():
             joined = joined[len(prefix):]
             break
-    folded = joined.translate(OCR_FOLD)
-    return folded.lstrip("0") or folded
+    return joined
 
 
 def digits(number):
