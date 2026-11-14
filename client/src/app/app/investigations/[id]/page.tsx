@@ -10,6 +10,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/v2/confirm-dialog";
+import { CaseWorkflow } from "@/components/v2/case-workflow";
 import { useSession } from "@/components/v2/session";
 import { Sparkles, FileSearch, FileDown, X, ArrowUpRight, GitBranch } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
@@ -184,10 +185,7 @@ export default function InvestigationDetailPage() {
       setTimeout(() => setDecideDone(false), 5000);
       await refetch();
       setTab("decisions");
-      if (action === "REQUEST_CLARIFICATION") {
-        const docLabel = data?.case?.title || id;
-        router.push(`/app/ask?about=${encodeURIComponent(`Draft a clarification message to the supplier about ${docLabel} — ask them to confirm the disputed items so we can close this check.`)}&case=${encodeURIComponent(id)}`);
-      }
+      if (action === "REQUEST_CLARIFICATION") setTab("followup");
     } catch (e) {
       const message = e instanceof Error ? e.message : "Could not record the decision.";
       setDecideError(message);
@@ -388,6 +386,7 @@ export default function InvestigationDetailPage() {
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="decisions">Decisions & audit</TabsTrigger>
           <TabsTrigger value="whatif">What-if</TabsTrigger>
+          <TabsTrigger value="followup">Follow-up</TabsTrigger>
         </TabsList>
 
         <TabsContent value="summary">
@@ -581,6 +580,19 @@ export default function InvestigationDetailPage() {
               );
             })()}
           </div>
+        </TabsContent>
+        <TabsContent value="followup">
+          <CaseWorkflow
+            caseId={id}
+            caseTitle={caseData.title || id}
+            assignee={(caseData as { assignee?: string | null }).assignee ?? null}
+            priority={(caseData as { priority?: string | null }).priority ?? null}
+            supplier={(() => {
+              const docs = (documents ?? []) as { seller?: { name?: string; supplierId?: string }; supplierId?: string }[];
+              const withSeller = docs.find((d) => d.seller?.name);
+              return withSeller ? { id: withSeller.supplierId ?? withSeller.seller?.supplierId, name: withSeller.seller?.name } : null;
+            })()}
+          />
         </TabsContent>
       </Tabs>
       {openEvidence && <EvidenceDrawer evidence={openEvidence} onClose={() => setOpenEvidence(null)} />}

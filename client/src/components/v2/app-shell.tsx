@@ -20,6 +20,7 @@ import { SessionProvider, useSession } from "@/components/v2/session";
 import { HealthBanner } from "@/components/v2/health-banner";
 import { mocksEnabled } from "@/lib/flags";
 import { Logo, LogoMark } from "@/components/brand/logo";
+import { NotificationBell } from "@/components/v2/notification-bell";
 import {
   CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem, CommandShortcut,
 } from "@/components/ui/command";
@@ -336,6 +337,7 @@ function ShellInner({ children }: { children: ReactNode }) {
             <div className="hidden lg:block">
               <AiCapacityPill />
             </div>
+            <NotificationBell />
             <ThemeToggleButton />
             <UserMenu />
           </header>
