@@ -4,7 +4,7 @@
 // chains so investigations have real-looking findings at scale.
 // All injected docs carry provenance: CONSTRUCTED_DEMO + note in `bpi.injected`.
 // Idempotent via externalRef. Run AFTER scripts/seed-bpi-company.mjs.
-import mongoose from "../server/node_modules/mongoose/index.js";
+import mongoose from "../../server/node_modules/mongoose/index.js";
 
 const MONGO = process.env.MONGO_URI || "mongodb://localhost:27017/satya";
 await mongoose.connect(MONGO);

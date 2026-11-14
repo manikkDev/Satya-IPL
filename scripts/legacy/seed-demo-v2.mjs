@@ -3,7 +3,7 @@
 // PO -> partial GRN -> INVOICE_IN -> partial PAYMENT_OUT -> DocumentLinks —
 // so investigations, graph, dashboard and compliance have real data on day 1.
 // Idempotent: skips docs whose externalRef already exists. Run: node scripts/seed-demo-v2.mjs
-import mongoose from "../server/node_modules/mongoose/index.js";
+import mongoose from "../../server/node_modules/mongoose/index.js";
 
 const MONGO = process.env.MONGO_URI || "mongodb://localhost:27017/satya";
 await mongoose.connect(MONGO);
