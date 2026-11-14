@@ -16,7 +16,7 @@
 import { ulid } from "ulid";
 import { classify, classifyWithLlm, planFor, NO_DATA_INTENTS } from "./router.js";
 import { createToolkit, viewJson } from "./tools/index.js";
-import { SourceRegistry } from "./sources.js";
+import { SourceRegistry, normalizeCitations } from "./sources.js";
 import { NumberBank, verifyAnswer, stripUngrounded, extractClaims } from "./grounding.js";
 import { composeEvidenceAnswer } from "./compose.js";
 import { workingMemory, refreshSummary } from "./memory.js";
@@ -334,7 +334,7 @@ async function agentLoop({ llm, toolkit, system, contents, gate, send, signal, s
     if (!calls.length) {
       if (typeof llm.stream !== "function" && out.text) gate.push(out.text);
       gate.end();
-      return { ok: true, text: String(out.text || "").trim(), provider, model, steps: step + 1 };
+      return { ok: true, text: normalizeCitations(String(out.text || "").trim()), provider, model, steps: step + 1 };
     }
     // the model chose tools: anything streamed this round was preamble
     if (gate.emitted) send("reset", { reason: "tools" });
@@ -362,7 +362,7 @@ async function agentLoop({ llm, toolkit, system, contents, gate, send, signal, s
   if (!out.ok) return { ok: false, reason: out.reason };
   if (typeof llm.stream !== "function" && out.text) gate.push(out.text);
   gate.end();
-  return { ok: true, text: String(out.text || "").trim(), provider: out.provider || provider, model: out.model || model, steps: MAX_STEPS };
+  return { ok: true, text: normalizeCitations(String(out.text || "").trim()), provider: out.provider || provider, model: out.model || model, steps: MAX_STEPS };
 }
 
 /** After a deterministic retrieval, have the model write from the data. */
@@ -378,7 +378,7 @@ async function writeFromData({ llm, system, contents, toolkit, gate, send, signa
   if (!out.ok) return { ok: false };
   if (typeof llm.stream !== "function" && out.text) gate.push(out.text);
   gate.end();
-  return { ok: true, text: String(out.text || "").trim() };
+  return { ok: true, text: normalizeCitations(String(out.text || "").trim()) };
 }
 
 async function retryWrite({ llm, toolkit, answerText, violations, gate, signal, today, route, resolved, context, memory, text }) {
@@ -396,7 +396,7 @@ async function retryWrite({ llm, toolkit, answerText, violations, gate, signal, 
   if (!out.ok) return { ok: false };
   if (typeof llm.stream !== "function" && out.text) gate.push(out.text);
   gate.end();
-  return { ok: true, text: String(out.text || "").trim() };
+  return { ok: true, text: normalizeCitations(String(out.text || "").trim()) };
 }
 
 // The toolkit keeps model-facing views on each run's return value; we store

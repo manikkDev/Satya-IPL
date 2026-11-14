@@ -55,16 +55,22 @@ const sameAmount = (a, list) => {
 
 /* ------------------------------------------------------------ helpers */
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const dateText = (ymd) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ymd || ""));
+  return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : String(ymd || "");
+};
+
 const REASON_TEXT = (r, row) => ({
   msme_overdue: `MSME — past its legal deadline${row.msme?.interestEstimate ? ` (interest est. ${inr(row.msme.interestEstimate)})` : ""}`,
-  msme_due_soon: `MSME — legal deadline ${row.msme?.dueDate || "soon"}`,
+  msme_due_soon: `MSME — legal deadline ${row.msme?.dueDate ? dateText(row.msme.dueDate) : "soon"}`,
   s43bh_fy_end: "s.43B(h): deduction at risk if unpaid at year end",
   overdue: `${row.overdueDays} days overdue`,
-  due_soon: `due ${row.dueDate}`,
+  due_soon: `due ${dateText(row.dueDate)}`,
   disputed: null,
 }[r]);
 
-const reasonLine = (row) => (row.reasons || []).map((r) => REASON_TEXT(r, row)).filter(Boolean).join("; ") || `due ${row.dueDate}`;
+const reasonLine = (row) => (row.reasons || []).map((r) => REASON_TEXT(r, row)).filter(Boolean).join("; ") || `due ${dateText(row.dueDate)}`;
 
 export function proposalTools() {
   const t = {};

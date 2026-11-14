@@ -10,6 +10,11 @@ import { NumberBank } from "./grounding.js";
 import { sumMoney, parseExact } from "./exact.js";
 
 const todayIst = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const dateText = (ymd) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ymd || ""));
+  return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}` : String(ymd || "");
+};
 const nonZero = (v) => (parseExact(v) ?? 0n) !== 0n;
 
 /**
@@ -44,7 +49,7 @@ export async function buildBriefing({ call, scope, today = todayIst() }) {
     sections.push({
       id: "due_week", title: "Due this week", tone: weekRows.length ? "warn" : "ok",
       metric: { value: pay.totals.dueThisWeek, format: "inr", caption: `${pay.totals.dueThisWeekCount} invoice${pay.totals.dueThisWeekCount === 1 ? "" : "s"}` },
-      items: weekRows.slice(0, 3).map((r) => ({ label: r.supplier, detail: `${r.invoice} · due ${r.dueDate}`, amount: r.outstanding, href: sources.get(r.ref)?.href, ref: r.ref })),
+      items: weekRows.slice(0, 3).map((r) => ({ label: r.supplier, detail: `${r.invoice} · due ${dateText(r.dueDate)}`, amount: r.outstanding, href: sources.get(r.ref)?.href, ref: r.ref })),
       ask: "What is due this week?",
     });
   }
@@ -69,9 +74,13 @@ export async function buildBriefing({ call, scope, today = todayIst() }) {
   }
   if (itc.data) {
     const g = itc.data;
+    // Rule 37 reversals plus credit on invoices not matched in GSTR-2B
+    const atRisk = toolkit.ctx.sum([g.itcBlockedOrAtRisk || "0", g.gstr2b?.itcAtRisk || "0"]);
+    const r37 = g.rule37 ? `Rule 37: ${g.rule37.breached ?? 0} breached, ${g.rule37.approaching ?? 0} approaching` : "";
+    const g2b = g.gstr2b && nonZero(g.gstr2b.itcAtRisk) ? `${g.gstr2b.missingIn2B} invoice(s) not matched in GSTR-2B${g.gstr2b.estimated ? " (estimate)" : ""}` : "";
     sections.push({
-      id: "gst", title: "GST credit at risk", tone: nonZero(g.itcBlockedOrAtRisk) ? "warn" : "ok",
-      metric: { value: g.itcBlockedOrAtRisk, format: "inr", caption: g.rule37 ? `Rule 37: ${g.rule37.breached ?? 0} breached, ${g.rule37.approaching ?? 0} approaching` : "" },
+      id: "gst", title: "GST credit at risk", tone: nonZero(atRisk) ? "warn" : "ok",
+      metric: { value: atRisk, format: "inr", caption: [g2b, r37].filter(Boolean).join(" · ") },
       items: (g.rule37?.rows || []).slice(0, 3).map((r) => ({ label: r.supplier, detail: `${r.invoice} · ${r.daysWaiting} days unpaid`, amount: r.itcOnUnpaid, href: sources.get(r.ref)?.href, ref: r.ref })),
       ask: "What is our ITC at risk and why?",
     });

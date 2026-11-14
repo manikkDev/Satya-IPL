@@ -83,6 +83,10 @@ export class SourceRegistry {
   }
 }
 
+/** "[S1, S4]" / "[S1; S8]" → "[S1] [S4]" (models often group refs). */
+export const normalizeCitations = (text) =>
+  String(text || "").replace(/\[\s*((?:S\d+\s*[,;&]\s*(?:and\s+)?)+S\d+)\s*\]/g, (_m, list) => list.split(/[,;&]|\band\b/).map((s) => `[${s.trim()}]`).join(" "));
+
 /**
  * Wrap untrusted free text (document descriptions, notes, OCR/RAG text,
  * supplier-written content) so the model treats it as quoted data. The
