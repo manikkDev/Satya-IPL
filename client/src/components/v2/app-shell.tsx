@@ -1,7 +1,9 @@
 "use client";
 
 // Workspace shell: left sidebar (company switcher, grouped navigation, setup
-// progress) + top bar (search/command palette, notifications, theme, account).
+// progress) + top bar (search/command palette, "Ask Satya" with a quiet AI
+// status dot, notifications, theme, account). Demo workspaces get one slim,
+// dismissible strip above the top bar.
 // On phones the sidebar becomes a bottom bar with the five most-used places
 // and a "More" sheet with everything else.
 //
@@ -9,7 +11,7 @@
 //   Home · To review
 //   Purchasing & payables: Orders · Invoices & documents · Payments · Suppliers
 //   Tax & compliance:      Compliance
-//   Insights:              Assistant · Reports · Model performance · Activity log
+//   Insights:              Ask Satya · Reports · Model performance · Activity log
 //   (footer)               Import data · Settings
 
 import Link from "next/link";
@@ -23,7 +25,7 @@ import {
   ArrowRight, X, type LucideIcon,
 } from "lucide-react";
 import ProtectedRoute from "@/components/auth/protected-route";
-import { AiCapacityPill } from "@/components/AiCapacityPill";
+import { AskSatyaButton } from "@/components/AiCapacityPill";
 import { SessionProvider, useSession } from "@/components/v2/session";
 import { HealthBanner } from "@/components/v2/health-banner";
 import { mocksEnabled } from "@/lib/flags";
@@ -69,7 +71,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Insights",
     items: [
-      { href: "/app/ask", label: "Assistant", icon: MessageSquare, hint: "Ask about your payables in plain words — answers cite documents" },
+      { href: "/app/ask", label: "Ask Satya", icon: MessageSquare, hint: "Ask about your payables in plain words — answers cite documents" },
       { href: "/app/reports", label: "Reports", icon: BarChart3, hint: "Totals, ageing and supplier summaries you can export" },
       { href: "/app/model", label: "Model performance", icon: Gauge, hint: "How accurate Satya's matching is, measured on your data" },
       { href: "/app/audit", label: "Activity log", icon: History, hint: "Every decision and change, with who made it and when" },
@@ -86,7 +88,7 @@ const MOBILE_NAV: NavItem[] = [
   NAV_SECTIONS[0].items[0],
   { ...NAV_SECTIONS[0].items[1], label: "Review" },
   { ...NAV_SECTIONS[1].items[1], label: "Documents" },
-  NAV_SECTIONS[3].items[0],
+  { ...NAV_SECTIONS[3].items[0], label: "Ask" },
 ];
 
 const ALL_NAV = [...NAV_SECTIONS.flatMap((s) => s.items), ...NAV_FOOTER];
@@ -106,7 +108,7 @@ function NavLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void 
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group flex items-center gap-3 rounded-[var(--radius-sm)] px-3 py-2 text-[15px] leading-5 transition-colors duration-150",
+        "group flex h-10 items-center gap-3 rounded-[var(--radius-sm)] px-3 text-[15px] leading-5 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60",
         active
           ? "bg-[var(--sidebar-active-bg)] font-semibold text-[var(--sidebar-active-ink)]"
           : "text-[var(--sidebar-ink)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
@@ -125,11 +127,11 @@ function NavLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void 
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   return (
-    <nav aria-label="Main navigation" className="flex-1 overflow-y-auto px-3 pb-3">
+    <nav aria-label="Main navigation" className="flex-1 overflow-y-auto px-3 pb-4">
       {NAV_SECTIONS.map((section, si) => (
-        <div key={si} className={cn(si > 0 && "mt-6")}>
+        <div key={si} className={cn(si > 0 && "mt-7")}>
           {section.label ? (
-            <p className="px-3 pb-1.5 text-[13px] font-medium text-[var(--muted)]">{section.label}</p>
+            <p className="px-3 pb-2 text-[13px] font-medium text-[var(--muted)]">{section.label}</p>
           ) : null}
           <ul className="space-y-0.5">
             {section.items.map((item) => (
@@ -228,21 +230,48 @@ function SetupCard() {
   );
 }
 
+const DEMO_STRIP_KEY = "satya.demoStrip.hidden";
+
+/** One slim line for demo workspaces; dismissal is remembered for the
+ *  browser session (storage guarded — private mode just shows it again). */
 function DemoBanner() {
   const { group } = useSession();
-  const [hidden, setHidden] = useState(false);
+  const [hidden, setHidden] = useState(true);
+  useEffect(() => {
+    let wasHidden = false;
+    try {
+      wasHidden = sessionStorage.getItem(DEMO_STRIP_KEY) === "1";
+    } catch {
+      /* storage unavailable */
+    }
+    setHidden(wasHidden);
+  }, []);
   if (group?.plan !== "demo" || hidden) return null;
+  const hide = () => {
+    setHidden(true);
+    try {
+      sessionStorage.setItem(DEMO_STRIP_KEY, "1");
+    } catch {
+      /* storage unavailable */
+    }
+  };
   return (
-    <div className="flex items-center gap-3 border-b border-[var(--line)] bg-[var(--saffron-soft)] px-4 py-2 text-[14px] text-[var(--ink-2)] sm:px-6 lg:px-10">
-      <span className="min-w-0 flex-1">
-        <span className="font-semibold text-[var(--ink)]">You’re exploring a fictional company.</span>{" "}
-        <span className="hidden sm:inline">The suppliers, invoices and payments are sample data — nothing here moves real money.</span>
-      </span>
-      <Link href="/signup" className="hidden shrink-0 font-semibold text-[var(--saffron-ink)] hover:underline sm:inline">
-        Start your own pilot workspace
+    <div className="flex h-9 items-center gap-3 border-b border-[var(--line)] bg-[var(--surface)] px-4 text-[13px] text-[var(--muted)] sm:px-6 lg:px-10">
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--saffron)]" aria-hidden="true" />
+      <p className="min-w-0 flex-1 truncate">
+        <span className="font-medium text-[var(--ink-2)]">Demo workspace</span>
+        <span className="hidden sm:inline"> · sample suppliers and bills — nothing here moves real money</span>
+      </p>
+      <Link href="/signup" className="shrink-0 font-medium text-[var(--saffron-ink)] hover:underline">
+        Start a pilot
       </Link>
-      <button type="button" onClick={() => setHidden(true)} aria-label="Hide demo notice" className="grid h-7 w-7 shrink-0 place-items-center rounded text-[var(--muted)] hover:text-[var(--ink)]">
-        <X size={16} aria-hidden="true" />
+      <button
+        type="button"
+        onClick={hide}
+        aria-label="Hide demo notice"
+        className="-mr-1.5 grid h-7 w-7 shrink-0 place-items-center rounded-[6px] text-[var(--muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+      >
+        <X size={15} aria-hidden="true" />
       </button>
     </div>
   );
@@ -324,7 +353,7 @@ function Palette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: b
     router.push(href);
   };
   const ACTIONS: { label: string; hint: string; icon: LucideIcon; run: () => void; shortcut?: string }[] = [
-    { label: "Ask the assistant", hint: "Questions about payables, answered with sources", icon: MessageSquare, run: () => go("/app/ask") },
+    { label: "Ask Satya", hint: "Questions about payables, answered with sources", icon: MessageSquare, run: () => go("/app/ask") },
     { label: "New purchase order", hint: "Raise a PO with GST worked out", icon: Plus, run: () => go("/app/orders/new") },
     { label: "Upload an invoice or document", hint: "PDF, photo, e-invoice JSON", icon: FileText, run: () => go("/app/documents") },
     { label: "Import data", hint: "Tally, bank statement, GSTR-2B", icon: Upload, run: () => go("/app/imports") },
@@ -335,7 +364,7 @@ function Palette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: b
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <CommandInput placeholder="Go to a page or do something…" className="text-[15px]" />
       <CommandList>
-        <CommandEmpty>No matches. Try asking the assistant instead.</CommandEmpty>
+        <CommandEmpty>No matches. Try Ask Satya instead.</CommandEmpty>
         <CommandGroup heading="Do something">
           {ACTIONS.map((action) => (
             <CommandItem key={action.label} value={`${action.label} ${action.hint}`} onSelect={action.run} className="py-2.5">
@@ -404,12 +433,12 @@ function ShellInner({ children }: { children: ReactNode }) {
       <div className="flex min-h-screen">
         {/* Sidebar — desktop */}
         <aside className="sticky top-0 hidden h-screen w-[264px] shrink-0 flex-col border-r border-[var(--sidebar-line)] bg-[var(--sidebar-bg)] md:flex">
-          <div className="px-5 pb-3 pt-5">
+          <div className="flex h-16 shrink-0 items-center px-5">
             <Link href="/app" aria-label="Satya home" className="inline-flex rounded-[var(--radius-sm)]">
               <Logo size={28} />
             </Link>
           </div>
-          <div className="px-3 pb-4">
+          <div className="px-3 pb-5 pt-1">
             <EntitySwitcher />
           </div>
           <NavLinks />
@@ -426,7 +455,7 @@ function ShellInner({ children }: { children: ReactNode }) {
         {/* Main column */}
         <div className="flex min-w-0 flex-1 flex-col">
           <DemoBanner />
-          <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-[var(--line)] bg-[var(--topbar-bg)] px-4 backdrop-blur-md sm:gap-3 sm:px-6 lg:px-10">
+          <header className="sticky top-0 z-30 flex h-16 items-center gap-1.5 border-b border-[var(--line)] bg-[var(--topbar-bg)] px-4 backdrop-blur-md sm:gap-2 sm:px-6 lg:px-10">
             <Link href="/app" aria-label="Satya home" className="md:hidden">
               <LogoMark size={30} />
             </Link>
@@ -441,9 +470,7 @@ function ShellInner({ children }: { children: ReactNode }) {
               <kbd className="ml-auto hidden rounded border border-[var(--line)] bg-[var(--surface-2)] px-1.5 py-px font-code text-[13px] md:inline">⌘K</kbd>
             </button>
             <div className="hidden flex-1 md:block" />
-            <div className="hidden xl:block">
-              <AiCapacityPill />
-            </div>
+            <AskSatyaButton className="sm:mr-1" />
             <NotificationBell />
             <ThemeToggleButton />
             <UserMenu />
