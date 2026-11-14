@@ -45,15 +45,33 @@ def missing_receipt_evidence(ledger):
     ]
 
 
-def delivery_shortfall(ledger):
-    """DELIVERY_SHORTFALL — delivered below ordered."""
+def _today_ist():
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).date().isoformat()
+
+
+def delivery_shortfall(ledger, docs=None, as_of=None):
+    """DELIVERY_SHORTFALL — delivered below ordered, once delivery is due.
+
+    A line with a scheduleDate still in the future (IST calendar) is not
+    short yet — an order placed days ago with a later schedule must not be
+    flagged. Lines without a scheduleDate keep the old behaviour."""
+    as_of = as_of or _today_ist()
+    schedule = {}
+    for d in docs or []:
+        if d.get("type") == "PO":
+            for line in d.get("lines") or []:
+                if line.get("scheduleDate"):
+                    schedule[(d["id"], str(line.get("lineNo")))] = line["scheduleDate"]
     return [
         _finding("DELIVERY_SHORTFALL", "medium", "CONFIRMED",
-                 f"PO {po_id} line {line_no}: delivered {c.delivered} of ordered {c.ordered}",
+                 f"PO {po_id} line {line_no}: delivered {c.delivered} of ordered {c.ordered}"
+                 + (f" (due {schedule[(po_id, line_no)]})" if (po_id, line_no) in schedule else ""),
                  [{"documentId": po_id, "lineNo": line_no}])
         for po_id, lines in ledger.items()
         for line_no, c in lines.items()
         if line_no != "__doc__" and c.ordered > 0 and c.delivered < c.ordered
+        and not ((po_id, line_no) in schedule and schedule[(po_id, line_no)] >= as_of)
     ]
 
 
@@ -217,7 +235,7 @@ def run_all(ledger, docs, links, policy=None, master=None):
     findings = []
     findings += billed_above_received(ledger, docs)
     findings += missing_receipt_evidence(ledger)
-    findings += delivery_shortfall(ledger)
+    findings += delivery_shortfall(ledger, docs)
     findings += duplicate_invoice_suspect(docs)
     findings += exact_duplicate(docs)
     findings += cross_entity_duplicate(docs)

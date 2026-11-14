@@ -1,0 +1,4 @@
+# file: /w/satya_engine/recon/ledger.py
+# hypothesis_version: 6.142.4
+
+['0', 'ADJUSTMENT', 'ADVANCE_OUT', 'BILLS', 'CHALLAN_IN', 'CONFIRMED', 'CREDIT_NOTE_IN', 'DEMAND_NOTE', 'EWAY_BILL', 'FULFILS', 'GRN', 'GSTR_2B', 'INVOICE_IN', 'PAYMENT_OUT', 'PI_IN', 'PO', 'PO_AMENDMENT', 'QC', 'RECEIVES', 'REJECTION', 'RETURN', 'SETTLES', '__doc__', 'accepted', 'acceptedQty', 'adjustment', 'advance', 'advanceAdjusted', 'advanceAvailable', 'cancelled', 'credited', 'creditedValue', 'currency', 'date', 'delivered', 'disputed', 'docId', 'docType', 'invoiced', 'invoicedQty', 'invoicedValue', 'isoformat', 'kind', 'lineTotal', 'movement', 'observedAt', 'ordered', 'paid', 'paidValue', 'poId', 'poLineNo', 'proforma', 'qty', 'rate', 'received', 'rejected', 'rejectedQty', 'reported', 'returned', 'reversed', 'status', 'supplierId', 'uom']
