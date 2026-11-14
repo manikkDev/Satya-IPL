@@ -162,7 +162,7 @@ export class AiGateway {
           const classified = error?.classified || { kind: "transient", retryAfterMs: null };
           this.pool.recordError(pick.alias, model, classified, error?.httpStatus ?? null);
           this.meter?.record({ task, model, alias: pick.alias, failed: true });
-          console.warn(`[llm] ${task} stream fail alias=${pick.alias} model=${model} kind=${classified.kind}`);
+          console.warn(`[llm] ${task} stream fail alias=${pick.alias} model=${model} kind=${classified.kind}${classified.kind === "fatal" ? ` msg=${String(error?.message || "").slice(0, 300)}` : ""}`);
           if (emitted) return { ok: false, reason: "stream_interrupted" };
           if (classified.kind === "fatal") return { ok: false, reason: "bad_request", error: error.message };
           if (classified.kind === "model_missing") {

@@ -218,7 +218,7 @@ export function extractClaims(text, { identifiers = [] } = {}) {
 /* ------------------------------------------------------------- verifier */
 
 const ACTION_CLAIM =
-  /\b(?:i|we|satya)\s+(?:have\s+|has\s+|just\s+|already\s+)?(?:approved|paid|sent|emailed|mailed|released|transferred|updated|deleted|linked|held|blocked|rejected|reconciled|uploaded|confirmed|issued|created|filed|escalated|allocated|adjusted|scheduled|assigned|accepted)\b(?!\s+(?:you\s+)?(?:an?\s+|the\s+|this\s+|a\s+draft\s+)?(?:action\s+card|draft|proposal|card|suggestion|summary|table|list|plan))/i;
+  /\b(?:i|i've|satya|the assistant|we(?=\s+(?:have\s+)?(?:just|now|already)\b))\s+(?:have\s+|has\s+|just\s+|already\s+|now\s+)*(?:approved|paid|sent|emailed|mailed|released|transferred|updated|deleted|linked|held|blocked|rejected|reconciled|uploaded|confirmed|issued|created|filed|escalated|allocated|adjusted|scheduled|assigned|accepted)\b(?!\s+(?:you\s+)?(?:an?\s+|the\s+|this\s+|a\s+draft\s+)?(?:action\s+card|draft|proposal|card|suggestion|summary|table|list|plan))/i;
 const ACTION_PASSIVE =
   /\b(?:has|have)\s+(?:now\s+)?been\s+(?:approved|paid|sent|released|transferred|linked|held|blocked|rejected|reconciled|deleted|issued|created|filed|allocated|assigned|accepted)\s+(?:by me|by satya|by us|automatically|for you)\b/i;
 export const INJECTION_MARKERS = /\b(?:ignore (?:all |any )?(?:previous|prior|above) (?:instructions|rules)|disregard (?:the|your) (?:rules|instructions)|system prompt|you are now|new instructions|developer mode|act as (?:an? )?admin)\b/i;
