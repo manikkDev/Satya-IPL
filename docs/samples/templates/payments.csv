@@ -1,0 +1,2 @@
+Payment ref / voucher no *,Payment date *,Supplier GSTIN,Supplier name,Amount paid *,UTR / cheque no,Mode,Invoice number settled,Amount against this invoice,TDS deducted,TDS section
+PV/EXT/26-27/0311,14-11-2026,27AAKCS7741P1ZH,Sahyadri Seals & Gaskets Pvt Ltd,103958.00,HDFCN26318890045,NEFT,SSG/26-27/0587,103958.00,0.00,

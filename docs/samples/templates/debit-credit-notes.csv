@@ -1,0 +1,2 @@
+Note type *,Note number *,Note date *,Supplier GSTIN,Supplier name,Against invoice number,Line no,Item code,Description,HSN/SAC,Quantity,Unit,Rate,GST %,Taxable value,CGST,SGST/UTGST,IGST,Note total,Reason
+credit_note_in,SSG/CN/26-27/021,14-11-2026,27AAKCS7741P1ZH,Sahyadri Seals & Gaskets Pvt Ltd,SSG/26-27/0587,1,SEAL-CART-45,Cartridge mechanical seal 45 mm — rejected at QC,84842000,2,Nos,3200.00,18,6400.00,576.00,576.00,0.00,7552.00,2 seals rejected at incoming QC (GRN/26-27/0915)

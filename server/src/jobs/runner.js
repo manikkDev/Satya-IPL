@@ -95,5 +95,10 @@ export const startJobRunner = () => {
     }
     setTimeout(loop, delay).unref?.();
   };
-  loop();
+  // automatic checks (autocheck handler + daily scheduler) register before
+  // the first claim so their queued jobs never meet a missing handler
+  import("./automation.js")
+    .then((m) => m.startAutomation())
+    .catch((e) => console.error(`[jobs] automation not started: ${e.message}`))
+    .finally(loop);
 };

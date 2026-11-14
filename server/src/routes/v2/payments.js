@@ -4,10 +4,11 @@ import DocumentLink from "../../models/DocumentLink.js";
 import Decision from "../../models/Decision.js";
 import { enginePost } from "../../services/engine.js";
 import { writeAudit } from "../../services/audit.js";
-import { settledPaiseFor, PAYMENT_TYPES } from "../../services/settlement.js";
-import { enqueue } from "../../jobs/runner.js";
+import { PAYMENT_TYPES } from "../../services/settlement.js";
+import { openTargetsFor } from "../../services/allocation.js";
+import { scheduleAutoCheck } from "../../services/autoChecks.js";
 import { newId } from "../../lib/ids.js";
-import { toPaise, toPaiseOrNull, fromPaise, grandOf, allocatedOf } from "../../lib/money.js";
+import { toPaise, toPaiseOrNull, fromPaise, allocatedOf } from "../../lib/money.js";
 import { sodDeny } from "../../auth/sod.js";
 import { scopeAllows } from "../../auth/rbac.js";
 import { fail, handle, assertPlainInput } from "./util.js";
@@ -25,7 +26,7 @@ const allocStatus = (doc) => {
   return doc.payment?.utr ? "unallocated" : "needs_evidence"; // no UTR = can't match to a bank transfer at all
 };
 
-const LIST_FIELDS = { id: 1, type: 1, number: 1, date: 1, payment: 1, seller: 1, buyer: 1, provenance: 1, status: 1, externalRef: 1, entityId: 1 };
+const LIST_FIELDS = { id: 1, type: 1, number: 1, date: 1, payment: 1, seller: 1, buyer: 1, provenance: 1, status: 1, externalRef: 1, entityId: 1, "source.review": 1, "source.narration": 1, "source.channel": 1 };
 
 // GET /payments — worklist of PAYMENT/ADVANCE docs in the entities the user
 // can see, with derived allocation state. Page-based pagination + search +
@@ -58,6 +59,9 @@ router.get("/", handle(async (req, res) => {
     allocatedTotal: allocatedOf(d),
     allocations: (d.payment?.allocations || []).map((a) => ({ documentId: a.documentId, amount: a.amount, basis: a.basis })),
     provenance: d.provenance, statusDoc: d.status,
+    // bank imports: outcome of automatic allocation (auto_allocated | needs_review) + why
+    review: d.source?.review?.status || null, reviewReason: d.source?.review?.reason || null,
+    suggestionCount: (d.source?.review?.suggestions || []).length, narration: d.source?.narration || null,
   }));
   const filtered = status ? all.filter((i) => i.status === status) : all;
   const start = (page - 1) * pageSize;
@@ -71,42 +75,8 @@ const loadPayment = async (req, id) => {
   return doc;
 };
 
-// open (not fully settled) INVOICE_IN/OUT in the same entity + unapplied
-// credit notes, ranked so the engine's subset-sum cap (20 items, invoices +
-// credits together) gets the likeliest matches: same counterparty first, then
-// closest open amount. limit=Infinity returns every open target (validation).
-const openTargets = async (req, payment, limit = 20) => {
-  const direction = payment.type.endsWith("IN") ? "INVOICE_OUT" : "INVOICE_IN";
-  const [invoices, credits] = await Promise.all([
-    Document.find({ groupId: req.scope.groupId, entityId: payment.entityId, type: direction, status: { $in: ["issued", "posted"] } },
-      { id: 1, number: 1, date: 1, totals: 1, lines: 1, charges: 1, seller: 1, terms: 1 }).lean(),
-    Document.find({ groupId: req.scope.groupId, entityId: payment.entityId, type: { $in: ["CREDIT_NOTE_IN", "CREDIT_NOTE_OUT"] }, status: { $in: ["issued", "posted"] } },
-      { id: 1, date: 1, totals: 1 }).lean(),
-  ]);
-  const settled = await settledPaiseFor(req.scope.groupId, invoices.map((i) => i.id));
-  const applied = new Set((await DocumentLink.find({ groupId: req.scope.groupId, kind: "SETTLES", fromId: { $in: credits.map((c) => c.id) } }, { fromId: 1 }).lean()).map((l) => l.fromId));
-  const creditList = credits.filter((c) => !applied.has(c.id))
-    .map((c) => ({ id: c.id, amount: grandOf(c), date: c.date }))
-    .filter((c) => toPaise(c.amount) > 0n)
-    .slice(0, 10);
-  const payAmount = toPaise(payment.payment?.amount);
-  const cp = (payment.seller?.gstin || payment.seller?.supplierId || payment.seller?.name || "").toLowerCase();
-  const open = invoices.map((inv) => {
-    const openPaise = toPaise(grandOf(inv)) - (settled.get(inv.id) || 0n);
-    if (openPaise <= 0n) return null;
-    const sellerKey = (inv.seller?.gstin || inv.seller?.supplierId || inv.seller?.name || "").toLowerCase();
-    const gap = openPaise > payAmount ? openPaise - payAmount : payAmount - openPaise;
-    return {
-      id: inv.id, number: inv.number, date: inv.date, openAmount: fromPaise(openPaise),
-      seller: inv.seller?.name, dueDate: inv.terms?.dueDate || null,
-      _same: cp && sellerKey === cp ? 0 : 1, _gap: gap,
-    };
-  }).filter(Boolean)
-    .sort((a, b) => a._same - b._same || (a._gap < b._gap ? -1 : a._gap > b._gap ? 1 : 0))
-    .slice(0, Number.isFinite(limit) ? Math.max(0, limit - creditList.length) : undefined)
-    .map(({ _same, _gap, ...rest }) => rest);
-  return { openInvoices: open, credits: creditList };
-};
+// open (not fully settled) invoices + unapplied credits for the payment — see services/allocation.js
+const openTargets = (req, payment, limit = 20) => openTargetsFor(req.scope.groupId, payment, limit);
 
 // GET /payments/:id/allocate — engine subset-sum suggestions over open
 // invoices+credits for the same entity (04 P2-B6 workbench). Suggestions are
@@ -217,7 +187,8 @@ router.post("/:id/allocate", handle(async (req, res) => {
     target: { type: "document", id: payment.id, allocations: newRows, reason: String(reason).slice(0, 300) },
     statusCode: 200, ip: req.ip,
   });
-  if (payment.caseId) await enqueue("reconcile", { caseId: payment.caseId }, req.scope.groupId).catch(() => {});
+  // links changed: attach the payment to its invoices' PO cases and re-reconcile them
+  await scheduleAutoCheck({ groupId: req.scope.groupId, documentIds: [payment.id], reason: "payment:allocate" });
   res.json({ paymentId: payment.id, allocatedTotal: allocatedOf(updated), status: allocStatus(updated), revision: updated.revision });
 }));
 
