@@ -8,6 +8,8 @@ import { scopeAllows } from "../../auth/rbac.js";
 import { runExtraction } from "../../services/extract.js";
 import { gatewayPost } from "../../services/gateway.js";
 import { fail, handle, assertPlainInput } from "./util.js";
+import { ingestConfirmSchema } from "../../lib/docSchemas.js";
+import { toPaise, fromPaise, toDecimal } from "../../lib/money.js";
 
 const router = express.Router();
 const actor = (req) => req.user.v2id || String(req.user._id);
@@ -66,12 +68,28 @@ router.post("/drafts/:id/confirm", handle(async (req, res) => {
   if (draft.status === "confirmed") return res.json({ documentId: draft.confirmedDocumentId, status: "confirmed", idempotent: true });
   if (draft.status !== "needs_review") throw fail(409, "CONFLICT", `Draft is ${draft.status} — cannot confirm`);
 
+  if (!req.scope.entityIds.includes(draft.entityId)) throw fail(404, "NOT_FOUND", "Draft not found");
+
   const field = (name) => draft.fields?.[name]?.value ?? draft.fields?.[name];
   const type = draft.detectedType || field("type") || "INVOICE_IN";
-  const date = field("date") || new Date().toISOString().slice(0, 10);
+  // A posted document must be real: a number, a real date, sane lines, and
+  // totals that add up (grand = taxable + taxes + round-off within ₹1).
+  const checked = ingestConfirmSchema.safeParse({ type, number: field("number") ?? undefined, date: field("date") ?? undefined, lines: draft.lines || [], totals: field("totals") ?? undefined });
+  if (!checked.success) {
+    throw fail(422, "VALIDATION_FAILED", "Fix the highlighted fields before confirming", { fields: checked.error.issues.map((i) => ({ field: i.path.join("."), message: i.message })) });
+  }
+  const totals = checked.data.totals;
+  if (totals) {
+    const expected = toPaise(totals.taxable) + toPaise(totals.cgst) + toPaise(totals.sgst) + toPaise(totals.igst) + toPaise(totals.cess) + toPaise(totals.roundOff);
+    const diff = expected - toPaise(totals.grand);
+    if (diff > 100n || diff < -100n) {
+      throw fail(422, "VALIDATION_FAILED", `Totals don't add up: taxable + taxes + round-off = ₹${fromPaise(expected)} but grand total is ₹${fromPaise(toPaise(totals.grand))}`, { fields: [{ field: "totals.grand", message: "does not equal the sum of its parts" }] });
+    }
+  }
+  const { date, number } = checked.data;
   const doc = await Document.create({
     id: newId("doc"), groupId: draft.groupId, entityId: draft.entityId, type,
-    number: field("number") || null, externalRef: field("externalRef"),
+    number, externalRef: field("externalRef"),
     date, fy: fyOf(date),
     status: "posted", revision: 0,
     seller: field("seller") || { name: field("sellerName") || "Unknown supplier" },
@@ -80,7 +98,8 @@ router.post("/drafts/:id/confirm", handle(async (req, res) => {
     placeOfSupply: field("placeOfSupply"),
     currency: field("currency") || "INR",
     lines: draft.lines || [], charges: field("charges") || [],
-    totals: field("totals"), gst: field("gst"), terms: field("terms"),
+    totals: totals ? Object.fromEntries(Object.entries(totals).map(([k, v]) => [k, ["taxable", "cgst", "sgst", "igst", "cess", "roundOff", "grand"].includes(k) ? toDecimal(v) : v])) : undefined,
+    gst: field("gst"), terms: field("terms"),
     payment: field("payment"),
     source: { channel: draft.method === "einvoice_qr" ? "einvoice_json" : file_mime_channel(draft), fileId: draft.fileId, extractionDraftId: draft.id },
     provenance: "EXTRACTED_REVIEWED",
