@@ -14,8 +14,11 @@ const csv = (value) =>
  * embed (embeddings), summary (conversation memory — reuses understand ladder).
  */
 export function laddersFromEnv(env = process.env) {
-  const fallbackChat = ["gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite"];
-  const fallbackCheap = ["gemini-3.1-flash-lite", "gemini-2.5-flash-lite"];
+  // Nov 2026: gemini-2.5-flash / -flash-lite return 404 "no longer available
+  // to new users" on new projects; the 3.x flash-lite models answer in ~1-2 s
+  // and support function calling. Override per deploy with the env ladders.
+  const fallbackChat = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash"];
+  const fallbackCheap = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite"];
   const chat = csv(env.GEMINI_MODEL_LADDER_CHAT);
   const extract = csv(env.GEMINI_MODEL_LADDER_EXTRACT);
   const understand = csv(env.GEMINI_MODEL_LADDER_UNDERSTAND);

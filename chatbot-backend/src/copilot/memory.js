@@ -83,19 +83,44 @@ export class ConversationStore {
   }
 
   async list({ userId, groupId, limit = 25 }) {
+    const view = (c) => ({ id: c.id, title: c.title, createdAt: c.createdAt, updatedAt: c.updatedAt, messageCount: c.messageCount ?? (c.messages || []).length });
     if (this.col) {
       await this.ready;
-      return this.col
-        .find({ userId, groupId })
-        .project({ id: 1, title: 1, updatedAt: 1, "messages.0": 1 })
-        .sort({ updatedAt: -1 })
-        .limit(limit)
+      const rows = await this.col
+        .aggregate([
+          { $match: { userId, groupId } },
+          { $sort: { updatedAt: -1 } },
+          { $limit: limit },
+          { $project: { _id: 0, id: 1, title: 1, createdAt: 1, updatedAt: 1, messageCount: { $size: { $ifNull: ["$messages", []] } } } },
+        ])
         .toArray();
+      return rows.map(view);
     }
     return [...this.mem.values()]
       .filter((c) => c.userId === userId && c.groupId === groupId)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .slice(0, limit);
+      .slice(0, limit)
+      .map(view);
+  }
+
+  /** Record the outcome of a confirmed/cancelled action card on its message. */
+  async setActionResult(id, { userId, groupId }, actionId, result) {
+    const conv = await this.get(id, { userId, groupId });
+    if (!conv) return null;
+    let found = false;
+    for (const m of conv.messages || []) {
+      for (const a of m.actions || []) {
+        if (a.id === actionId) {
+          a.status = result.status;
+          a.result = result;
+          found = true;
+        }
+      }
+    }
+    if (!found) return null;
+    if (this.col) await this.col.updateOne({ id, userId, groupId }, { $set: { messages: conv.messages, updatedAt: new Date().toISOString() } });
+    else this.mem.set(id, conv);
+    return result;
   }
 
   async remove(id, { userId, groupId }) {
@@ -113,6 +138,7 @@ export function workingMemory(conversation) {
     summary: conversation?.summary || "",
     turns: messages.slice(-VERBATIM_TURNS).map((m) => ({ role: m.role, content: String(m.content).slice(0, 1200) })),
     focusEntities: conversation?.focusEntities || {},
+    lastIntent: conversation?.lastIntent || null,
   };
 }
 

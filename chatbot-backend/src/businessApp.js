@@ -28,7 +28,7 @@ app.use(express.json({ limit: "64kb" }));
 app.use("/api/chat", rateLimit({ max: config.RATE_LIMIT_COPILOT_PER_MIN, keyFn: userKey, message: "Copilot is busy — retry in a moment" }), businessRouter);
 app.use("/api/v2/copilot", copilotRouter);
 app.use("/api/v2/ai/usage", rateLimit({ max: config.RATE_LIMIT_V2_PER_MIN, keyFn: userKey }), aiUsageRouter);
-app.get("/health", (_req, res) => res.json({ ok: true, service: "satya-ai-gateway", llm: llmHealth().llm, retrieval: "authorized_business_tools_and_neo4j", narration: "deterministic_evidence", externalDocumentLLM: false }));
+app.get("/health", (_req, res) => res.json({ ok: true, service: "satya-ai-gateway", llm: llmHealth().llm, retrieval: "authorized_business_tools_and_neo4j", narration: "tool_calling_agent_grounded", externalDocumentLLM: false }));
 app.get("/ready", (_req, res) => {
   const health = llmHealth();
   res.json({ ok: true, service: "satya-ai-gateway", llm: health.llm, keys: health.keys ?? 0 });
