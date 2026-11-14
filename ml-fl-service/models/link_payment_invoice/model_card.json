@@ -1,0 +1,155 @@
+{
+ "id": "link_payment_invoice",
+ "task": "link_payment_invoice",
+ "kind": "SETTLES",
+ "title": "Payment \u2192 invoice linker",
+ "version": "link_payment_invoice-20261114",
+ "trainedAt": "2026-11-14T17:50:43+00:00",
+ "algorithm": "xgboost",
+ "modelFile": "model.json",
+ "featureKeys": [
+  "gstin_agree",
+  "pan_agree",
+  "name_sim",
+  "ref_sim",
+  "ref_exact",
+  "date_gap",
+  "date_gap_abs_log",
+  "date_order_violation",
+  "amt_exact",
+  "amt_tds",
+  "amt_bank_charge",
+  "amt_ratio_log",
+  "amt_partial",
+  "amt_over",
+  "due_gap_abs_log",
+  "combo_member",
+  "same_amount_cands",
+  "amount_rank",
+  "n_cands_log",
+  "prescore_rank",
+  "date_rank",
+  "best_competitor_gap"
+ ],
+ "calibrator": {
+  "method": "platt",
+  "a": 1.235482839573382,
+  "b": 0.30021581933468383
+ },
+ "thresholds": {
+  "review": 0.0550649436341557,
+  "margin": 0.1,
+  "auto": 0.7676544245040893
+ },
+ "operatingPoint": {
+  "threshold": 0.7676544245040893,
+  "reviewThreshold": 0.0550649436341557,
+  "ambiguityMargin": 0.1,
+  "targetPrecision": 0.99,
+  "delta": 0.05,
+  "method": "Learn-then-Test conformal risk control (fixed-sequence exact binomial tests) on the calibration split; review threshold = split-conformal 2% quantile of true-link scores, floored at 0.05 to bound reviewer load"
+ },
+ "baseline": {
+  "algorithm": "logistic_regression",
+  "metrics": {
+   "precision": 0.9931600547195623,
+   "recall": 0.4820717131474104,
+   "f1": 0.6490835940992401,
+   "prAuc": 0.9082371602322434,
+   "rocAuc": 0.9727047295451454,
+   "brier": 0.029040277311343694,
+   "ece": 0.009720078279944281,
+   "autoRate": 0.7523
+  }
+ },
+ "data": {
+  "sources": [
+   {
+    "name": "synthetic",
+    "provenance": "synthetic \u2014 seeded generator (satya_engine.linking.datasets.synthetic); upper bound / regression test only",
+    "pairs": 46837,
+    "positives": 5232,
+    "groups": 40
+   },
+   {
+    "name": "bpi2019",
+    "provenance": "BPI-2019 derived \u2014 real P2P transaction structure from the BPI Challenge 2019 log (van Dongen, 4TU, CC BY 4.0); synthetic Indian identities, numbers, GST/TDS",
+    "pairs": 42715,
+    "positives": 6542,
+    "groups": 65
+   },
+   {
+    "name": "demo",
+    "provenance": "demo \u2014 Satya curated demo dataset (CONSTRUCTED_DEMO), held out from all fitting; sanity check only",
+    "pairs": 62,
+    "positives": 25,
+    "groups": 1
+   }
+  ],
+  "splits": {
+   "train": {
+    "pairs": 41715,
+    "groups": 52,
+    "positives": 5531
+   },
+   "valid": {
+    "pairs": 13644,
+    "groups": 16,
+    "positives": 1617
+   },
+   "calib": {
+    "pairs": 14359,
+    "groups": 16,
+    "positives": 2090
+   },
+   "test": {
+    "pairs": 19834,
+    "groups": 21,
+    "positives": 2536
+   },
+   "holdout": {
+    "pairs": 62,
+    "groups": 1,
+    "positives": 25
+   }
+  },
+  "splitPolicy": "group-disjoint by buyer world: train 50% / valid 15% / calib 15% / test 20%; demo held out"
+ },
+ "metrics": {
+  "precision": 0.9878744650499287,
+  "recall": 0.4598273572377158,
+  "f1": 0.6275487086542818,
+  "prAuc": 0.93450107004362,
+  "rocAuc": 0.9838059655152417,
+  "brier": 0.026281620808533298,
+  "ece": 0.010177011856031497,
+  "eceEqualMass": 0.009405358429877754,
+  "ci": {
+   "precision": [
+    0.9772,
+    0.9949
+   ],
+   "recall": [
+    0.4201,
+    0.6698
+   ]
+  },
+  "autoRate": 0.741,
+  "suggestRecall": 0.6404,
+  "precisionWilson": [
+   0.9807,
+   0.9924
+  ]
+ },
+ "explanations": "TreeSHAP",
+ "limitations": [
+  "No real customer data: every number here is synthetic, BPI-2019-derived (real structure, synthetic identities) or curated-demo. None of it is a real-company accuracy claim.",
+  "The \u226599% auto-link precision guarantee (Learn-then-Test) holds only if deployment data are exchangeable with the calibration data; on a real tenant it must be re-certified on that tenant's reviewed links (shadow mode + audit slice).",
+  "Printed references (PO numbers on invoices, invoice numbers in narrations) are simulated at fixed rates; real rates vary by supplier and change performance a lot.",
+  "BPI-2019 quantities, rates, GST and TDS are synthesised from real net worth; descriptions are spend-area texts (low diversity).",
+  "The demo hold-out is one small curated world (tens of links); its numbers have very wide uncertainty.",
+  "Decisions are per from-document (invoice/GRN) and per pair (payment); one invoice billing several POs is not modelled."
+ ],
+ "intendedUse": "Propose evidence links between AP documents that lack explicit references. Auto-zone links are written as PROBABLE (never CONFIRMED) and stay reversible; review-zone links go to a person. Not for payment release decisions on its own; not validated on real company data.",
+ "selection": "highest validation PR-AUC among deployable models (logistic, XGBoost), calibrated-Brier tie-break; HistGradientBoosting is a non-deployable challenger (no exact per-decision attributions)"
+}
