@@ -9,6 +9,7 @@ import { enginePost } from "./engine.js";
 import { ensurePolicy } from "./policies.js";
 import { projectGraph } from "./graphProjection.js";
 import { toEngineInputs } from "./engineProjection.js";
+import { supplementalFindings, mergeFindings } from "./dateRules.js";
 
 const LIVE = { $nin: ["cancelled", "draft"] };
 // link kinds that make the source document part of the target's chain
@@ -48,7 +49,7 @@ export const collectCaseInputs = async (kase) => {
 
   for (let hop = 0; hop < MAX_HOPS && frontier.length && byId.size < MAX_DOCS; hop++) {
     const known = [...byId.keys()];
-    const [referencing, chainLinks] = await Promise.all([
+    const [referencing, chainLinks, reported] = await Promise.all([
       Document.find({
         groupId, id: { $nin: known }, status: LIVE,
         $or: [
@@ -63,10 +64,12 @@ export const collectCaseInputs = async (kase) => {
         ],
       }).limit(MAX_DOCS).lean(),
       DocumentLink.find({ groupId, toId: { $in: frontier }, kind: { $in: CHAIN_LINK_KINDS } }, { fromId: 1 }).lean(),
+      // GSTR-2B entries the case's invoices were matched to (invoice REPORTED_IN entry)
+      DocumentLink.find({ groupId, fromId: { $in: frontier }, kind: "REPORTED_IN" }, { toId: 1 }).lean(),
     ]);
     const next = [];
     for (const d of referencing) if (!byId.has(d.id)) { byId.set(d.id, d); next.push(d.id); }
-    const linkedIds = [...new Set(chainLinks.map((l) => l.fromId))].filter((id) => !byId.has(id));
+    const linkedIds = [...new Set([...chainLinks.map((l) => l.fromId), ...reported.map((l) => l.toId)])].filter((id) => !byId.has(id));
     if (linkedIds.length) {
       const linked = await Document.find({ groupId, id: { $in: linkedIds }, status: LIVE }).lean();
       for (const d of linked) if (!byId.has(d.id)) { byId.set(d.id, d); next.push(d.id); }
@@ -161,6 +164,22 @@ export const persistFindings = async (kase, snapshotId, engineFindings) => {
 
 const toEntityPolicy = (_p, kase) => ({ entityId: kase.entityId });
 
+// The engine's GSTR-2B check pairs entries with invoices by (seller name,
+// number). A 2B entry carries the supplier's GSTIN and the number as the
+// supplier filed it, so a matched entry is presented to the engine under its
+// invoice's seller name and number (the stored document is not changed).
+export const aliasGstr2bForEngine = (documents, links) => {
+  const byId = new Map(documents.map((d) => [d.id, d]));
+  const invoiceFor = new Map();
+  for (const l of links) if (l.kind === "REPORTED_IN" && byId.get(l.fromId)?.type === "INVOICE_IN") invoiceFor.set(l.toId, byId.get(l.fromId));
+  return documents.map((d) => {
+    if (d.type !== "GSTR2B_ENTRY") return d;
+    const inv = invoiceFor.get(d.id);
+    if (!inv) return d;
+    return { ...d, number: inv.number || d.number, seller: { ...(d.seller || {}), name: inv.seller?.name || d.seller?.name } };
+  });
+};
+
 export const runReconcile = async (payload, job) => {
   const { caseId, scenario } = payload;
   const kase = await Case.findOne({ id: caseId, ...(job?.groupId ? { groupId: job.groupId } : {}) });
@@ -177,7 +196,7 @@ export const runReconcile = async (payload, job) => {
       links.push(...fresh);
     }
   }
-  const engineInput = toEngineInputs(documents, links);
+  const engineInput = toEngineInputs(aliasGstr2bForEngine(documents, links), links);
   if (!engineInput.documents.length) {
     throw Object.assign(new Error(`No documents in case ${caseId} satisfy the engine contract (${engineInput.skipped.length} skipped)`), { status: 422 });
   }
@@ -187,6 +206,17 @@ export const runReconcile = async (payload, job) => {
     documents: engineInput.documents, links: engineInput.links, reviews: payload.reviews || {},
     ...(scenario ? { scenario } : {}),
   }, { timeoutMs: 60000 });
+
+  // date-sensitive and GSTR-2B checks evaluated by the server at today's
+  // date, merged into the engine's findings (what-if scenarios stay engine-only)
+  if (!scenario) {
+    try {
+      const extra = await supplementalFindings({ groupId: kase.groupId, documents });
+      result.findings = mergeFindings(result.findings, extra, documents);
+    } catch (e) {
+      console.warn(`[reconcile] date rules skipped for ${caseId}: ${e.message}`);
+    }
+  }
 
   const snapshot = await Snapshot.findOneAndUpdate(
     { groupId: kase.groupId, id: result.snapshotId || `snp_${job.id}` },

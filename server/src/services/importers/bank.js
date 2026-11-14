@@ -161,6 +161,9 @@ export const readBankRows = (rows, layout) => {
     const rawDate = cell(r, "date");
     // footer lines ("Opening balance", "*** End of statement") have no date
     if (!rawDate || /^(\*|opening|closing|total|statement|page|generated)/i.test(rawDate)) continue;
+    // summary/footer rows carry balances or counts in the date column — only
+    // something shaped like a date is a transaction line
+    if (!/^\d{1,4}[-/.\s]([A-Za-z]{3,9}|\d{1,2})[-/.\s,]*\d{2,4}|^\d{8}$|^\d{5}(\.\d+)?$/.test(rawDate)) continue;
     const date = parseDate(rawDate);
     if (!date) { issues.push({ line: fileLine, field: "date", severity: "error", message: `Could not read date "${rawDate}"` }); continue; }
     let amount = null;
