@@ -26,7 +26,7 @@ function ChartFrame({ title, desc, children, table, readout }: { title: string; 
       <p className="mt-1 min-h-5 text-[12.5px] text-[var(--ink-2)] tnum" aria-live="polite">{readout}</p>
       <details className="mt-2 text-[13px]">
         <summary className="cursor-pointer text-[var(--accent)]">Show data table</summary>
-        <div className="mt-2 overflow-x-auto">{table}</div>
+        <div className="relative mt-2 overflow-x-auto">{table}</div>
       </details>
     </figure>
   );
@@ -87,7 +87,7 @@ export function ReliabilityDiagram({ bins }: { bins: ReliabilityBin[] }) {
         <line x1={L} y1={T} x2={L} y2={H - B} style={AXIS} />
         <line x1={L} y1={H - B} x2={W - R} y2={H - B} style={AXIS} />
         <line x1={x(0)} y1={y(0)} x2={x(1)} y2={y(1)} style={{ stroke: "var(--muted)", strokeWidth: 1.25, strokeDasharray: "4 4" }} />
-        <text x={x(0.98)} y={y(0.98) + 14} textAnchor="end" style={{ ...TEXT, fontSize: 10 }}>perfect calibration</text>
+        <text x={x(1) - 4} y={y(0) - 8} textAnchor="end" style={{ ...TEXT, fontSize: 10 }}>dashed line = perfect calibration</text>
         <path d={path} fill="none" style={{ stroke: "var(--accent)", strokeWidth: 2 }} strokeLinejoin="round" />
         {sorted.map((b, i) => {
           const r = 4 + 5 * Math.sqrt(b.count / maxCount);
@@ -134,7 +134,10 @@ export function CoverageCurve({ points, threshold }: { points: CoveragePoint[]; 
   const readout = h
     ? `Threshold ${dec(h.threshold, 2)}: auto-handles ${pct(h.coverage)} of pairs at ${pct(h.precision)} precision`
     : op ? `Operating point: threshold ${dec(op.threshold, 2)} → ${pct(op.coverage)} coverage at ${pct(op.precision)} precision` : "Hover or focus a point for its values.";
-  const yTicks = Array.from({ length: 5 }, (_, i) => yLo + ((1 - yLo) * i) / 4);
+  const span = 1 - yLo;
+  const step = span > 0.3 ? 0.1 : span > 0.12 ? 0.05 : 0.025;
+  const yTicks: number[] = [];
+  for (let t = 1; t >= yLo - 1e-9; t -= step) yTicks.push(Math.round(t * 1000) / 1000);
   return (
     <ChartFrame
       title="Coverage vs precision"
@@ -147,7 +150,7 @@ export function CoverageCurve({ points, threshold }: { points: CoveragePoint[]; 
         {yTicks.map((t) => (
           <g key={t}>
             <line x1={L} x2={W - R} y1={y(t)} y2={y(t)} style={GRID} />
-            <text x={L - 6} y={y(t) + 3.5} textAnchor="end" style={TEXT}>{(t * 100).toFixed(t === 1 ? 0 : 1)}%</text>
+            <text x={L - 6} y={y(t) + 3.5} textAnchor="end" style={TEXT}>{Number((t * 100).toFixed(1))}%</text>
           </g>
         ))}
         {[0, 0.25, 0.5, 0.75, 1].map((t) => (
@@ -280,7 +283,7 @@ export function BaselineCompare({ rows, modelLabel, baselineLabel }: { rows: { l
       </div>
       <details className="mt-3 text-[13px]">
         <summary className="cursor-pointer text-[var(--accent)]">Show data table</summary>
-        <div className="mt-2 overflow-x-auto">
+        <div className="relative mt-2 overflow-x-auto">
           <MiniTable head={["Metric", modelLabel, baselineLabel]} rows={shown.map((r) => [r.label, dec(r.model), dec(r.baseline)])} />
         </div>
       </details>

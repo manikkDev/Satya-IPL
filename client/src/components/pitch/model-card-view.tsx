@@ -89,6 +89,20 @@ export function ProvenanceBadge({ p, raw }: { p: Provenance; raw?: string }) {
   );
 }
 
+const TASK_PHRASE: Record<string, string> = {
+  invoice_po_line: "links an invoice line to a PO line",
+  invoice_po: "links an invoice to a purchase order",
+  invoice_grn_line: "links an invoice line to a goods-receipt line",
+  grn_po_line: "links a goods receipt to a PO line",
+  payment_invoice: "links a payment to an invoice",
+  supplier_supplier: "says two supplier records are the same supplier",
+};
+
+function taskSentence(m: MatchModel) {
+  const phrase = (m.task && TASK_PHRASE[m.task]) || `makes a link with the ${m.title}`;
+  return `When Satya automatically ${phrase}`;
+}
+
 const isRealCustomer = (p: Provenance) => p === "backtest" || p === "shadow" || p === "live";
 
 function fmtDate(v?: string) {
@@ -143,7 +157,7 @@ function ModelSection({ m }: { m: MatchModel }) {
       <Box className="border-l-[3px] border-l-[var(--accent)]">
         {m.metrics.precision !== undefined ? (
           <p className="max-w-[72ch] text-[17px] leading-[1.6] text-[var(--ink)]">
-            When Satya auto-links ({m.task ? m.task.replaceAll("_", " ") : "this task"}), it was right{" "}
+            {taskSentence(m)}, it was right{" "}
             <strong className="font-semibold">{pct(m.metrics.precision)}</strong> of the time
             {m.metrics.ci?.precision ? <> (95% CI {pct(m.metrics.ci.precision[0])}–{pct(m.metrics.ci.precision[1])})</> : null}
             {testPairs ? <> on {testPairs.toLocaleString("en-IN")} held-out test pairs</> : null}
@@ -155,7 +169,7 @@ function ModelSection({ m }: { m: MatchModel }) {
         )}
         {!anyReal ? (
           <p className="mt-3 max-w-[72ch] text-sm leading-relaxed text-[var(--possible)]">
-            Measured on {provs.map((p) => PROVENANCE[p].label.toLowerCase()).join(" and ") || "unlabelled"} data only. This is not real-customer
+            Measured on {provs.map((p) => PROVENANCE[p].label).join(" + ") || "unlabelled"} data only. This is not real-customer
             accuracy. Real-world performance is unknown until a pilot backtest.
           </p>
         ) : null}
@@ -236,7 +250,7 @@ function ModelSection({ m }: { m: MatchModel }) {
       <Box>
         <h3 className="text-sm font-semibold text-[var(--ink)]">Data sources and splits</h3>
         {m.sources.length ? (
-          <div className="mt-3 overflow-x-auto">
+          <div className="relative mt-3 overflow-x-auto">
             <table className="w-full min-w-[460px] border-collapse text-left text-sm">
               <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]"><th scope="col" className="py-2 pr-3 font-medium">Source</th><th scope="col" className="py-2 pr-3 font-medium">Provenance</th><th scope="col" className="py-2 pr-3 text-right font-medium">Pairs</th><th scope="col" className="py-2 text-right font-medium">Groups</th></tr></thead>
               <tbody>
@@ -259,7 +273,7 @@ function ModelSection({ m }: { m: MatchModel }) {
         <Box>
           <h3 className="text-sm font-semibold text-[var(--ink)]">By data source</h3>
           <p className="mt-1 text-[13px] text-[var(--muted)]">Blended numbers hide the hard cases, so each source is reported separately.</p>
-          <div className="mt-3 overflow-x-auto">
+          <div className="relative mt-3 overflow-x-auto">
             <table className="w-full min-w-[560px] border-collapse text-left text-sm tnum">
               <thead><tr className="border-b border-[var(--line)] text-xs text-[var(--muted)]">{["Source", "Provenance", "n", "Precision", "Recall", "F1", "PR-AUC"].map((h) => <th key={h} scope="col" className="py-2 pr-3 font-medium">{h}</th>)}</tr></thead>
               <tbody>

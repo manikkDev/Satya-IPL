@@ -207,7 +207,7 @@ export function DataTable({
   minWidth?: number;
 }) {
   return (
-    <div className="overflow-x-auto rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)]" tabIndex={0} role="region" aria-label={caption ?? "Table"}>
+    <div className="relative overflow-x-auto rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)]" tabIndex={0} role="region" aria-label={caption ?? "Table"}>
       <table className="w-full border-collapse text-left text-[14.5px]" style={{ minWidth }}>
         {caption ? <caption className="sr-only">{caption}</caption> : null}
         <thead>
