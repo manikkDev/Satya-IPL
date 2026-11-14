@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from .ledger import build_ledger
 from .detectors.core import run_all
+from ..screening import run_screening
 from ..contracts_v2 import BusinessDocument, DocumentLink, Reviews
 from ..india.hsn_master import HsnMaster
 
@@ -168,6 +169,10 @@ def reconcile_case(request):
     findings = [f for f in run_all(ledger, docs, links,
                                    policy=request.entityPolicy, master=_master())
                 if f["code"] not in suppressed]
+    # anomaly screening: low/medium POSSIBLE signals that rank attention but
+    # never drive the recommendation (they cannot hold a payment on their own)
+    findings += [f for f in run_screening(docs, links) if f["code"] not in suppressed]
+    blocking = [f for f in findings if not f["code"].startswith("SCREEN_")]
     ambiguities = _ambiguities(docs, links)
     # Content-addressed: a revised document (new allocation, corrected qty)
     # under the same id must yield a NEW snapshot, otherwise callers that
@@ -185,6 +190,6 @@ def reconcile_case(request):
         "findings": findings,
         "graph": _graph(docs, links, findings),
         "ambiguities": ambiguities,
-        "recommendation": {"action": "REVIEW" if findings else "APPROVE", "scope": "case",
-                           "reasons": [f["code"] for f in findings[:5]]},
+        "recommendation": {"action": "REVIEW" if blocking else "APPROVE", "scope": "case",
+                           "reasons": [f["code"] for f in blocking[:5]]},
     }

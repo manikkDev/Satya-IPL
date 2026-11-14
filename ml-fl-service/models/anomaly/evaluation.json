@@ -1,0 +1,47 @@
+{
+ "generatedAt": "2026-11-14T18:04:45+00:00",
+ "task": "anomaly_screening",
+ "provenance": "synthetic (injected typologies)",
+ "typologies": [
+  {
+   "code": "SCREEN_PRICE_OUTLIER",
+   "recall": 0.5417,
+   "precisionAtFlags": 1.0,
+   "precisionWilson95": [
+    0.7719,
+    1.0
+   ],
+   "flags": 13,
+   "injected": 24
+  },
+  {
+   "code": "SCREEN_BELOW_APPROVAL_LIMIT",
+   "recall": 1.0,
+   "precisionAtFlags": 0.9756,
+   "precisionWilson95": [
+    0.874,
+    0.9957
+   ],
+   "flags": 41,
+   "injected": 103
+  },
+  {
+   "code": "SCREEN_NEW_BANK_ACCOUNT_PAYMENT",
+   "recall": 1.0,
+   "precisionAtFlags": 1.0,
+   "precisionWilson95": [
+    0.8389,
+    1.0
+   ],
+   "flags": 20,
+   "injected": 20
+  }
+ ],
+ "cleanWorldFlagsPer1000Docs": 0.0,
+ "policy": "screening findings are severity low/medium, certainty POSSIBLE, and never change the case recommendation",
+ "limitations": [
+  "Injected typologies only; real fraud is rarer, adaptive and unlabelled",
+  "Benford screen needs >= 60 amounts per supplier-FY and is not evaluated per invoice",
+  "Precision depends on the injection prevalence chosen here"
+ ]
+}
