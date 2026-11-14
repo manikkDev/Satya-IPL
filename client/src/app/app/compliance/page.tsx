@@ -85,7 +85,7 @@ function ComplianceInner() {
       />
 
       <section aria-label="Checks overview">
-        {allLoading ? <CardGridSkeleton count={6} className="grid-cols-2 sm:grid-cols-2" /> : <CheckCards selected={selected} onSelect={select} summaries={summaries} />}
+        {allLoading ? <CardGridSkeleton count={6} /> : <CheckCards selected={selected} onSelect={select} summaries={summaries} />}
       </section>
 
       <section

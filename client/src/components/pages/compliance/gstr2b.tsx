@@ -69,6 +69,8 @@ export function Gstr2bPanel({ onView }: { onView: (id: string) => void }) {
     r.kind === "books" ? { tone: "critical", label: "Not in your books" }
       : r.kind === "mismatch" ? { tone: "warn", label: "Values differ" }
         : estimated ? { tone: "info", label: "May be missing" } : { tone: "warn", label: "Not in GSTR-2B" };
+  // Suspected rows carry no statement period: show the month they were billed.
+  const periodOf = (r: G2bRow) => r.period ?? (estimated && r.date ? r.date.slice(0, 7) : currentPeriod);
   const atStake = (r: G2bRow) => (r.kind === "mismatch" ? r.taxDifference ?? r.difference : r.tax);
 
   const draftFor = (r: G2bRow): ReminderDraft => ({
@@ -97,7 +99,7 @@ export function Gstr2bPanel({ onView }: { onView: (id: string) => void }) {
   const openImport = () => { setImportPeriod(currentPeriod); setImportOpen(true); };
 
   const doExport = (list: G2bRow[]) => exportCsv("gstr2b-match", ["Invoice", "Invoice date", "Supplier", "Period", "Invoice value", "GST at stake", "Reported value", "Status"],
-    list.map((r) => [r.invoice, r.date ?? "", r.supplier, r.period ?? currentPeriod, csvMoney(r.amount), csvMoney(atStake(r)), csvMoney(r.reportedValue), statusOf(r).label]));
+    list.map((r) => [r.invoice, r.date ?? "", r.supplier, periodOf(r), csvMoney(r.amount), csvMoney(atStake(r)), csvMoney(r.reportedValue), statusOf(r).label]));
 
   const columns: Column<G2bRow>[] = [
     {
@@ -110,7 +112,7 @@ export function Gstr2bPanel({ onView }: { onView: (id: string) => void }) {
       ),
     },
     { key: "supplier", header: "Supplier", width: "min-w-[150px]", cell: (r) => <span className="line-clamp-2 text-[var(--ink)]">{r.supplier}</span> },
-    { key: "period", header: "Period", cell: (r) => periodLabel(r.period ?? currentPeriod) },
+    { key: "period", header: "Period", cell: (r) => <span className="whitespace-nowrap">{periodLabel(periodOf(r))}</span> },
     {
       key: "amount", header: "Invoice value", align: "right",
       cell: (r) => (

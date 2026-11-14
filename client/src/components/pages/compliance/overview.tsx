@@ -183,7 +183,7 @@ export function CheckCards({
     onSelect(CHECKS[next].id);
   };
   return (
-    <div role="tablist" aria-label="Compliance checks" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
+    <div role="tablist" aria-label="Compliance checks" className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
       {CHECKS.map((check, i) => {
         const entry = summaries[check.id];
         const s = entry?.summary;
@@ -209,13 +209,11 @@ export function CheckCards({
                 : "border-[var(--line)] hover:border-[var(--line-strong)] hover:shadow-[var(--shadow-2)]",
             )}
           >
-            <span className="flex items-start justify-between gap-2">
+            <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <span className="flex min-w-0 items-center gap-2">
-                <Icon size={17} className={cn("hidden shrink-0 sm:block", active ? "text-[var(--accent)]" : "text-[var(--muted)]")} aria-hidden="true" />
+                <Icon size={17} className={cn("shrink-0", active ? "text-[var(--accent)]" : "text-[var(--muted)]")} aria-hidden="true" />
                 <span className="text-[15px] font-semibold leading-snug text-[var(--ink)]">{check.name}</span>
               </span>
-            </span>
-            <span className="mt-2.5 min-h-[26px]">
               {entry?.loading ? (
                 <Skeleton className="h-6 w-28 rounded-full" />
               ) : entry?.error ? (
@@ -230,8 +228,8 @@ export function CheckCards({
                 <Skeleton className="h-4 w-24" />
               </span>
             ) : s ? (
-              <span className="mt-3 block space-y-1">
-                <span className="block text-[14px] leading-snug text-[var(--ink-2)] sm:text-[15px]">{s.countLabel}</span>
+              <span className="mt-2.5 block space-y-1 sm:mt-3">
+                <span className="block text-[15px] leading-snug text-[var(--ink-2)]">{s.countLabel}</span>
                 {s.atStake ? (
                   <span className="block text-[14px] leading-snug text-[var(--muted)]">
                     <span className="tnum font-semibold text-[var(--ink)]">{formatMoneyCompact(s.atStake)}</span> {s.atStakeLabel}

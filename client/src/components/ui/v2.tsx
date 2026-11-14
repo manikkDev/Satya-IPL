@@ -1254,7 +1254,7 @@ export function ResponsiveTable<T>({
                       .map((c) => (
                         <div key={c.key} className="min-w-0">
                           <dt className="text-[13px] text-[var(--muted)]">{labelOf(c)}</dt>
-                          <dd className={cn("mt-0.5 min-w-0 break-words text-[15px] text-[var(--ink-2)]", c.align === "right" && "tnum")}>{c.cell(row)}</dd>
+                          <dd className={cn("mt-0.5 min-w-0 break-words text-[15px] text-[var(--ink-2)]", c.align === "right" && "tnum [&>.items-end]:items-start")}>{c.cell(row)}</dd>
                         </div>
                       ))}
                   </dl>
