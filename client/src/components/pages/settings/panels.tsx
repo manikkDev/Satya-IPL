@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, MapPin, BadgeCheck, ShieldCheck, UserRound, Hash, Stamp, Sparkles, RotateCcw, ArrowUpRight, Users, Package, Info } from "lucide-react";
+import { Building2, MapPin, BadgeCheck, ShieldCheck, UserRound, Hash, Stamp, ScanText, RotateCcw, ArrowUpRight, Users, Package, Info } from "lucide-react";
 import { toast } from "sonner";
 import { v2 } from "@/lib/api/v2";
 import { accountApi, policyApi, readLocal, writeLocal, AI_NOTICE_KEY, todayIst, fyOfDate, type EntityRecord } from "@/lib/api/v2-pages";
@@ -179,7 +179,14 @@ export function PeoplePanel() {
           Makers can’t also be checkers: whoever prepares an order, bank change or payment release needs a colleague to approve it.
         </p>
       </Card>
-      <ReadOnlyNote>Inviting people and changing roles is done by your Satya administrator.</ReadOnlyNote>
+      {perms.includes("user.manage") || (me.permissions["*"] ?? []).includes("user.manage") ? (
+        <Card>
+          <CardTitle icon={Users} description="Invite colleagues by email and choose what each person can do. They get a one-time join link.">Your team</CardTitle>
+          <LinkBtn href="/app/setup#team" variant="primary" icon={Users}>Invite people</LinkBtn>
+        </Card>
+      ) : (
+        <ReadOnlyNote>Inviting people and changing roles is done by your Satya administrator.</ReadOnlyNote>
+      )}
     </div>
   );
 }
@@ -222,7 +229,7 @@ export function NumberingPanel() {
           <div className="table-scroll">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-y border-[var(--line)] bg-[var(--surface-2)]/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">
+                <tr className="border-y border-[var(--line)] bg-[var(--surface-2)]/60 text-[13px] font-semibold text-[var(--muted)]">
                   <th scope="col" className="px-5 py-2.5 text-left">Document</th>
                   <th scope="col" className="px-5 py-2.5 text-left">Pattern</th>
                   <th scope="col" className="px-5 py-2.5 text-left">Next number</th>
@@ -248,7 +255,7 @@ export function NumberingPanel() {
           <div className="table-scroll">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-y border-[var(--line)] bg-[var(--surface-2)]/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">
+                <tr className="border-y border-[var(--line)] bg-[var(--surface-2)]/60 text-[13px] font-semibold text-[var(--muted)]">
                   <th scope="col" className="px-5 py-2.5 text-left">Document</th>
                   <th scope="col" className="px-5 py-2.5 text-right">Up to</th>
                   <th scope="col" className="px-5 py-2.5 text-left">Roles</th>
@@ -279,7 +286,7 @@ export function AiPanel() {
   useEffect(() => setAck(readLocal(AI_NOTICE_KEY) === "1"), []);
   return (
     <Card className="max-w-2xl">
-      <CardTitle icon={Sparkles}>AI reading of documents</CardTitle>
+      <CardTitle icon={ScanText}>AI reading of documents</CardTitle>
       <p className="text-sm leading-relaxed text-[var(--ink-2)]">
         Scans and photos are read by an external AI service. On the demo plan that is Google Gemini’s free tier, where inputs
         may be used to improve Google’s products — upload sample documents, or only documents your company has agreed to share
@@ -358,7 +365,7 @@ export function ItemsPanel() {
       <div className="table-scroll">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[var(--line)] bg-[var(--surface-2)]/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">
+            <tr className="border-b border-[var(--line)] bg-[var(--surface-2)]/60 text-[13px] font-semibold text-[var(--muted)]">
               <th scope="col" className="px-4 py-2.5 text-left">Code</th>
               <th scope="col" className="px-4 py-2.5 text-left">Description</th>
               <th scope="col" className="px-4 py-2.5 text-left">HSN</th>

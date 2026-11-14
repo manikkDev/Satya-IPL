@@ -86,7 +86,7 @@ function StatGrid({ items }: { items: { label: string; value: React.ReactNode; w
           "rounded-[var(--radius-sm)] border p-3.5 transition-colors",
           item.warn ? "border-[var(--sev-medium)]/40 bg-[var(--sev-medium-soft)]" : "border-[var(--line)] bg-[var(--surface)] hover:border-[var(--ink-2)]/25",
         )}>
-          <p className="text-[11px] text-[var(--muted)]">{item.label}</p>
+          <p className="text-[13px] text-[var(--muted)]">{item.label}</p>
           <p className="tnum mt-1 text-lg font-semibold tracking-tight text-[var(--ink)]">{item.value}</p>
         </div>
       ))}
@@ -115,7 +115,7 @@ function ChipLabel({ tone, children }: { tone: "bad" | "warn" | "good" | "muted"
     good: "bg-[var(--confirmed-soft)] text-[var(--confirmed)]",
     muted: "bg-[var(--surface-2)] text-[var(--ink-2)]",
   } as const;
-  return <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium", styles[tone])}>{children}</span>;
+  return <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[13px] font-medium", styles[tone])}>{children}</span>;
 }
 
 /* ---------- small modal ---------- */
@@ -228,7 +228,7 @@ function MsmeTab({ onView }: { onView: (id: string) => void }) {
               <div className="min-w-0">
                 <p className="text-sm font-medium text-[var(--ink)]">
                   {row.invoice} · {row.supplier}
-                  {row.category ? <span className="ml-2 text-[11px] font-normal uppercase tracking-wide text-[var(--muted)]">{row.category}</span> : null}
+                  {row.category ? <span className="ml-2 text-[13px] font-normal text-[var(--muted)]">{row.category}</span> : null}
                 </p>
                 <p className="mt-0.5 text-xs text-[var(--muted)]">{row.note}{!row.amountRecorded ? " · invoice amount not recorded" : ""}</p>
               </div>
@@ -354,7 +354,7 @@ function Gstr2bTab({ onView }: { onView: (id: string) => void }) {
 
       {missing.length > 0 && (
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">In your books, not in GSTR-2B — ask the supplier to report</h3>
+          <h3 className="mb-2 text-xs font-semibold text-[var(--muted)]">In your books, not in GSTR-2B — ask the supplier to report</h3>
           <ul className="space-y-2">
             {missing.map((row) => (
               <Row key={row.documentId} tone="warn">
@@ -373,7 +373,7 @@ function Gstr2bTab({ onView }: { onView: (id: string) => void }) {
 
       {mismatched.length > 0 && (
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Reported, but the values differ</h3>
+          <h3 className="mb-2 text-xs font-semibold text-[var(--muted)]">Reported, but the values differ</h3>
           <ul className="space-y-2">
             {mismatched.map((row) => (
               <Row key={row.documentId} tone="warn">
@@ -392,7 +392,7 @@ function Gstr2bTab({ onView }: { onView: (id: string) => void }) {
 
       {missingBooks.length > 0 && (
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">In GSTR-2B, not in your books — record or dispute the invoice</h3>
+          <h3 className="mb-2 text-xs font-semibold text-[var(--muted)]">In GSTR-2B, not in your books — record or dispute the invoice</h3>
           <ul className="space-y-2">
             {missingBooks.map((row) => (
               <Row key={row.documentId} tone="bad">
@@ -431,7 +431,7 @@ function Gstr2bTab({ onView }: { onView: (id: string) => void }) {
             </div>
             <div>
               <label className={labelCls}>GSTR-2B JSON</label>
-              <textarea className={cn(inputCls, "h-40 font-mono text-[11px]")} placeholder='{"data":{"doc_det":{"b2b":[…]}}} or {"invoices":[…]}' value={importJson} onChange={(e) => setImportJson(e.target.value)} />
+              <textarea className={cn(inputCls, "h-40 font-mono text-[13px]")} placeholder='{"data":{"doc_det":{"b2b":[…]}}} or {"invoices":[…]}' value={importJson} onChange={(e) => setImportJson(e.target.value)} />
             </div>
             <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-[var(--accent)] hover:underline">
               <FileUp size={13} aria-hidden="true" /> Or pick a .json file
@@ -835,7 +835,7 @@ function EwayTab({ onView }: { onView: (id: string) => void }) {
       ]} />
 
       <section>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">e-invoice — high-value invoices with no IRN recorded</h3>
+        <h3 className="mb-2 text-xs font-semibold text-[var(--muted)]">e-invoice — high-value invoices with no IRN recorded</h3>
         {irnChecks.length === 0 ? (
           <p className="rounded-[var(--radius-sm)] border border-dashed border-[var(--line)] px-4 py-3 text-xs text-[var(--muted)]">
             Nothing flagged. Every invoice over ₹5 lakh carries an IRN or is marked not applicable.{einv.waived ? ` (${einv.waived} marked N/A)` : ""}
@@ -861,7 +861,7 @@ function EwayTab({ onView }: { onView: (id: string) => void }) {
       </section>
 
       <section>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">e-way bill — goods consignments over ₹50,000</h3>
+        <h3 className="mb-2 text-xs font-semibold text-[var(--muted)]">e-way bill — goods consignments over ₹50,000</h3>
         {ewbChecks.length === 0 ? (
           <p className="rounded-[var(--radius-sm)] border border-dashed border-[var(--line)] px-4 py-3 text-xs text-[var(--muted)]">
             Nothing flagged. Every goods invoice over ₹50,000 carries an e-way bill number or is marked not required.{eway.waived ? ` (${eway.waived} marked N/A)` : ""}
@@ -1022,7 +1022,7 @@ function LutTab() {
 
       {exportsRows.length > 0 ? (
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Zero-rated outward supplies</h3>
+          <h3 className="mb-2 text-xs font-semibold text-[var(--muted)]">Zero-rated outward supplies</h3>
           <ul className="space-y-2">
             {exportsRows.map((row) => (
               <Row key={row.documentId} tone={row.covered ? undefined : "bad"}>
@@ -1077,14 +1077,14 @@ export default function CompliancePage() {
     <FadeIn className="space-y-5">
       <PageHeader
         title="Compliance"
-        description="Six statutory checks against your recorded documents — Satya finds issues and tracks what you did about them; it does not file returns or give tax advice."
+        description="Six legal checks run on your recorded bills and payments: what is at risk, by when, and what you did about it. Satya doesn’t file returns or give tax advice."
       />
 
       <Tabs defaultValue="msme">
         <TabsList className="flex-wrap">
           <TabsTrigger value="msme"><Term of="MSME">MSME</Term> 45-day</TabsTrigger>
           <TabsTrigger value="gstr2b"><Term of="GSTR2B">GSTR-2B</Term> match</TabsTrigger>
-          <TabsTrigger value="rule37">Rule 37</TabsTrigger>
+          <TabsTrigger value="rule37"><Term of="RULE37">180-day rule</Term></TabsTrigger>
           <TabsTrigger value="tds"><Term of="TDS">TDS</Term></TabsTrigger>
           <TabsTrigger value="eway">e-invoice & e-way</TabsTrigger>
           <TabsTrigger value="lut"><Term of="LUT">LUT</Term></TabsTrigger>

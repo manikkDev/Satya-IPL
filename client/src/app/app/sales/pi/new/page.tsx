@@ -16,7 +16,7 @@ export default function NewPiPage() {
           <FileText size={19} aria-hidden="true" />
         </span>
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-[var(--ink)]">New proforma invoice</h1>
+          <h1 className="type-page-title">New proforma invoice</h1>
           <p className="mt-0.5 text-sm text-[var(--muted)]">For your distribution entity&apos;s customers — not a tax invoice.</p>
         </div>
       </div>

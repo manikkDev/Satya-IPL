@@ -80,7 +80,7 @@ function mockCompute(lines: Line[], intraState: boolean): Promise<ComputeResult>
   );
 }
 
-const inputCls = "h-9 w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface-2)]/50 px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)] placeholder:text-[var(--muted)]";
+const inputCls = "h-10 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface-2)]/50 px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] focus:bg-[var(--surface)] placeholder:text-[var(--muted)]";
 const labelCls = "mb-1 block text-xs font-medium text-[var(--muted)]";
 
 /** Debounced HSN picker — real /api/v2/hsn/search outside mocks, curated list inside. */
@@ -322,7 +322,7 @@ export default function NewOrderPage() {
         <button type="button" onClick={() => router.back()} className="mb-3 inline-flex items-center gap-1 text-sm text-[var(--muted)] hover:text-[var(--ink)]">
           <ArrowLeft size={15} /> Back
         </button>
-        <h1 className="text-[22px] font-semibold text-[var(--ink)]">New purchase order</h1>
+        <h1 className="type-page-title">New purchase order</h1>
 
         {/* stepper */}
         <ol className="mt-4 flex flex-wrap gap-1.5" aria-label="Progress">
@@ -333,7 +333,7 @@ export default function NewOrderPage() {
                 onClick={() => i < step && setStep(i)}
                 aria-current={i === step ? "step" : undefined}
                 className={cn(
-                  "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all",
+                  "rounded-full border px-2.5 py-1 text-[13px] font-medium transition-all",
                   i === step ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--on-accent)]" : i < step ? "border-[var(--accent)]/30 bg-[var(--accent-soft)] text-[var(--accent-strong)] cursor-pointer hover:border-[var(--accent)]/60" : "border-[var(--line)] bg-[var(--surface-2)] text-[var(--muted)]",
                 )}
               >
@@ -387,7 +387,7 @@ export default function NewOrderPage() {
                       <span className="block text-sm font-medium text-[var(--ink)]">{s.legalName}</span>
                       <span className="mt-0.5 block font-code text-xs text-[var(--muted)]">{s.gstin ? `GSTIN ${s.gstin}` : "No GSTIN on file"}</span>
                       {s.udyam && (
-                        <span className="mt-1 inline-block rounded-full bg-[var(--likely-soft)] px-2 py-0.5 text-[11px] font-medium capitalize text-[var(--likely)]" title="Micro and small enterprises must be paid within 45 days of acceptance.">
+                        <span className="mt-1 inline-block rounded-full bg-[var(--likely-soft)] px-2 py-0.5 text-[13px] font-medium capitalize text-[var(--likely)]" title="Micro and small enterprises must be paid within 45 days of acceptance.">
                           {s.udyam.category} enterprise (Udyam {s.udyam.number})
                         </span>
                       )}
@@ -643,9 +643,9 @@ export default function NewOrderPage() {
           <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
             <div>
               <p className="font-semibold text-[var(--ink)]">{entity?.legalName ?? "—"}</p>
-              <p className="font-code text-[11px] text-[var(--muted)]">{entity?.gstin ? `GSTIN ${entity.gstin}` : "GSTIN not set"}</p>
+              <p className="font-code text-[13px] text-[var(--muted)]">{entity?.gstin ? `GSTIN ${entity.gstin}` : "GSTIN not set"}</p>
             </div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Purchase order · draft</p>
+            <p className="text-xs font-semiboldr text-[var(--muted)]">Purchase order · draft</p>
           </div>
           <dl className="mt-3 space-y-1.5 text-xs">
             <div className="flex justify-between"><dt className="text-[var(--muted)]">Supplier</dt><dd className="text-[var(--ink)]">{supplier?.legalName ?? "—"}</dd></div>
@@ -658,7 +658,7 @@ export default function NewOrderPage() {
             <tbody>
               {lines.map((line, i) => (
                 <tr key={i} className="border-b border-[var(--line)] text-[var(--ink-2)]">
-                  <td className="py-1.5">{line.description || "—"}{line.hsn ? <span className="block font-code text-[11px] text-[var(--muted)]">HSN {line.hsn}{line.gstRate ? ` · ${line.gstRate}%` : ""}</span> : null}</td>
+                  <td className="py-1.5">{line.description || "—"}{line.hsn ? <span className="block font-code text-[13px] text-[var(--muted)]">HSN {line.hsn}{line.gstRate ? ` · ${line.gstRate}%` : ""}</span> : null}</td>
                   <td className="tnum">{line.qty || "—"} {line.uom}</td>
                   <td className="tnum">{line.rate ? formatMoney(line.rate) : "—"}</td>
                 </tr>
@@ -671,7 +671,7 @@ export default function NewOrderPage() {
               <p className="tnum text-xl font-semibold text-[var(--ink)]">{formatMoney(compute.totals.grand)}</p>
             </div>
           )}
-          <p className="mt-4 flex items-center gap-1.5 border-t border-[var(--line)] pt-3 text-[11px] text-[var(--muted)]">
+          <p className="mt-4 flex items-center gap-1.5 border-t border-[var(--line)] pt-3 text-[13px] text-[var(--muted)]">
             <Check size={11} /> Saved as a draft when you compute totals · GST is calculated on the server.
           </p>
         </div>

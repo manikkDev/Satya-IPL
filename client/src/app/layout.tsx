@@ -1,39 +1,37 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { AuthProvider } from "@/contexts/auth-context";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next";
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
+// Inter: tall x-height and open shapes read well at 13–16px on dense finance
+// screens; tabular figures keep ₹ columns aligned. Geist Mono is used only
+// for document numbers and IDs.
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
-const instrument = Instrument_Serif({ subsets: ["latin"], weight: "400", style: ["normal", "italic"], variable: "--font-instrument", display: "swap" });
 
 export const metadata: Metadata = {
-  title: { default: "Satya · Know what you really owe", template: "%s · Satya" },
+  title: { default: "Satya · Accounts payable checks for Indian businesses", template: "%s · Satya" },
   description:
-    "Satya matches purchase orders, deliveries, invoices, payments and GST records for Indian businesses — showing what you really owe, why, and the evidence behind every number.",
+    "Satya checks every purchase order, delivery, invoice, payment and GST record before you pay — so finance teams at Indian manufacturers and distributors catch errors, meet MSME and GST deadlines, and can prove every number.",
   icons: { icon: "/satya.svg", shortcut: "/satya.svg", apple: "/satya.svg" },
   applicationName: "Satya",
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f6f3" },
-    { media: "(prefers-color-scheme: dark)", color: "#0c0e0d" },
+    { media: "(prefers-color-scheme: light)", color: "#f6f7f5" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c100f" },
   ],
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en-IN"
-      suppressHydrationWarning
-      className={`h-full ${geist.variable} ${geistMono.variable} ${instrument.variable}`}
-    >
+    <html lang="en-IN" suppressHydrationWarning className={`h-full ${inter.variable} ${geistMono.variable}`}>
       <body className="h-full antialiased" suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <AuthProvider>
             {children}
             <Toaster position="top-center" richColors closeButton />

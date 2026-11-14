@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SiteHeader } from "@/components/landing/site-header";
+import { SiteFooter, SiteHeader } from "@/components/landing/site-header";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { LEGAL_PAGES, legalPage } from "@/content/legal/pages";
@@ -22,7 +22,7 @@ export default async function LegalPage({ params }: { params: Promise<{ slug: st
     <div className="v2 min-h-screen bg-[var(--paper)]">
       <SiteHeader />
       <div className="border-b border-[var(--line)] bg-[var(--surface)]">
-        <nav className="mx-auto flex max-w-3xl gap-5 overflow-x-auto px-5 py-3 text-sm text-[var(--muted)]" aria-label="Legal">
+        <nav className="mx-auto flex max-w-3xl gap-5 overflow-x-auto px-5 py-3 text-[15px] text-[var(--muted)]" aria-label="Legal">
           {LEGAL_PAGES.map((item) => (
             <Link
               key={item.slug}
@@ -43,7 +43,7 @@ export default async function LegalPage({ params }: { params: Promise<{ slug: st
         <p className="text-xs text-[var(--muted)]">
           Last updated: {page.updated} · {page.version}
         </p>
-        <h1 className="v2-display mt-3 text-4xl text-[var(--ink)]">{page.title}</h1>
+        <h1 className="type-page-title mt-3 sm:text-[34px]">{page.title}</h1>
         <p className="mt-4 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--accent-soft)] p-4 text-[15px] leading-relaxed text-[var(--ink)]">
           <span className="font-medium">In plain words: </span>
           {page.summary}
@@ -53,7 +53,7 @@ export default async function LegalPage({ params }: { params: Promise<{ slug: st
           <section key={section.heading} className="mt-8">
             <h2 className="text-lg font-semibold text-[var(--ink)]">{section.heading}</h2>
             {section.paragraphs.map((paragraph, index) => (
-              <p key={index} className="mt-3 text-[15px] leading-relaxed text-[var(--ink-2)]">
+              <p key={index} className="mt-3 text-base leading-relaxed text-[var(--ink-2)]">
                 {paragraph}
               </p>
             ))}
@@ -61,12 +61,11 @@ export default async function LegalPage({ params }: { params: Promise<{ slug: st
         ))}
       </main>
 
-      <footer className="border-t border-[var(--line)] bg-[var(--surface)]">
-        <p className="mx-auto max-w-3xl px-5 py-6 text-xs leading-relaxed text-[var(--muted)]">
-          Satya is a decision-support tool. Verify important figures with your accountant or tax adviser. Satya does not
-          file returns or move money.
-        </p>
-      </footer>
+      <p className="mx-auto max-w-3xl px-5 pb-10 text-[14px] leading-relaxed text-[var(--muted)]">
+        Satya is a decision-support tool. Verify important figures with your accountant or tax adviser. Satya does not
+        file returns or move money.
+      </p>
+      <SiteFooter />
     </div>
   );
 }

@@ -17,6 +17,7 @@ import type { Severity } from "@/lib/api/types";
 import { Money } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { toPaise } from "@/lib/format";
 
 type CaseRow = {
   id: string; title?: string; kind?: string; status: string; entityId?: string;
@@ -64,30 +65,30 @@ export default function InvestigationsPage() {
   return (
     <FadeIn className="space-y-5">
       <PageHeader
-        title="Investigations"
-        description="One check per order, supplier or payment — what Satya found, the evidence, and what to do next."
+        title="To review"
+        description="Each check lines up one order, supplier or payment and lists anything that doesn’t add up — with the evidence and a suggested next step."
       />
 
       {/* filter bar */}
       <div className="flex flex-wrap items-center gap-2.5">
-        <div className="relative">
-          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+        <div className="relative w-full sm:w-auto">
+          <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
           <input type="search" value={query} onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search case, PO number, supplier…" aria-label="Search investigations"
-            className="h-9 w-72 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] pl-9 pr-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] placeholder:text-[var(--muted)]" />
+            placeholder="Search by PO number or supplier…" aria-label="Search checks"
+            className="h-10 w-full rounded-[var(--radius-sm)] border border-[var(--line-strong)] bg-[var(--surface)] pl-10 pr-3 text-[15px] sm:w-80 text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] placeholder:text-[var(--muted)]" />
         </div>
         <div className="flex items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface)] p-1">
           {STATUS_FILTERS.map(([value, label]) => (
             <button key={value} type="button" onClick={() => setStatus(value)}
-              className={cn("rounded-[calc(var(--radius-sm)-3px)] px-2.5 py-1 text-xs font-medium transition-colors",
-                status === value ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]" : "text-[var(--muted)] hover:text-[var(--ink)]")}>
+              className={cn("rounded-[calc(var(--radius-sm)-3px)] px-3 py-1.5 text-[14px] font-medium transition-colors",
+                status === value ? "bg-[var(--ink)] text-[var(--paper)]" : "text-[var(--ink-2)] hover:text-[var(--ink)]")}>
               {label}
             </button>
           ))}
         </div>
         {unchecked > 0 && (
-          <span className="ml-auto flex items-center gap-1.5 text-xs text-[var(--muted)]">
-            <Clock3 size={12} /> {unchecked} on this page not checked yet
+          <span className="ml-auto flex items-center gap-1.5 text-[14px] text-[var(--muted)]">
+            <Clock3 size={15} aria-hidden="true" /> {unchecked} on this page not checked yet
           </span>
         )}
       </div>
@@ -98,8 +99,12 @@ export default function InvestigationsPage() {
         <div className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[76px] w-full" />)}</div>
       ) : items.length === 0 ? (
         <EmptyState
-          title={debounced || status ? "Nothing matches" : "No investigations yet"}
-          body={debounced || status ? "Try a different search or filter." : "Cases appear here automatically when a purchase order is issued."}
+          title={debounced || status ? "Nothing matches" : "Nothing to review yet"}
+          body={debounced || status ? "Try a different search, or clear the filter." : "Satya creates a check for each purchase order. Once its delivery, invoice or payment is recorded, anything that doesn’t add up appears here."}
+          actionLabel={debounced || status ? undefined : "Go to Orders"}
+          actionHref={debounced || status ? undefined : "/app/orders"}
+          secondaryLabel={debounced || status ? undefined : "Import data"}
+          secondaryHref={debounced || status ? undefined : "/app/imports"}
         />
       ) : (
         <>
@@ -119,20 +124,20 @@ export default function InvestigationsPage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="truncate font-code text-sm font-medium text-[var(--ink)]">{item.title || item.id}</p>
+                      <p className="truncate text-base font-semibold text-[var(--ink)]">{item.title || item.id}</p>
                       <StatusBadge status={item.status} />
                     </div>
-                    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-[var(--muted)]">
+                    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[14px] text-[var(--muted)]">
                       <span>{item.kind === "po" ? "Order check" : item.kind === "supplier" ? "Supplier check" : "Check"}</span>
                       {item.reconciled ? (
                         <>
-                          <span className="inline-flex items-center gap-1 text-[var(--confirmed)]"><CircleCheck size={11} /> checked</span>
-                          {item.findings ? <span>{item.findings} finding{item.findings === 1 ? "" : "s"}{sevSummary(item.severity) ? ` (${sevSummary(item.severity)})` : ""}</span> : <span>clean</span>}
-                          {item.openValue ? <span>· <Money value={item.openValue} /> recorded</span> : null}
-                          {item.disputedValue ? <span className="text-[var(--sev-high)]">· <Money value={item.disputedValue} /> disputed</span> : null}
+                          <span className="inline-flex items-center gap-1 text-[var(--confirmed)]"><CircleCheck size={14} aria-hidden="true" /> Checked</span>
+                          {item.findings ? <span>{item.findings} issue{item.findings === 1 ? "" : "s"}{sevSummary(item.severity) ? ` (${sevSummary(item.severity)})` : ""}</span> : <span>no issues</span>}
+                          {item.openValue && toPaise(item.openValue) > BigInt(0) ? <span>· <Money value={item.openValue} /> recorded</span> : null}
+                          {item.disputedValue && toPaise(item.disputedValue) > BigInt(0) ? <span className="text-[var(--sev-high)]">· <Money value={item.disputedValue} /> under question</span> : null}
                         </>
                       ) : (
-                        <span className="text-[var(--muted)]">not checked yet — open it to run the check</span>
+                        <span className="text-[var(--muted)]">Not checked yet — open it to run the check</span>
                       )}
                     </p>
                   </div>
@@ -145,22 +150,22 @@ export default function InvestigationsPage() {
 
           {/* numbered pagination */}
           <div className="flex items-center justify-between pt-1">
-            <p className="text-xs text-[var(--muted)]">Showing {(page - 1) * 10 + 1}–{Math.min(page * 10, total)} of {total}</p>
+            <p className="text-[14px] text-[var(--muted)]">Showing {(page - 1) * 10 + 1}–{Math.min(page * 10, total)} of {total}</p>
             {pages > 1 && (
               <div className="flex items-center gap-1">
                 <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} aria-label="Previous page"
-                  className="grid h-8 w-8 place-items-center rounded-[var(--radius-sm)] border border-[var(--line)] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]/50 disabled:opacity-40">
+                  className="grid h-9 w-9 place-items-center rounded-[var(--radius-sm)] border border-[var(--line-strong)] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]/50 disabled:opacity-40">
                   <ChevronLeft size={14} />
                 </button>
                 {Array.from({ length: pages }, (_, i) => i + 1).slice(Math.max(0, page - 3), Math.max(0, page - 3) + Math.min(5, pages)).map((n) => (
                   <button key={n} type="button" onClick={() => setPage(n)} aria-current={n === page ? "page" : undefined}
-                    className={cn("h-8 min-w-8 rounded-[var(--radius-sm)] border px-2 text-xs font-medium transition-colors",
+                    className={cn("h-9 min-w-9 rounded-[var(--radius-sm)] border px-2 text-[14px] font-medium transition-colors",
                       n === page ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--on-accent)]" : "border-[var(--line)] text-[var(--ink-2)] hover:border-[var(--accent)]/50")}>
                     {n}
                   </button>
                 ))}
                 <button type="button" onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page === pages} aria-label="Next page"
-                  className="grid h-8 w-8 place-items-center rounded-[var(--radius-sm)] border border-[var(--line)] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]/50 disabled:opacity-40">
+                  className="grid h-9 w-9 place-items-center rounded-[var(--radius-sm)] border border-[var(--line-strong)] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]/50 disabled:opacity-40">
                   <ChevronRight size={14} />
                 </button>
               </div>

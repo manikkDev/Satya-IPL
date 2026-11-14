@@ -24,7 +24,7 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        "rounded-[calc(var(--radius-sm)-3px)] px-3 py-1.5 text-sm text-[var(--muted)] transition-colors",
+        "rounded-[calc(var(--radius-sm)-3px)] px-3.5 py-1.5 text-[15px] text-[var(--ink-2)] transition-colors hover:text-[var(--ink)]",
         "data-[state=active]:bg-[var(--surface)] data-[state=active]:text-[var(--ink)] data-[state=active]:font-medium data-[state=active]:shadow-[var(--shadow-1)]",
         "focus-visible:outline-2 focus-visible:outline-[var(--accent)]",
         className,

@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CheckCircle2, Loader2, Sparkles, Hand, CircleAlert, Wallet, ChevronRight, X } from "lucide-react";
+import { CheckCircle2, Loader2, Wand2, Hand, CircleAlert, Wallet, ChevronRight, X } from "lucide-react";
 import {
   paymentsApi, parsePaise, paiseOf, paiseToDecimal, sumPaise, minPaise, maxPaise, pctOf, ZERO,
   type Workbench,
@@ -158,7 +158,7 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
           {/* payment summary */}
           <div className="space-y-4">
             <div className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">Left to allocate</p>
+              <p className="text-xs font-semibold text-[var(--muted)]">Left to allocate</p>
               <p className="mt-2 text-[26px] font-semibold tracking-tight text-[var(--ink)]"><Money value={paiseToDecimal(remaining)} /></p>
               <dl className="mt-3 space-y-1.5 text-xs">
                 {wb.payment.amount ? <div className="flex justify-between gap-2"><dt className="text-[var(--muted)]">Payment amount</dt><dd><Money value={wb.payment.amount} className="text-[var(--ink)]" /></dd></div> : null}
@@ -183,8 +183,8 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
           <div className="min-w-0 space-y-4">
             {solutions.length > 0 ? (
               <section aria-labelledby="wb-options">
-                <h3 id="wb-options" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-[var(--muted)]">
-                  <Sparkles size={12} className="text-[var(--accent)]" aria-hidden="true" />
+                <h3 id="wb-options" className="flex items-center gap-1.5 text-xs font-semibold text-[var(--muted)]">
+                  <Wand2 size={12} className="text-[var(--accent)]" aria-hidden="true" />
                   {suggestion?.unique ? "Exact match found" : `${solutions.length} possible splits`}
                 </h3>
                 <div className="mt-2 space-y-2">

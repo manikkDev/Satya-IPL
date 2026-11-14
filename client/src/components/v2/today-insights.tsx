@@ -9,8 +9,10 @@ import { useEffect } from "react";
 import { X } from "lucide-react";
 import { Money } from "@/components/ui/v2";
 import type { DashboardSummary, ComplianceSummary } from "@/lib/api/v2";
+import { formatMoney, fromPaise, toPaise } from "@/lib/format";
 
-const fmt = (v: string) => `₹${Number(v).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+// Exact rupee formatting (integer paise inside) — never float arithmetic.
+const fmt = (v: string) => formatMoney(v);
 
 export function KpiDrillDown({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   useEffect(() => {
@@ -19,12 +21,12 @@ export function KpiDrillDown({ title, onClose, children }: { title: string; onCl
     return () => window.removeEventListener("keydown", esc);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-label={title}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={title}>
       <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--paper)] p-6 shadow-[var(--shadow-3)]">
+      <div className="relative max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow-3)]">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold tracking-tight text-[var(--ink)]">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded p-1 text-[var(--muted)] hover:text-[var(--ink)]"><X size={16} /></button>
+          <h2 className="type-section-title">{title}</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-[var(--radius-sm)] text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"><X size={18} /></button>
         </div>
         {children}
       </div>
@@ -35,7 +37,7 @@ export function KpiDrillDown({ title, onClose, children }: { title: string; onCl
 export function DrillRow({ label, value, note }: { label: React.ReactNode; value: React.ReactNode; note?: string }) {
   return (
     <div className="flex items-center justify-between gap-4 border-b border-[var(--line)] py-2.5 last:border-0">
-      <div className="min-w-0"><p className="text-sm text-[var(--ink-2)]">{label}</p>{note && <p className="text-[11px] text-[var(--muted)]">{note}</p>}</div>
+      <div className="min-w-0"><p className="text-sm text-[var(--ink-2)]">{label}</p>{note && <p className="text-[13px] text-[var(--muted)]">{note}</p>}</div>
       <div className="tnum shrink-0 text-sm font-medium text-[var(--ink)]">{value}</div>
     </div>
   );
@@ -101,7 +103,7 @@ export function SeriesBars({ series }: { series: DashboardSummary["monthlySeries
       </div>
       <div className="mt-1.5 flex gap-1.5">
         {items.map((m) => (
-          <span key={m.month} className="min-w-0 flex-1 truncate text-center text-[11px] text-[var(--muted)]">
+          <span key={m.month} className="min-w-0 flex-1 truncate text-center text-[13px] text-[var(--muted)]">
             {m.month.slice(5)}/{m.month.slice(2, 4)}
           </span>
         ))}
@@ -139,7 +141,7 @@ export function IssueBreakdown({ summary }: { summary: DashboardSummary }) {
       </p>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         <div>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">By severity</p>
+          <p className="mb-2 text-[13px] font-semibold text-[var(--muted)]">By severity</p>
           {sevOrder.map((s) => (
             <div key={s} className="py-1.5">
               <div className="flex items-center justify-between text-sm">
@@ -153,14 +155,14 @@ export function IssueBreakdown({ summary }: { summary: DashboardSummary }) {
           ))}
         </div>
         <div>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">How sure are we</p>
+          <p className="mb-2 text-[13px] font-semibold text-[var(--muted)]">How sure are we</p>
           {certOrder.map((c) => (
             <div key={c} className="flex items-center justify-between gap-2 border-b border-[var(--line)] py-2 last:border-0">
-              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${CERT_STYLE[c]}`}>{c.toLowerCase().replaceAll("_", " ")}</span>
+              <span className={`rounded-full px-2.5 py-0.5 text-[13px] font-semibold ${CERT_STYLE[c]}`}>{c === "INSUFFICIENT_EVIDENCE" ? "Missing information" : c === "PROBABLE" ? "Likely" : c === "AMBIGUOUS" ? "Unclear" : c.charAt(0) + c.slice(1).toLowerCase()}</span>
               <span className="tnum text-sm font-medium text-[var(--ink)]">{summary.findingsByCertainty[c] ?? 0}</span>
             </div>
           ))}
-          <p className="mt-2 text-[11px] leading-relaxed text-[var(--muted)]">Confirmed = proven by a document. Anything less still needs your review — never guessed.</p>
+          <p className="mt-2 text-[13px] leading-relaxed text-[var(--muted)]">Confirmed = proven by a document. Anything less still needs your review — never guessed.</p>
         </div>
       </div>
     </div>
@@ -170,11 +172,14 @@ export function IssueBreakdown({ summary }: { summary: DashboardSummary }) {
 export function UnallocatedList({ summary }: { summary: DashboardSummary }) {
   if (!summary.unallocatedPayments.length)
     return <p className="py-3 text-sm text-[var(--muted)]">Every payment is allocated — nothing is waiting for a remittance reference.</p>;
-  const waiting = summary.unallocatedPayments.reduce((s, p) => s + Math.max(0, Number(p.amount) - Number(p.allocated)), 0);
+  const waiting = fromPaise(summary.unallocatedPayments.reduce((s, p) => {
+    const open = toPaise(p.amount) - toPaise(p.allocated);
+    return open > BigInt(0) ? s + open : s;
+  }, BigInt(0)));
   return (
     <div>
       <p className="mb-1 text-xs text-[var(--muted)]">
-        <span className="tnum font-semibold text-[var(--ink)]">{fmt(String(waiting.toFixed(2)))}</span> is unlinked across{" "}
+        <span className="tnum font-semibold text-[var(--ink)]">{fmt(waiting)}</span> is unlinked across{" "}
         {summary.unallocatedPayments.length} payment{summary.unallocatedPayments.length === 1 ? "" : "s"} — click one to allocate it.
       </p>
       <ul className="divide-y divide-[var(--line)]">
@@ -183,7 +188,7 @@ export function UnallocatedList({ summary }: { summary: DashboardSummary }) {
             <Link href="/app/payments" className="group flex items-center justify-between gap-3 py-2 transition-opacity hover:opacity-75">
               <span className="min-w-0">
                 <span className="block truncate text-xs font-medium text-[var(--ink)]">{p.counterparty || p.documentId}</span>
-                <span className="mt-0.5 block text-[11px] text-[var(--muted)]">
+                <span className="mt-0.5 block text-[13px] text-[var(--muted)]">
                   {p.date || "—"}{p.utr ? ` · UTR ${p.utr}` : " · no bank ref"}{p.mode ? ` · ${p.mode}` : ""}
                 </span>
               </span>
@@ -226,10 +231,10 @@ export function ComplianceStrip({ summary }: { summary: ComplianceSummary }) {
       {items.map((item) => (
         <Link key={item.label} href="/app/compliance" className="flex flex-col rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-4 transition-colors hover:border-[var(--accent)]/60 hover:bg-[var(--surface-2)]/40">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-medium text-[var(--muted)]">{item.label}</p>
+            <p className="text-[13px] font-medium text-[var(--muted)]">{item.label}</p>
             <span className="tnum text-xl font-semibold tracking-tight" style={{ color: item.tone }}>{item.value}</span>
           </div>
-          <p className="mt-2 flex-1 text-[11px] leading-relaxed text-[var(--muted)]">{item.detail}</p>
+          <p className="mt-2 flex-1 text-[13px] leading-relaxed text-[var(--muted)]">{item.detail}</p>
         </Link>
       ))}
     </div>

@@ -36,12 +36,12 @@ export function DataTable<T>({
           {table.getHeaderGroups().map((group) => (
             <tr key={group.id} className="border-b border-[var(--line)]">
               {group.headers.map((header) => (
-                <th key={header.id} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">
+                <th key={header.id} className="px-4 py-3 text-left text-[13px] font-semibold text-[var(--muted)]">
                   {header.isPlaceholder ? null : header.column.getCanSort() ? (
                     <button
                       type="button"
                       onClick={header.column.getToggleSortingHandler()}
-                      className="inline-flex items-center gap-1 uppercase tracking-wide"
+                      className="inline-flex items-center gap-1"
                     >
                       {flexRender(header.column.columnDef.header, header.getContext())}
                       {header.column.getIsSorted() === "asc" && <ArrowUp size={12} aria-label="sorted ascending" />}
