@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, MapPin, BadgeCheck, ShieldCheck, UserRound, Hash, Stamp, Sparkles, RotateCcw, ArrowUpRight, Users, Package, Info } from "lucide-react";
+import { Building2, MapPin, BadgeCheck, ShieldCheck, UserRound, Hash, Stamp, ScanText, RotateCcw, ArrowUpRight, Users, Package, Info } from "lucide-react";
 import { toast } from "sonner";
 import { v2 } from "@/lib/api/v2";
 import { accountApi, policyApi, readLocal, writeLocal, AI_NOTICE_KEY, todayIst, fyOfDate, type EntityRecord } from "@/lib/api/v2-pages";
@@ -279,7 +279,7 @@ export function AiPanel() {
   useEffect(() => setAck(readLocal(AI_NOTICE_KEY) === "1"), []);
   return (
     <Card className="max-w-2xl">
-      <CardTitle icon={Sparkles}>AI reading of documents</CardTitle>
+      <CardTitle icon={ScanText}>AI reading of documents</CardTitle>
       <p className="text-sm leading-relaxed text-[var(--ink-2)]">
         Scans and photos are read by an external AI service. On the demo plan that is Google Gemini’s free tier, where inputs
         may be used to improve Google’s products — upload sample documents, or only documents your company has agreed to share

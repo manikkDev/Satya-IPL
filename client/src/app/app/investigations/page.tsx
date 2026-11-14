@@ -17,6 +17,7 @@ import type { Severity } from "@/lib/api/types";
 import { Money } from "@/components/ui/v2";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { toPaise } from "@/lib/format";
 
 type CaseRow = {
   id: string; title?: string; kind?: string; status: string; entityId?: string;
@@ -132,8 +133,8 @@ export default function InvestigationsPage() {
                         <>
                           <span className="inline-flex items-center gap-1 text-[var(--confirmed)]"><CircleCheck size={14} aria-hidden="true" /> Checked</span>
                           {item.findings ? <span>{item.findings} issue{item.findings === 1 ? "" : "s"}{sevSummary(item.severity) ? ` (${sevSummary(item.severity)})` : ""}</span> : <span>no issues</span>}
-                          {item.openValue ? <span>· <Money value={item.openValue} /> recorded</span> : null}
-                          {item.disputedValue ? <span className="text-[var(--sev-high)]">· <Money value={item.disputedValue} /> under question</span> : null}
+                          {item.openValue && toPaise(item.openValue) > BigInt(0) ? <span>· <Money value={item.openValue} /> recorded</span> : null}
+                          {item.disputedValue && toPaise(item.disputedValue) > BigInt(0) ? <span className="text-[var(--sev-high)]">· <Money value={item.disputedValue} /> under question</span> : null}
                         </>
                       ) : (
                         <span className="text-[var(--muted)]">Not checked yet — open it to run the check</span>

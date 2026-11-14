@@ -280,7 +280,7 @@
 
 /* Wide tables scroll inside their card on narrow screens instead of
    pushing the page sideways. */
-.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll { position: relative; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .table-scroll > table { min-width: 640px; }
 
 /* Rendered copilot answers */

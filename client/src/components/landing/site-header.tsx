@@ -107,6 +107,8 @@ export function SiteFooter() {
       title: "Learn",
       links: [
         { href: "/research", label: "Research" },
+        { href: "/research/model", label: "Model performance" },
+        { href: "/research/one-pager", label: "One-page summary" },
         { href: "/trust", label: "Security & trust" },
         { href: "/legal/ai", label: "How we use AI" },
       ],

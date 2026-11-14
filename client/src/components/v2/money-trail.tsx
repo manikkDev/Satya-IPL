@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import cytoscape from "cytoscape";
 import {
   ZoomIn, ZoomOut, Maximize, Camera, List, GitBranch, Play, RotateCcw,
-  Sparkles, X, type LucideIcon,
+  MessageSquare, X, type LucideIcon,
 } from "lucide-react";
 import type { GraphPayload, GraphNode, GraphEdge, Certainty } from "@/lib/api/types";
 import { Money, Qty, DateText, CertaintyBadge } from "@/components/ui/v2";
@@ -126,7 +126,7 @@ function SelectionPanel({
           {node.severity ? <p><span className="text-[var(--muted)]">Issue severity:</span> {node.severity}</p> : null}
           {node.documentId && onAsk ? (
             <button type="button" onClick={() => onAsk(node.label)} className="mt-2 inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--accent-strong)] hover:bg-[var(--accent-soft)]">
-              <Sparkles size={13} aria-hidden="true" /> Ask Satya about this
+              <MessageSquare size={13} aria-hidden="true" /> Ask Satya about this
             </button>
           ) : null}
         </div>
@@ -433,7 +433,7 @@ export function MoneyTrail({ graph, onAskAbout }: { graph: GraphPayload; onAskAb
             onClick={() => ask("Explain this money trail")}
             className="ml-1 inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--accent)] px-3 text-xs font-medium text-[var(--accent-strong)] hover:bg-[var(--accent-soft)]"
           >
-            <Sparkles size={13} aria-hidden="true" /> Explain this graph
+            <MessageSquare size={13} aria-hidden="true" /> Explain this graph
           </button>
         </div>
       </div>

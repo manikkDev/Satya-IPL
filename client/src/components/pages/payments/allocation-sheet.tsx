@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CheckCircle2, Loader2, Sparkles, Hand, CircleAlert, Wallet, ChevronRight, X } from "lucide-react";
+import { CheckCircle2, Loader2, Wand2, Hand, CircleAlert, Wallet, ChevronRight, X } from "lucide-react";
 import {
   paymentsApi, parsePaise, paiseOf, paiseToDecimal, sumPaise, minPaise, maxPaise, pctOf, ZERO,
   type Workbench,
@@ -184,7 +184,7 @@ function Body({ paymentId, onDone }: { paymentId: string; onDone: () => void }) 
             {solutions.length > 0 ? (
               <section aria-labelledby="wb-options">
                 <h3 id="wb-options" className="flex items-center gap-1.5 text-xs font-semibold text-[var(--muted)]">
-                  <Sparkles size={12} className="text-[var(--accent)]" aria-hidden="true" />
+                  <Wand2 size={12} className="text-[var(--accent)]" aria-hidden="true" />
                   {suggestion?.unique ? "Exact match found" : `${solutions.length} possible splits`}
                 </h3>
                 <div className="mt-2 space-y-2">

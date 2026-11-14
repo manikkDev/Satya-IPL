@@ -13,7 +13,7 @@ import { ConfirmDialog } from "@/components/v2/confirm-dialog";
 import { CaseWorkflow } from "@/components/v2/case-workflow";
 import { toPaise } from "@/lib/format";
 import { useSession } from "@/components/v2/session";
-import { Sparkles, FileSearch, FileDown, X, ArrowUpRight, GitBranch } from "lucide-react";
+import { MessageSquare, FileSearch, FileDown, X, ArrowUpRight, GitBranch } from "lucide-react";
 import { v2 } from "@/lib/api/v2";
 import dynamic from "next/dynamic";
 const MoneyTrail = dynamic(() => import("@/components/v2/money-trail").then((m) => m.MoneyTrail), {
@@ -131,7 +131,7 @@ function FindingCard({ finding, onAsk, onEvidence }: { finding: Finding; onAsk: 
           </button>
         ))}
         <button type="button" onClick={onAsk} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline">
-          <Sparkles size={12} aria-hidden="true" /> Ask Satya about this
+          <MessageSquare size={12} aria-hidden="true" /> Ask Satya about this
         </button>
       </div>
     </article>
@@ -329,7 +329,7 @@ export default function InvestigationDetailPage() {
       </div>
 
       {/* recommendation banner */}
-      <div className="glow-accent relative overflow-hidden rounded-[var(--radius-md)] border border-[var(--line)] border-l-4 border-l-[var(--sev-high)] bg-[var(--surface)] p-5 shadow-[var(--shadow-2)]">
+      <div className="relative overflow-hidden rounded-[var(--radius-md)] border border-[var(--line)] border-l-4 border-l-[var(--sev-high)] bg-[var(--surface)] p-5 shadow-[var(--shadow-2)]">
         <p className="text-[13px] font-semibold text-[var(--sev-high)]">Recommended next step</p>
         {recommendation?.reasons?.length ? (
           <ul className="mt-2 space-y-1.5">
@@ -371,7 +371,6 @@ export default function InvestigationDetailPage() {
               { label: BALANCE_TERMS.recordedPayable.label, tip: BALANCE_TERMS.recordedPayable.tip, value: balances.recorded, tone: "var(--ink)" },
             ].map((balance) => (
               <Card key={balance.label} hover className="relative overflow-hidden">
-                <span className="absolute inset-x-5 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${balance.tone}, transparent)` }} aria-hidden="true" />
                 <p className="text-[13px] text-[var(--muted)]">{balance.label}</p>
                 <p className="mt-2.5 text-[26px] font-semibold tnum tracking-tight" style={{ color: balance.tone }}>
                   <Money value={balance.value} />

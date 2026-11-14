@@ -338,7 +338,7 @@ function CheckStep({ status }: { status: OnboardingStatus }) {
 export default function SetupPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { group } = useSession();
+  const { group, retryMe } = useSession();
   const { data: status, isLoading, error, refetch } = useQuery({ queryKey: ["onboarding-status"], queryFn: () => onboarding.status() });
   const [open, setOpen] = useState<StepKey | null>(null);
 
@@ -432,7 +432,7 @@ export default function SetupPage() {
                     </button>
                     {expanded ? (
                       <div id={`step-${step.key}`} className="border-t border-[var(--line)] px-5 py-5 sm:px-6">
-                        {step.key === "company" ? <CompanyStep status={status} onSaved={() => { refresh(); setOpen("data"); }} /> : null}
+                        {step.key === "company" ? <CompanyStep status={status} onSaved={() => { refresh(); retryMe(); setOpen("data"); }} /> : null}
                         {step.key === "data" ? <DataStep status={status} /> : null}
                         {step.key === "team" ? <TeamStep status={status} /> : null}
                         {step.key === "firstCheck" ? <CheckStep status={status} /> : null}
@@ -445,7 +445,7 @@ export default function SetupPage() {
           </ol>
 
           <p className="mt-8 text-[15px] text-[var(--muted)]">
-            Need a hand? The <Link href="/guide" className="font-medium text-[var(--accent-strong)] underline-offset-2 hover:underline dark:text-[var(--accent)]">user guide</Link> walks through each step with screenshots.
+            Need a hand? The <Link href="/guide" className="font-medium text-[var(--accent-strong)] underline-offset-2 hover:underline dark:text-[var(--accent)]">user guide</Link> explains each step in more detail.
           </p>
         </>
       )}

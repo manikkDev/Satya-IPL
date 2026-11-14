@@ -220,7 +220,7 @@ export default function SupplierDetailPage() {
       </div>
 
       {/* header */}
-      <Card className="glow-accent">
+      <Card>
         <div className="flex flex-wrap items-center gap-3">
           <span className="grid h-11 w-11 place-items-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
             <Building2 size={20} />

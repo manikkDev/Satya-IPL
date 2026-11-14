@@ -202,6 +202,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
         return;
       }
+      // Returning visitor: show the workspace straight away from the cached
+      // profile and verify the token in the background (401 signs out).
+      const cachedAtStart = readCachedUser();
+      if (cachedAtStart) {
+        setToken(stored);
+        setUser(cachedAtStart);
+        setIsLoading(false);
+      }
       try {
         const response = await fetch(`${SERVER_URL}/api/v2/me`, {
           headers: { Authorization: `Bearer ${stored}`, Accept: "application/json" },
