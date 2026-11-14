@@ -108,7 +108,7 @@ function NavLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void 
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group flex h-10 items-center gap-3 rounded-[var(--radius-sm)] px-3 text-[15px] leading-5 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60",
+        "group flex h-9 items-center gap-3 rounded-[var(--radius-sm)] px-3 text-[15px] leading-5 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60",
         active
           ? "bg-[var(--sidebar-active-bg)] font-semibold text-[var(--sidebar-active-ink)]"
           : "text-[var(--sidebar-ink)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
@@ -129,9 +129,9 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav aria-label="Main navigation" className="flex-1 overflow-y-auto px-3 pb-4">
       {NAV_SECTIONS.map((section, si) => (
-        <div key={si} className={cn(si > 0 && "mt-7")}>
+        <div key={si} className={cn(si > 0 && "mt-5")}>
           {section.label ? (
-            <p className="px-3 pb-2 text-[13px] font-medium text-[var(--muted)]">{section.label}</p>
+            <p className="px-3 pb-1.5 text-[13px] font-medium text-[var(--muted)]">{section.label}</p>
           ) : null}
           <ul className="space-y-0.5">
             {section.items.map((item) => (

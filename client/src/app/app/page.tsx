@@ -184,7 +184,7 @@ function TodoRow({ todo }: { todo: Todo }) {
       </div>
       <div className="flex shrink-0 items-center justify-between gap-4 pl-8 sm:justify-end sm:pl-0">
         {todo.amount ? (
-          <span className="text-right">
+          <span className="text-left sm:text-right">
             <span className="block text-[13px] text-[var(--muted)]">{todo.amountLabel ?? "Amount"}</span>
             <span className="tnum block text-[15px] font-semibold text-[var(--ink)]">{formatMoney(todo.amount)}</span>
           </span>

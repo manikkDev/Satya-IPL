@@ -196,6 +196,7 @@ export function sanitizeEngineText(text: string | null | undefined, docNames?: D
 
   out = out.replace(/invoiced (\d+(?:\.\d+)?) exceeds delivered (\d+(?:\.\d+)?)/gi, (_m, a: string, b: string) => `invoiced ${a} units, only ${b} delivered`);
   out = out.replace(/invoiced (\d+(?:\.\d+)?) exceeds QC-accepted (\d+(?:\.\d+)?)/gi, (_m, a: string, b: string) => `invoiced ${a} units, only ${b} passed quality check`);
+  out = out.replace(/grand (?=₹|\d)/g, "total ");
   out = out.replace(/(\d+(?:\.\d+)?) units delivered, none invoiced/gi, (_m, n: string) => `${n} units delivered, no bill yet`);
 
   // money: ₹-prefixed amounts (any size, optional existing grouping) …

@@ -265,14 +265,16 @@ export function ActivityList({ items }: { items: ActivityItem[] }) {
         const row = (
           <>
             <span className="mt-[9px] h-2 w-2 shrink-0 rounded-full" style={{ background: SEV_DOT[item.severity ?? "info"] ?? SEV_DOT.info }} aria-hidden="true" />
-            <span className="min-w-0 flex-1 text-[15px] leading-relaxed text-[var(--ink-2)]">{activitySentence(item.text)}</span>
-            <span className="shrink-0 pt-0.5 text-[14px] text-[var(--muted)]">{timeAgo(item.at)}</span>
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-start sm:gap-4">
+              <span className="min-w-0 flex-1 text-[15px] leading-relaxed text-[var(--ink-2)]">{activitySentence(item.text)}</span>
+              <span className="shrink-0 text-[14px] text-[var(--muted)] sm:pt-0.5">{timeAgo(item.at)}</span>
+            </span>
           </>
         );
         return (
           <li key={item.id}>
             {item.href ? (
-              <Link href={item.href} className="flex items-start gap-3 py-3 transition-colors hover:text-[var(--ink)] [&:hover>span:nth-child(2)]:text-[var(--ink)]">{row}</Link>
+              <Link href={item.href} className="flex items-start gap-3 py-3 transition-colors hover:text-[var(--ink)] ">{row}</Link>
             ) : (
               <div className="flex items-start gap-3 py-3">{row}</div>
             )}
