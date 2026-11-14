@@ -55,6 +55,8 @@ def create_app():
         }
 
     app.include_router(legacy_router)
+    from .extraction.router import router as extraction_router
+    app.include_router(extraction_router)
 
     def require_v2():
         if os.environ.get("FEATURE_V2_RECON_V2") != "1":

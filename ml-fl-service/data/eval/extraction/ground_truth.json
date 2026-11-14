@@ -1,0 +1,2849 @@
+{
+ "name": "satya-synthetic-gst-invoices-v1",
+ "seed": 20261114,
+ "n": 40,
+ "provenance": "synthetic (reportlab-generated GST invoices with known ground truth)",
+ "note": "Fictional parties; GSTINs are checksummed synthetic IDs (not proof they are unissued). QRs are signed with a deterministic TEST RSA key, not an NIC/IRP key.",
+ "documents": [
+  {
+   "id": "inv_01",
+   "file": "pdf/inv_01.pdf",
+   "template": "classic",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "intra",
+   "number": "PVI/25-26/3914",
+   "date": "2025-11-12",
+   "printedDate": "12/11/2025",
+   "seller": {
+    "name": "Precision Valves India Pvt Ltd",
+    "gstin": "29STECP9145A1ZU",
+    "stateCode": "29"
+   },
+   "buyer": {
+    "name": "Bluewater Foods Pvt Ltd",
+    "gstin": "29EAPCB9848N1ZD",
+    "stateCode": "29"
+   },
+   "poReference": null,
+   "irn": "8c5b647b9d2058fc7ba5ab5dc1d4e7ad93d5ab80c6b7ab4923aadded0dc1080c",
+   "totals": {
+    "taxable": "74773652.50",
+    "cgst": "5712291.46",
+    "sgst": "5712291.46",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "-0.42",
+    "grand": "86198235.00"
+   },
+   "lineCount": 4,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "HDPE Granules",
+     "hsn": "39012000",
+     "uom": "KGS",
+     "qty": "754.5",
+     "rate": "66220.09",
+     "amount": "49963057.91",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Industrial Gloves",
+     "hsn": "40151900",
+     "uom": "PAIR",
+     "qty": "75",
+     "rate": "20962.65",
+     "amount": "1572198.75",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 3,
+     "description": "Cotton Fabric 60s",
+     "hsn": "52083190",
+     "uom": "MTR",
+     "qty": "249",
+     "rate": "59942.62",
+     "amount": "14925712.38",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 4,
+     "description": "PVC Pipe 4 inch",
+     "hsn": "39172390",
+     "uom": "NOS",
+     "qty": "118",
+     "rate": "70446.47",
+     "amount": "8312683.46",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_02",
+   "file": "pdf/inv_02.pdf",
+   "template": "boxed",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "intra",
+   "number": "INV-2026-06958",
+   "date": "2026-08-31",
+   "printedDate": "31 Aug 2026",
+   "seller": {
+    "name": "Vardhman Textiles Limited",
+    "gstin": "24FXLCV3295R1ZY",
+    "stateCode": "24"
+   },
+   "buyer": {
+    "name": "Bluewater Foods Pvt Ltd",
+    "gstin": "24JEHCB3947B1ZJ",
+    "stateCode": "24"
+   },
+   "poReference": null,
+   "irn": "825ff0a21b8339e188f567f09cbb7ed1e55b56bad695e8c204b3df6ccfe4cfeb",
+   "totals": {
+    "taxable": "50124980.22",
+    "cgst": "4412534.24",
+    "sgst": "4412534.24",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "0.00",
+    "grand": "58950048.70"
+   },
+   "lineCount": 3,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Packing Material",
+     "hsn": "39232990",
+     "uom": "KGS",
+     "qty": "631",
+     "rate": "60777.14",
+     "amount": "38350375.34",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "PVC Pipe 4 inch",
+     "hsn": "39172390",
+     "uom": "NOS",
+     "qty": "246",
+     "rate": "34488.37",
+     "amount": "8484139.02",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "LED Panel Light 18W",
+     "hsn": "94054090",
+     "uom": "NOS",
+     "qty": "127",
+     "rate": "25909.18",
+     "amount": "3290465.86",
+     "gstRate": "12"
+    }
+   ]
+  },
+  {
+   "id": "inv_03",
+   "file": "pdf/inv_03.pdf",
+   "template": "einvoice_compact",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "intra",
+   "number": "GST/25-26/8768",
+   "date": "2025-12-20",
+   "printedDate": "20-Dec-2025",
+   "seller": {
+    "name": "Om Sai Agencies",
+    "gstin": "19MJGPO9108R1ZZ",
+    "stateCode": "19"
+   },
+   "buyer": {
+    "name": "Sunrise Pharma Pvt Ltd",
+    "gstin": "19ZNLCS4128P1Z6",
+    "stateCode": "19"
+   },
+   "poReference": null,
+   "irn": null,
+   "totals": {
+    "taxable": "6233401.52",
+    "cgst": "561006.14",
+    "sgst": "561006.14",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "0.20",
+    "grand": "7355414.00"
+   },
+   "lineCount": 3,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Annual Maintenance Service",
+     "hsn": "998719",
+     "uom": "NOS",
+     "qty": "232",
+     "rate": "1988.00",
+     "amount": "461216.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "MS Angle 50x50x6",
+     "hsn": "72162100",
+     "uom": "KGS",
+     "qty": "46",
+     "rate": "73634.36",
+     "amount": "3387180.56",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "Packing Material",
+     "hsn": "39232990",
+     "uom": "KGS",
+     "qty": "97",
+     "rate": "24587.68",
+     "amount": "2385004.96",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_04",
+   "file": "pdf/inv_04.pdf",
+   "template": "letterhead",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "inter",
+   "number": "TI/2627/7418",
+   "date": "2026-08-13",
+   "printedDate": "13.08.2026",
+   "seller": {
+    "name": "Bharat Electricals Pvt Ltd",
+    "gstin": "07RCXCB1920A1ZC",
+    "stateCode": "07"
+   },
+   "buyer": {
+    "name": "Bluewater Foods Pvt Ltd",
+    "gstin": "19LEBCB3322J1ZC",
+    "stateCode": "19"
+   },
+   "poReference": "PO-9375",
+   "irn": null,
+   "totals": {
+    "taxable": "16244519.06",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "2647423.60",
+    "cess": "0.00",
+    "roundOff": "0.34",
+    "grand": "18891943.00"
+   },
+   "lineCount": 3,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Rice (branded) 25kg",
+     "hsn": "10063020",
+     "uom": "BAGS",
+     "qty": "143",
+     "rate": "14878.42",
+     "amount": "2127614.06",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 2,
+     "description": "Annual Maintenance Service",
+     "hsn": "998719",
+     "uom": "NOS",
+     "qty": "94",
+     "rate": "49596.66",
+     "amount": "4662086.04",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "HDPE Granules",
+     "hsn": "39012000",
+     "uom": "KGS",
+     "qty": "186",
+     "rate": "50832.36",
+     "amount": "9454818.96",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_05",
+   "file": "pdf/inv_05.pdf",
+   "template": "classic",
+   "twoPage": true,
+   "hasQr": false,
+   "supplyType": "intra",
+   "number": "07/INV/7100",
+   "date": "2026-01-05",
+   "printedDate": "2026-01-05",
+   "seller": {
+    "name": "Kaveri Steel Traders",
+    "gstin": "07NFWCK5219H1ZG",
+    "stateCode": "07"
+   },
+   "buyer": {
+    "name": "Acme Auto Components Pvt Ltd",
+    "gstin": "07XAVCA5115G1ZY",
+    "stateCode": "07"
+   },
+   "poReference": null,
+   "irn": null,
+   "totals": {
+    "taxable": "21961468.51",
+    "cgst": "1797346.72",
+    "sgst": "1797346.72",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "0.00",
+    "grand": "25556161.95"
+   },
+   "lineCount": 3,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Corrugated Box 5 ply",
+     "hsn": "48191010",
+     "uom": "NOS",
+     "qty": "96",
+     "rate": "62217.17",
+     "amount": "5972848.32",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 2,
+     "description": "PVC Pipe 4 inch",
+     "hsn": "39172390",
+     "uom": "NOS",
+     "qty": "77",
+     "rate": "42589.64",
+     "amount": "3279402.28",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "Centrifugal Pump 5HP",
+     "hsn": "84137010",
+     "uom": "NOS",
+     "qty": "193",
+     "rate": "65850.87",
+     "amount": "12709217.91",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_06",
+   "file": "pdf/inv_06.pdf",
+   "template": "boxed",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "inter",
+   "number": "2025-26/VTL/9285",
+   "date": "2025-05-17",
+   "printedDate": "17-05-2025",
+   "seller": {
+    "name": "Vardhman Textiles Limited",
+    "gstin": "19XRNCV3772R1ZJ",
+    "stateCode": "19"
+   },
+   "buyer": {
+    "name": "Acme Auto Components Pvt Ltd",
+    "gstin": "09FGYCA3612R1ZC",
+    "stateCode": "09"
+   },
+   "poReference": "PO-1432",
+   "irn": null,
+   "totals": {
+    "taxable": "4627252.00",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "1295630.56",
+    "cess": "0.00",
+    "roundOff": "0.44",
+    "grand": "5922883.00"
+   },
+   "lineCount": 1,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Diesel Generator Spares",
+     "hsn": "84099990",
+     "uom": "SET",
+     "qty": "59",
+     "rate": "78428.00",
+     "amount": "4627252.00",
+     "gstRate": "28"
+    }
+   ]
+  },
+  {
+   "id": "inv_07",
+   "file": "pdf/inv_07.pdf",
+   "template": "einvoice_compact",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "intra",
+   "number": "0001112",
+   "date": "2026-02-18",
+   "printedDate": "18-Feb-26",
+   "seller": {
+    "name": "Meridian Pumps LLP",
+    "gstin": "33GUKFM2994J1ZK",
+    "stateCode": "33"
+   },
+   "buyer": {
+    "name": "Bluewater Foods Pvt Ltd",
+    "gstin": "33CDSCB8563D1Z8",
+    "stateCode": "33"
+   },
+   "poReference": null,
+   "irn": "9ce94d58ea7cc3fc23986b308ee79f1fda1918d9b303ec9a0843e8353fe3b21f",
+   "totals": {
+    "taxable": "260375972.27",
+    "cgst": "23257394.42",
+    "sgst": "23257394.42",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "0.00",
+    "grand": "306890761.11"
+   },
+   "lineCount": 4,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Annual Maintenance Service",
+     "hsn": "998719",
+     "uom": "NOS",
+     "qty": "232",
+     "rate": "79940.32",
+     "amount": "18546154.24",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Rice (branded) 25kg",
+     "hsn": "10063020",
+     "uom": "BAGS",
+     "qty": "119",
+     "rate": "22811.00",
+     "amount": "2714509.00",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 3,
+     "description": "Hydraulic Oil 68",
+     "hsn": "27101980",
+     "uom": "LTR",
+     "qty": "939",
+     "rate": "13410.16",
+     "amount": "12592140.24",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 4,
+     "description": "HDPE Granules",
+     "hsn": "39012000",
+     "uom": "KGS",
+     "qty": "2649",
+     "rate": "85512.71",
+     "amount": "226523168.79",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_08",
+   "file": "pdf/inv_08.pdf",
+   "template": "letterhead",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "inter",
+   "number": "VTL/25-26/7498",
+   "date": "2025-06-21",
+   "printedDate": "21/06/2025",
+   "seller": {
+    "name": "Vardhman Textiles Limited",
+    "gstin": "06WPTCV9199N1ZG",
+    "stateCode": "06"
+   },
+   "buyer": {
+    "name": "Acme Auto Components Pvt Ltd",
+    "gstin": "27HKCCA8189D1ZS",
+    "stateCode": "27"
+   },
+   "poReference": null,
+   "irn": "97836b855cb906b6664f3230fbc61c79ba7010c3e2d2d9790a3338e7f9c0637b",
+   "totals": {
+    "taxable": "23364029.70",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "3901727.42",
+    "cess": "0.00",
+    "roundOff": "-0.12",
+    "grand": "27265757.00"
+   },
+   "lineCount": 4,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Annual Maintenance Service",
+     "hsn": "998719",
+     "uom": "NOS",
+     "qty": "233",
+     "rate": "40346.40",
+     "amount": "9400711.20",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "PVC Pipe 4 inch",
+     "hsn": "39172390",
+     "uom": "NOS",
+     "qty": "40",
+     "rate": "58976.25",
+     "amount": "2359050.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "Corrugated Box 5 ply",
+     "hsn": "48191010",
+     "uom": "NOS",
+     "qty": "165",
+     "rate": "30686.66",
+     "amount": "5063298.90",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 4,
+     "description": "Packing Material",
+     "hsn": "39232990",
+     "uom": "KGS",
+     "qty": "88",
+     "rate": "74329.20",
+     "amount": "6540969.60",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_09",
+   "file": "pdf/inv_09.pdf",
+   "template": "classic",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "intra",
+   "number": "INV-2025-01421",
+   "date": "2025-12-06",
+   "printedDate": "06 Dec 2025",
+   "seller": {
+    "name": "Raghav Chemicals LLP",
+    "gstin": "07VYZFR6578N1ZW",
+    "stateCode": "07"
+   },
+   "buyer": {
+    "name": "Acme Auto Components Pvt Ltd",
+    "gstin": "07DTFCA2070M1ZI",
+    "stateCode": "07"
+   },
+   "poReference": "PO-1821",
+   "irn": "22fbd5c2d0df0bbb2987fb3f199b74b49cfd9e0b055d26aa85b031344eef6ca3",
+   "totals": {
+    "taxable": "45938875.96",
+    "cgst": "3634358.04",
+    "sgst": "3634358.04",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "-0.04",
+    "grand": "53207592.00"
+   },
+   "lineCount": 5,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "MS Angle 50x50x6",
+     "hsn": "72162100",
+     "uom": "KGS",
+     "qty": "95",
+     "rate": "50544.00",
+     "amount": "4801680.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Packing Material",
+     "hsn": "39232990",
+     "uom": "KGS",
+     "qty": "156",
+     "rate": "88440.61",
+     "amount": "13796735.16",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "LED Panel Light 18W",
+     "hsn": "94054090",
+     "uom": "NOS",
+     "qty": "240",
+     "rate": "69464.00",
+     "amount": "16671360.00",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 4,
+     "description": "Centrifugal Pump 5HP",
+     "hsn": "84137010",
+     "uom": "NOS",
+     "qty": "7",
+     "rate": "25727.20",
+     "amount": "180090.40",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 5,
+     "description": "Annual Maintenance Service",
+     "hsn": "998719",
+     "uom": "NOS",
+     "qty": "144",
+     "rate": "72840.35",
+     "amount": "10489010.40",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_10",
+   "file": "pdf/inv_10.pdf",
+   "template": "boxed",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "inter",
+   "number": "GST/26-27/6558",
+   "date": "2026-07-21",
+   "printedDate": "21-Jul-2026",
+   "seller": {
+    "name": "Narmada Plastics Ltd",
+    "gstin": "24RAZCN7891E1Z8",
+    "stateCode": "24"
+   },
+   "buyer": {
+    "name": "Acme Auto Components Pvt Ltd",
+    "gstin": "29CTUCA8612X1Z4",
+    "stateCode": "29"
+   },
+   "poReference": "PO-5235",
+   "irn": "b585c2d1213c987e14ea04862518db6cebfa7a638bfb126e4d8a861e7ba8a919",
+   "totals": {
+    "taxable": "7949517.60",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "1430913.17",
+    "cess": "0.00",
+    "roundOff": "0.23",
+    "grand": "9380431.00"
+   },
+   "lineCount": 1,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Annual Maintenance Service",
+     "hsn": "998719",
+     "uom": "NOS",
+     "qty": "184",
+     "rate": "43203.90",
+     "amount": "7949517.60",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_11",
+   "file": "pdf/inv_11.pdf",
+   "template": "einvoice_compact",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "inter",
+   "number": "TI/2627/3216",
+   "date": "2026-05-17",
+   "printedDate": "17.05.2026",
+   "seller": {
+    "name": "Meridian Pumps LLP",
+    "gstin": "06NFJFM7616F1ZM",
+    "stateCode": "06"
+   },
+   "buyer": {
+    "name": "Acme Auto Components Pvt Ltd",
+    "gstin": "19AZACA3795C1ZC",
+    "stateCode": "19"
+   },
+   "poReference": "PO-7341",
+   "irn": null,
+   "totals": {
+    "taxable": "13966250.08",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "2513925.01",
+    "cess": "0.00",
+    "roundOff": "0.00",
+    "grand": "16480175.09"
+   },
+   "lineCount": 2,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Hydraulic Oil 68",
+     "hsn": "27101980",
+     "uom": "LTR",
+     "qty": "184",
+     "rate": "51289.00",
+     "amount": "9437176.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Bearing 6205 ZZ",
+     "hsn": "84821011",
+     "uom": "NOS",
+     "qty": "228",
+     "rate": "19864.36",
+     "amount": "4529074.08",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_12",
+   "file": "pdf/inv_12.pdf",
+   "template": "letterhead",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "intra",
+   "number": "33/INV/3577",
+   "date": "2025-05-24",
+   "printedDate": "2025-05-24",
+   "seller": {
+    "name": "Vardhman Textiles Limited",
+    "gstin": "33HXBCV3119W1ZA",
+    "stateCode": "33"
+   },
+   "buyer": {
+    "name": "Sunrise Pharma Pvt Ltd",
+    "gstin": "33TRMCS9680W1ZG",
+    "stateCode": "33"
+   },
+   "poReference": "PO-7810",
+   "irn": null,
+   "totals": {
+    "taxable": "66026076.65",
+    "cgst": "4187956.76",
+    "sgst": "4187956.76",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "-0.17",
+    "grand": "74401990.00"
+   },
+   "lineCount": 4,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Copper Wire 2.5 sqmm",
+     "hsn": "85444999",
+     "uom": "MTR",
+     "qty": "1185",
+     "rate": "23287.96",
+     "amount": "27596232.60",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Ball Valve 2 inch SS304",
+     "hsn": "84818030",
+     "uom": "NOS",
+     "qty": "199",
+     "rate": "38890.22",
+     "amount": "7739153.78",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "Packing Material",
+     "hsn": "39232990",
+     "uom": "KGS",
+     "qty": "249",
+     "rate": "14859.73",
+     "amount": "3700072.77",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 4,
+     "description": "Cotton Fabric 60s",
+     "hsn": "52083190",
+     "uom": "MTR",
+     "qty": "668.25",
+     "rate": "40390.00",
+     "amount": "26990617.50",
+     "gstRate": "5"
+    }
+   ]
+  },
+  {
+   "id": "inv_13",
+   "file": "pdf/inv_13.pdf",
+   "template": "classic",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "intra",
+   "number": "2026-27/NPL/8234",
+   "date": "2026-07-14",
+   "printedDate": "14-07-2026",
+   "seller": {
+    "name": "Narmada Plastics Ltd",
+    "gstin": "24JBKCN8433R1ZE",
+    "stateCode": "24"
+   },
+   "buyer": {
+    "name": "Bluewater Foods Pvt Ltd",
+    "gstin": "24UAUCB8486H1ZF",
+    "stateCode": "24"
+   },
+   "poReference": null,
+   "irn": null,
+   "totals": {
+    "taxable": "26560546.93",
+    "cgst": "2009360.12",
+    "sgst": "2009360.12",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "0.00",
+    "grand": "30579267.17"
+   },
+   "lineCount": 3,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Corrugated Box 5 ply",
+     "hsn": "48191010",
+     "uom": "NOS",
+     "qty": "144",
+     "rate": "88215.07",
+     "amount": "12702970.08",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 2,
+     "description": "PVC Pipe 4 inch",
+     "hsn": "39172390",
+     "uom": "NOS",
+     "qty": "25",
+     "rate": "74193.07",
+     "amount": "1854826.75",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "Copper Wire 2.5 sqmm",
+     "hsn": "85444999",
+     "uom": "MTR",
+     "qty": "162",
+     "rate": "74091.05",
+     "amount": "12002750.10",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_14",
+   "file": "pdf/inv_14.pdf",
+   "template": "boxed",
+   "twoPage": true,
+   "hasQr": false,
+   "supplyType": "inter",
+   "number": "0006098",
+   "date": "2026-09-08",
+   "printedDate": "08-Sep-26",
+   "seller": {
+    "name": "Vardhman Textiles Limited",
+    "gstin": "06YULCV7902P1ZT",
+    "stateCode": "06"
+   },
+   "buyer": {
+    "name": "Lotus Infra Projects LLP",
+    "gstin": "27RAPFL5452C1ZR",
+    "stateCode": "27"
+   },
+   "poReference": null,
+   "irn": null,
+   "totals": {
+    "taxable": "34878044.75",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "6188790.65",
+    "cess": "0.00",
+    "roundOff": "-0.40",
+    "grand": "41066835.00"
+   },
+   "lineCount": 6,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Ball Valve 2 inch SS304",
+     "hsn": "84818030",
+     "uom": "NOS",
+     "qty": "189",
+     "rate": "23833.07",
+     "amount": "4504450.23",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Centrifugal Pump 5HP",
+     "hsn": "84137010",
+     "uom": "NOS",
+     "qty": "150",
+     "rate": "74433.72",
+     "amount": "11165058.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "Rice (branded) 25kg",
+     "hsn": "10063020",
+     "uom": "BAGS",
+     "qty": "26",
+     "rate": "21321.59",
+     "amount": "554361.34",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 4,
+     "description": "Hydraulic Oil 68",
+     "hsn": "27101980",
+     "uom": "LTR",
+     "qty": "113.8",
+     "rate": "53768.00",
+     "amount": "6118798.40",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 5,
+     "description": "Bearing 6205 ZZ",
+     "hsn": "84821011",
+     "uom": "NOS",
+     "qty": "220",
+     "rate": "55676.68",
+     "amount": "12248869.60",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 6,
+     "description": "Industrial Gloves",
+     "hsn": "40151900",
+     "uom": "PAIR",
+     "qty": "82",
+     "rate": "3493.99",
+     "amount": "286507.18",
+     "gstRate": "12"
+    }
+   ]
+  },
+  {
+   "id": "inv_15",
+   "file": "pdf/inv_15.pdf",
+   "template": "einvoice_compact",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "intra",
+   "number": "OSA/26-27/4525",
+   "date": "2026-05-25",
+   "printedDate": "25/05/2026",
+   "seller": {
+    "name": "Om Sai Agencies",
+    "gstin": "33KSCFO1938K1ZY",
+    "stateCode": "33"
+   },
+   "buyer": {
+    "name": "Lotus Infra Projects LLP",
+    "gstin": "33UBEFL4207E1Z9",
+    "stateCode": "33"
+   },
+   "poReference": null,
+   "irn": "f9438e2613f3be84c878880fa4663bbf1323dca9da31a8711a20480e61d96f15",
+   "totals": {
+    "taxable": "99891134.09",
+    "cgst": "9165412.40",
+    "sgst": "9165412.40",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "0.11",
+    "grand": "118221959.00"
+   },
+   "lineCount": 4,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "HDPE Granules",
+     "hsn": "39012000",
+     "uom": "KGS",
+     "qty": "931",
+     "rate": "80080.35",
+     "amount": "74554805.85",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Diesel Generator Spares",
+     "hsn": "84099990",
+     "uom": "SET",
+     "qty": "92",
+     "rate": "69859.62",
+     "amount": "6427085.04",
+     "gstRate": "28"
+    },
+    {
+     "lineNo": 3,
+     "description": "PVC Pipe 4 inch",
+     "hsn": "39172390",
+     "uom": "NOS",
+     "qty": "231",
+     "rate": "72125.00",
+     "amount": "16660875.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 4,
+     "description": "Rice (branded) 25kg",
+     "hsn": "10063020",
+     "uom": "BAGS",
+     "qty": "130",
+     "rate": "17295.14",
+     "amount": "2248368.20",
+     "gstRate": "5"
+    }
+   ]
+  },
+  {
+   "id": "inv_16",
+   "file": "pdf/inv_16.pdf",
+   "template": "letterhead",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "intra",
+   "number": "INV-2026-05029",
+   "date": "2026-04-27",
+   "printedDate": "27 Apr 2026",
+   "seller": {
+    "name": "Annapurna Packaging Co.",
+    "gstin": "19FLTFA2984F1Z7",
+    "stateCode": "19"
+   },
+   "buyer": {
+    "name": "Bluewater Foods Pvt Ltd",
+    "gstin": "19MMSCB1577K1ZY",
+    "stateCode": "19"
+   },
+   "poReference": "PO-9561",
+   "irn": "dd39a42eafe85364c93fd47a41b2d8ed4e88be7e4bb6ca50cd60d2e3df76462b",
+   "totals": {
+    "taxable": "11644717.46",
+    "cgst": "665477.38",
+    "sgst": "665477.38",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "-0.22",
+    "grand": "12975672.00"
+   },
+   "lineCount": 3,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Rice (branded) 25kg",
+     "hsn": "10063020",
+     "uom": "BAGS",
+     "qty": "59",
+     "rate": "74332.02",
+     "amount": "4385589.18",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 2,
+     "description": "LED Panel Light 18W",
+     "hsn": "94054090",
+     "uom": "NOS",
+     "qty": "166",
+     "rate": "19575.08",
+     "amount": "3249463.28",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 3,
+     "description": "PVC Pipe 4 inch",
+     "hsn": "39172390",
+     "uom": "NOS",
+     "qty": "165",
+     "rate": "24301.00",
+     "amount": "4009665.00",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_17",
+   "file": "pdf/inv_17.pdf",
+   "template": "classic",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "inter",
+   "number": "GST/25-26/4054",
+   "date": "2026-03-31",
+   "printedDate": "31-Mar-2026",
+   "seller": {
+    "name": "Sai Krupa Enterprises",
+    "gstin": "07VCECS6517W1ZQ",
+    "stateCode": "07"
+   },
+   "buyer": {
+    "name": "Acme Auto Components Pvt Ltd",
+    "gstin": "33YYJCA5955U1ZS",
+    "stateCode": "33"
+   },
+   "poReference": "PO-6438",
+   "irn": "b7fef6e75f5289fb4f5cce0ed05e53193d9a9747f711f779c7204cfea52f7609",
+   "totals": {
+    "taxable": "12053449.92",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "1665286.79",
+    "cess": "0.00",
+    "roundOff": "0.29",
+    "grand": "13718737.00"
+   },
+   "lineCount": 3,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Corrugated Box 5 ply",
+     "hsn": "48191010",
+     "uom": "NOS",
+     "qty": "192",
+     "rate": "43779.01",
+     "amount": "8405569.92",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 2,
+     "description": "Copper Wire 2.5 sqmm",
+     "hsn": "85444999",
+     "uom": "MTR",
+     "qty": "176",
+     "rate": "16630.00",
+     "amount": "2926880.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "Centrifugal Pump 5HP",
+     "hsn": "84137010",
+     "uom": "NOS",
+     "qty": "200",
+     "rate": "3605.00",
+     "amount": "721000.00",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_18",
+   "file": "pdf/inv_18.pdf",
+   "template": "boxed",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "intra",
+   "number": "TI/2526/8040",
+   "date": "2025-12-12",
+   "printedDate": "12.12.2025",
+   "seller": {
+    "name": "Annapurna Packaging Co.",
+    "gstin": "27RVZFA7443N1ZV",
+    "stateCode": "27"
+   },
+   "buyer": {
+    "name": "Satya Demo Manufacturing Ltd",
+    "gstin": "27AHXCS3109V1ZS",
+    "stateCode": "27"
+   },
+   "poReference": null,
+   "irn": "a9b6175748d9510de03a9078dc3404554c21d00aaed1745b85236835da5af53a",
+   "totals": {
+    "taxable": "62293226.64",
+    "cgst": "4588341.03",
+    "sgst": "4588341.03",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "0.30",
+    "grand": "71469909.00"
+   },
+   "lineCount": 4,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Rice (branded) 25kg",
+     "hsn": "10063020",
+     "uom": "BAGS",
+     "qty": "155",
+     "rate": "83670.40",
+     "amount": "12968912.00",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 2,
+     "description": "Corrugated Box 5 ply",
+     "hsn": "48191010",
+     "uom": "NOS",
+     "qty": "185",
+     "rate": "31544.16",
+     "amount": "5835669.60",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 3,
+     "description": "Copper Wire 2.5 sqmm",
+     "hsn": "85444999",
+     "uom": "MTR",
+     "qty": "1422.5",
+     "rate": "28578.00",
+     "amount": "40652205.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 4,
+     "description": "Bearing 6205 ZZ",
+     "hsn": "84821011",
+     "uom": "NOS",
+     "qty": "92",
+     "rate": "30830.87",
+     "amount": "2836440.04",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_19",
+   "file": "pdf/inv_19.pdf",
+   "template": "einvoice_compact",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "inter",
+   "number": "24/INV/0100",
+   "date": "2025-06-09",
+   "printedDate": "2025-06-09",
+   "seller": {
+    "name": "Shree Ganesh Industries Pvt Ltd",
+    "gstin": "24XPFCS7177K1ZE",
+    "stateCode": "24"
+   },
+   "buyer": {
+    "name": "Acme Auto Components Pvt Ltd",
+    "gstin": "29SVNCA9380Z1ZC",
+    "stateCode": "29"
+   },
+   "poReference": null,
+   "irn": null,
+   "totals": {
+    "taxable": "22498862.82",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "3324984.36",
+    "cess": "0.00",
+    "roundOff": "0.00",
+    "grand": "25823847.18"
+   },
+   "lineCount": 4,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Centrifugal Pump 5HP",
+     "hsn": "84137010",
+     "uom": "NOS",
+     "qty": "52",
+     "rate": "1524.00",
+     "amount": "79248.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Corrugated Box 5 ply",
+     "hsn": "48191010",
+     "uom": "NOS",
+     "qty": "33",
+     "rate": "22795.00",
+     "amount": "752235.00",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 3,
+     "description": "Packing Material",
+     "hsn": "39232990",
+     "uom": "KGS",
+     "qty": "245.75",
+     "rate": "42072.97",
+     "amount": "10339432.38",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 4,
+     "description": "Industrial Gloves",
+     "hsn": "40151900",
+     "uom": "PAIR",
+     "qty": "152",
+     "rate": "74525.97",
+     "amount": "11327947.44",
+     "gstRate": "12"
+    }
+   ]
+  },
+  {
+   "id": "inv_20",
+   "file": "pdf/inv_20.pdf",
+   "template": "letterhead",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "intra",
+   "number": "2025-26/DEW/6623",
+   "date": "2025-11-13",
+   "printedDate": "13-11-2025",
+   "seller": {
+    "name": "Deccan Engineering Works",
+    "gstin": "29VCEFD7230H1ZS",
+    "stateCode": "29"
+   },
+   "buyer": {
+    "name": "Bluewater Foods Pvt Ltd",
+    "gstin": "29VPJCB7769M1Z9",
+    "stateCode": "29"
+   },
+   "poReference": "PO-2722",
+   "irn": null,
+   "totals": {
+    "taxable": "31633280.10",
+    "cgst": "2751439.13",
+    "sgst": "2751439.13",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "-0.36",
+    "grand": "37136158.00"
+   },
+   "lineCount": 6,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Centrifugal Pump 5HP",
+     "hsn": "84137010",
+     "uom": "NOS",
+     "qty": "72",
+     "rate": "18849.00",
+     "amount": "1357128.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "LED Panel Light 18W",
+     "hsn": "94054090",
+     "uom": "NOS",
+     "qty": "1",
+     "rate": "84435.52",
+     "amount": "84435.52",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 3,
+     "description": "Industrial Gloves",
+     "hsn": "40151900",
+     "uom": "PAIR",
+     "qty": "86",
+     "rate": "36055.43",
+     "amount": "3100766.98",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 4,
+     "description": "PVC Pipe 4 inch",
+     "hsn": "39172390",
+     "uom": "NOS",
+     "qty": "49",
+     "rate": "77864.00",
+     "amount": "3815336.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 5,
+     "description": "Packing Material",
+     "hsn": "39232990",
+     "uom": "KGS",
+     "qty": "195",
+     "rate": "83538.48",
+     "amount": "16290003.60",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 6,
+     "description": "MS Angle 50x50x6",
+     "hsn": "72162100",
+     "uom": "KGS",
+     "qty": "235",
+     "rate": "29726.00",
+     "amount": "6985610.00",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_21",
+   "file": "pdf/inv_21.pdf",
+   "template": "classic",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "intra",
+   "number": "0007224",
+   "date": "2026-06-05",
+   "printedDate": "05-Jun-26",
+   "seller": {
+    "name": "Narmada Plastics Ltd",
+    "gstin": "06KPLCN3288U1Z8",
+    "stateCode": "06"
+   },
+   "buyer": {
+    "name": "Bluewater Foods Pvt Ltd",
+    "gstin": "06EPBCB4389H1ZN",
+    "stateCode": "06"
+   },
+   "poReference": "PO-2325",
+   "irn": null,
+   "totals": {
+    "taxable": "7200541.15",
+    "cgst": "299904.54",
+    "sgst": "299904.54",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "0.00",
+    "grand": "7800350.23"
+   },
+   "lineCount": 5,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Bearing 6205 ZZ",
+     "hsn": "84821011",
+     "uom": "NOS",
+     "qty": "8",
+     "rate": "5193.00",
+     "amount": "41544.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "LED Panel Light 18W",
+     "hsn": "94054090",
+     "uom": "NOS",
+     "qty": "223",
+     "rate": "4381.00",
+     "amount": "976963.00",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 3,
+     "description": "Cotton Fabric 60s",
+     "hsn": "52083190",
+     "uom": "MTR",
+     "qty": "2869",
+     "rate": "1709.71",
+     "amount": "4905157.99",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 4,
+     "description": "Annual Maintenance Service",
+     "hsn": "998719",
+     "uom": "NOS",
+     "qty": "104",
+     "rate": "1720.00",
+     "amount": "178880.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 5,
+     "description": "HDPE Granules",
+     "hsn": "39012000",
+     "uom": "KGS",
+     "qty": "64",
+     "rate": "17156.19",
+     "amount": "1097996.16",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_22",
+   "file": "pdf/inv_22.pdf",
+   "template": "boxed",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "inter",
+   "number": "RCL/25-26/0170",
+   "date": "2025-09-26",
+   "printedDate": "26/09/2025",
+   "seller": {
+    "name": "Raghav Chemicals LLP",
+    "gstin": "24YTKFR7041S1ZS",
+    "stateCode": "24"
+   },
+   "buyer": {
+    "name": "Acme Auto Components Pvt Ltd",
+    "gstin": "07UZCCA2283F1Z0",
+    "stateCode": "07"
+   },
+   "poReference": "PO-2620",
+   "irn": null,
+   "totals": {
+    "taxable": "108290846.76",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "16344461.57",
+    "cess": "0.00",
+    "roundOff": "-0.33",
+    "grand": "124635308.00"
+   },
+   "lineCount": 5,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Corrugated Box 5 ply",
+     "hsn": "48191010",
+     "uom": "NOS",
+     "qty": "218",
+     "rate": "49506.00",
+     "amount": "10792308.00",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 2,
+     "description": "HDPE Granules",
+     "hsn": "39012000",
+     "uom": "KGS",
+     "qty": "1467",
+     "rate": "47985.00",
+     "amount": "70393995.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "Annual Maintenance Service",
+     "hsn": "998719",
+     "uom": "NOS",
+     "qty": "90",
+     "rate": "3712.00",
+     "amount": "334080.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 4,
+     "description": "Cotton Fabric 60s",
+     "hsn": "52083190",
+     "uom": "MTR",
+     "qty": "232",
+     "rate": "82902.93",
+     "amount": "19233479.76",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 5,
+     "description": "Ball Valve 2 inch SS304",
+     "hsn": "84818030",
+     "uom": "NOS",
+     "qty": "136",
+     "rate": "55419.00",
+     "amount": "7536984.00",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_23",
+   "file": "pdf/inv_23.pdf",
+   "template": "einvoice_compact",
+   "twoPage": true,
+   "hasQr": true,
+   "supplyType": "inter",
+   "number": "INV-2026-01198",
+   "date": "2026-04-14",
+   "printedDate": "14 Apr 2026",
+   "seller": {
+    "name": "Deccan Engineering Works",
+    "gstin": "24RDYPD8404Z1ZW",
+    "stateCode": "24"
+   },
+   "buyer": {
+    "name": "Everest Motors Limited",
+    "gstin": "19DEPCE8582Z1ZJ",
+    "stateCode": "19"
+   },
+   "poReference": null,
+   "irn": "618c829519f7e1280ec20a840a651b405ee8792a1fd7f0ff86e1caea1cac7400",
+   "totals": {
+    "taxable": "167704337.56",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "28056842.57",
+    "cess": "0.00",
+    "roundOff": "0.00",
+    "grand": "195761180.13"
+   },
+   "lineCount": 5,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Copper Wire 2.5 sqmm",
+     "hsn": "85444999",
+     "uom": "MTR",
+     "qty": "1650",
+     "rate": "83802.72",
+     "amount": "138274488.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Cotton Fabric 60s",
+     "hsn": "52083190",
+     "uom": "MTR",
+     "qty": "267",
+     "rate": "61363.82",
+     "amount": "16384139.94",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 3,
+     "description": "Bearing 6205 ZZ",
+     "hsn": "84821011",
+     "uom": "NOS",
+     "qty": "51",
+     "rate": "73645.69",
+     "amount": "3755930.19",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 4,
+     "description": "Centrifugal Pump 5HP",
+     "hsn": "84137010",
+     "uom": "NOS",
+     "qty": "74",
+     "rate": "71144.03",
+     "amount": "5264658.22",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 5,
+     "description": "Packing Material",
+     "hsn": "39232990",
+     "uom": "KGS",
+     "qty": "129",
+     "rate": "31202.49",
+     "amount": "4025121.21",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_24",
+   "file": "pdf/inv_24.pdf",
+   "template": "letterhead",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "intra",
+   "number": "GST/25-26/8244",
+   "date": "2025-08-28",
+   "printedDate": "28-Aug-2025",
+   "seller": {
+    "name": "Bharat Electricals Pvt Ltd",
+    "gstin": "06FTHCB9379G1Z2",
+    "stateCode": "06"
+   },
+   "buyer": {
+    "name": "Lotus Infra Projects LLP",
+    "gstin": "06UAZFL8400X1ZH",
+    "stateCode": "06"
+   },
+   "poReference": null,
+   "irn": "5fa46b49ec6b3973833b487d872610ec292c6ec48c7763459baabcd3fd7b474b",
+   "totals": {
+    "taxable": "58850269.37",
+    "cgst": "5982596.98",
+    "sgst": "5982596.98",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "0.00",
+    "grand": "70815463.33"
+   },
+   "lineCount": 6,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Annual Maintenance Service",
+     "hsn": "998719",
+     "uom": "NOS",
+     "qty": "216",
+     "rate": "31548.76",
+     "amount": "6814532.16",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Packing Material",
+     "hsn": "39232990",
+     "uom": "KGS",
+     "qty": "816",
+     "rate": "28133.00",
+     "amount": "22956528.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "Industrial Gloves",
+     "hsn": "40151900",
+     "uom": "PAIR",
+     "qty": "230",
+     "rate": "18844.00",
+     "amount": "4334120.00",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 4,
+     "description": "Diesel Generator Spares",
+     "hsn": "84099990",
+     "uom": "SET",
+     "qty": "197",
+     "rate": "82923.00",
+     "amount": "16335831.00",
+     "gstRate": "28"
+    },
+    {
+     "lineNo": 5,
+     "description": "Corrugated Box 5 ply",
+     "hsn": "48191010",
+     "uom": "NOS",
+     "qty": "6",
+     "rate": "3862.28",
+     "amount": "23173.68",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 6,
+     "description": "MS Angle 50x50x6",
+     "hsn": "72162100",
+     "uom": "KGS",
+     "qty": "153",
+     "rate": "54811.01",
+     "amount": "8386084.53",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_25",
+   "file": "pdf/inv_25.pdf",
+   "template": "classic",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "inter",
+   "number": "TI/2526/5579",
+   "date": "2025-12-15",
+   "printedDate": "15.12.2025",
+   "seller": {
+    "name": "Meridian Pumps LLP",
+    "gstin": "27FVDFM1839W1Z3",
+    "stateCode": "27"
+   },
+   "buyer": {
+    "name": "Lotus Infra Projects LLP",
+    "gstin": "09DRZFL3312V1Z4",
+    "stateCode": "09"
+   },
+   "poReference": "PO-5849",
+   "irn": "71b9399b87e94554d57b3ae64c04d10798a4df1a6fd8b958002d54f49d2dcc7b",
+   "totals": {
+    "taxable": "22829780.90",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "3365380.96",
+    "cess": "0.00",
+    "roundOff": "0.14",
+    "grand": "26195162.00"
+   },
+   "lineCount": 3,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Copper Wire 2.5 sqmm",
+     "hsn": "85444999",
+     "uom": "MTR",
+     "qty": "224",
+     "rate": "52650.00",
+     "amount": "11793600.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Annual Maintenance Service",
+     "hsn": "998719",
+     "uom": "NOS",
+     "qty": "127",
+     "rate": "41836.70",
+     "amount": "5313260.90",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "Rice (branded) 25kg",
+     "hsn": "10063020",
+     "uom": "BAGS",
+     "qty": "108",
+     "rate": "52990.00",
+     "amount": "5722920.00",
+     "gstRate": "5"
+    }
+   ]
+  },
+  {
+   "id": "inv_26",
+   "file": "pdf/inv_26.pdf",
+   "template": "boxed",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "intra",
+   "number": "19/INV/5318",
+   "date": "2026-06-07",
+   "printedDate": "2026-06-07",
+   "seller": {
+    "name": "Shree Ganesh Industries Pvt Ltd",
+    "gstin": "19DHUCS7332W1ZE",
+    "stateCode": "19"
+   },
+   "buyer": {
+    "name": "Lotus Infra Projects LLP",
+    "gstin": "19KKJFL7459C1Z5",
+    "stateCode": "19"
+   },
+   "poReference": null,
+   "irn": "661567a5ad66f8433912e3adbb55147a46f6998f38a3fdfc3bc93b0294ddefb7",
+   "totals": {
+    "taxable": "8093032.62",
+    "cgst": "699900.40",
+    "sgst": "699900.40",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "-0.42",
+    "grand": "9492833.00"
+   },
+   "lineCount": 2,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Ball Valve 2 inch SS304",
+     "hsn": "84818030",
+     "uom": "NOS",
+     "qty": "107",
+     "rate": "66765.87",
+     "amount": "7143948.09",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "LED Panel Light 18W",
+     "hsn": "94054090",
+     "uom": "NOS",
+     "qty": "93",
+     "rate": "10205.21",
+     "amount": "949084.53",
+     "gstRate": "12"
+    }
+   ]
+  },
+  {
+   "id": "inv_27",
+   "file": "pdf/inv_27.pdf",
+   "template": "einvoice_compact",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "intra",
+   "number": "2025-26/NPL/9096",
+   "date": "2025-05-01",
+   "printedDate": "01-05-2025",
+   "seller": {
+    "name": "Narmada Plastics Ltd",
+    "gstin": "19WTGCN2830Z1ZQ",
+    "stateCode": "19"
+   },
+   "buyer": {
+    "name": "Satya Demo Manufacturing Ltd",
+    "gstin": "19XZWCS6470V1ZO",
+    "stateCode": "19"
+   },
+   "poReference": null,
+   "irn": null,
+   "totals": {
+    "taxable": "19300785.39",
+    "cgst": "820682.54",
+    "sgst": "820682.54",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "-0.47",
+    "grand": "20942150.00"
+   },
+   "lineCount": 3,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "LED Panel Light 18W",
+     "hsn": "94054090",
+     "uom": "NOS",
+     "qty": "153",
+     "rate": "29429.59",
+     "amount": "4502727.27",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 2,
+     "description": "Rice (branded) 25kg",
+     "hsn": "10063020",
+     "uom": "BAGS",
+     "qty": "118",
+     "rate": "81686.34",
+     "amount": "9638988.12",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 3,
+     "description": "Industrial Gloves",
+     "hsn": "40151900",
+     "uom": "PAIR",
+     "qty": "114",
+     "rate": "45255.00",
+     "amount": "5159070.00",
+     "gstRate": "12"
+    }
+   ]
+  },
+  {
+   "id": "inv_28",
+   "file": "pdf/inv_28.pdf",
+   "template": "letterhead",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "intra",
+   "number": "0007746",
+   "date": "2025-06-24",
+   "printedDate": "24-Jun-25",
+   "seller": {
+    "name": "Om Sai Agencies",
+    "gstin": "24HBEFO8325E1Z7",
+    "stateCode": "24"
+   },
+   "buyer": {
+    "name": "Everest Motors Limited",
+    "gstin": "24VADCE4365V1ZD",
+    "stateCode": "24"
+   },
+   "poReference": null,
+   "irn": null,
+   "totals": {
+    "taxable": "9701474.95",
+    "cgst": "376725.40",
+    "sgst": "376725.40",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "0.25",
+    "grand": "10454926.00"
+   },
+   "lineCount": 3,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Corrugated Box 5 ply",
+     "hsn": "48191010",
+     "uom": "NOS",
+     "qty": "79",
+     "rate": "32780.00",
+     "amount": "2589620.00",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 2,
+     "description": "Annual Maintenance Service",
+     "hsn": "998719",
+     "uom": "NOS",
+     "qty": "115",
+     "rate": "5826.33",
+     "amount": "670027.95",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "Rice (branded) 25kg",
+     "hsn": "10063020",
+     "uom": "BAGS",
+     "qty": "119",
+     "rate": "54133.00",
+     "amount": "6441827.00",
+     "gstRate": "5"
+    }
+   ]
+  },
+  {
+   "id": "inv_29",
+   "file": "pdf/inv_29.pdf",
+   "template": "classic",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "inter",
+   "number": "VTL/26-27/7603",
+   "date": "2026-06-26",
+   "printedDate": "26/06/2026",
+   "seller": {
+    "name": "Vardhman Textiles Limited",
+    "gstin": "24JDDCV8425R1Z9",
+    "stateCode": "24"
+   },
+   "buyer": {
+    "name": "Everest Motors Limited",
+    "gstin": "06WLFCE2654Y1ZJ",
+    "stateCode": "06"
+   },
+   "poReference": null,
+   "irn": null,
+   "totals": {
+    "taxable": "23872827.52",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "3208525.34",
+    "cess": "0.00",
+    "roundOff": "0.00",
+    "grand": "27081352.86"
+   },
+   "lineCount": 3,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Annual Maintenance Service",
+     "hsn": "998719",
+     "uom": "NOS",
+     "qty": "190",
+     "rate": "30156.67",
+     "amount": "5729767.30",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "LED Panel Light 18W",
+     "hsn": "94054090",
+     "uom": "NOS",
+     "qty": "158",
+     "rate": "88557.09",
+     "amount": "13992020.22",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 3,
+     "description": "Corrugated Box 5 ply",
+     "hsn": "48191010",
+     "uom": "NOS",
+     "qty": "141",
+     "rate": "29440.00",
+     "amount": "4151040.00",
+     "gstRate": "12"
+    }
+   ]
+  },
+  {
+   "id": "inv_30",
+   "file": "pdf/inv_30.pdf",
+   "template": "boxed",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "intra",
+   "number": "INV-2026-05961",
+   "date": "2026-09-19",
+   "printedDate": "19 Sep 2026",
+   "seller": {
+    "name": "Precision Valves India Pvt Ltd",
+    "gstin": "24ZASCP7441E1ZJ",
+    "stateCode": "24"
+   },
+   "buyer": {
+    "name": "Lotus Infra Projects LLP",
+    "gstin": "24FLAFL5481N1Z9",
+    "stateCode": "24"
+   },
+   "poReference": null,
+   "irn": null,
+   "totals": {
+    "taxable": "99758484.24",
+    "cgst": "8634845.21",
+    "sgst": "8634845.21",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "0.00",
+    "grand": "117028174.66"
+   },
+   "lineCount": 6,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "PVC Pipe 4 inch",
+     "hsn": "39172390",
+     "uom": "NOS",
+     "qty": "8",
+     "rate": "26857.35",
+     "amount": "214858.80",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Bearing 6205 ZZ",
+     "hsn": "84821011",
+     "uom": "NOS",
+     "qty": "106",
+     "rate": "75392.23",
+     "amount": "7991576.38",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "Corrugated Box 5 ply",
+     "hsn": "48191010",
+     "uom": "NOS",
+     "qty": "37",
+     "rate": "75875.00",
+     "amount": "2807375.00",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 4,
+     "description": "Rice (branded) 25kg",
+     "hsn": "10063020",
+     "uom": "BAGS",
+     "qty": "161",
+     "rate": "24768.00",
+     "amount": "3987648.00",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 5,
+     "description": "Hydraulic Oil 68",
+     "hsn": "27101980",
+     "uom": "LTR",
+     "qty": "953.5",
+     "rate": "87228.61",
+     "amount": "83172479.64",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 6,
+     "description": "Packing Material",
+     "hsn": "39232990",
+     "uom": "KGS",
+     "qty": "114",
+     "rate": "13899.53",
+     "amount": "1584546.42",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_31",
+   "file": "pdf/inv_31.pdf",
+   "template": "einvoice_compact",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "intra",
+   "number": "GST/25-26/3377",
+   "date": "2025-11-22",
+   "printedDate": "22-Nov-2025",
+   "seller": {
+    "name": "Kaveri Steel Traders",
+    "gstin": "06FSAPK1877Z1ZL",
+    "stateCode": "06"
+   },
+   "buyer": {
+    "name": "Sunrise Pharma Pvt Ltd",
+    "gstin": "06KPRCS8549A1ZW",
+    "stateCode": "06"
+   },
+   "poReference": null,
+   "irn": "0077254eba9f783ee4b4b1e87c6d1cac5b700231e85ff73e4444b50a8da23b83",
+   "totals": {
+    "taxable": "89428393.87",
+    "cgst": "6609685.27",
+    "sgst": "6609685.27",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "-0.41",
+    "grand": "102647764.00"
+   },
+   "lineCount": 5,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Cotton Fabric 60s",
+     "hsn": "52083190",
+     "uom": "MTR",
+     "qty": "325.5",
+     "rate": "86490.12",
+     "amount": "28152534.06",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 2,
+     "description": "Diesel Generator Spares",
+     "hsn": "84099990",
+     "uom": "SET",
+     "qty": "190",
+     "rate": "48050.46",
+     "amount": "9129587.40",
+     "gstRate": "28"
+    },
+    {
+     "lineNo": 3,
+     "description": "Copper Wire 2.5 sqmm",
+     "hsn": "85444999",
+     "uom": "MTR",
+     "qty": "547",
+     "rate": "66978.19",
+     "amount": "36637069.93",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 4,
+     "description": "Rice (branded) 25kg",
+     "hsn": "10063020",
+     "uom": "BAGS",
+     "qty": "78",
+     "rate": "12906.28",
+     "amount": "1006689.84",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 5,
+     "description": "Centrifugal Pump 5HP",
+     "hsn": "84137010",
+     "uom": "NOS",
+     "qty": "168",
+     "rate": "86324.48",
+     "amount": "14502512.64",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_32",
+   "file": "pdf/inv_32.pdf",
+   "template": "letterhead",
+   "twoPage": true,
+   "hasQr": true,
+   "supplyType": "inter",
+   "number": "TI/2526/8625",
+   "date": "2025-12-31",
+   "printedDate": "31.12.2025",
+   "seller": {
+    "name": "Narmada Plastics Ltd",
+    "gstin": "19WTHCN7300L1ZI",
+    "stateCode": "19"
+   },
+   "buyer": {
+    "name": "Acme Auto Components Pvt Ltd",
+    "gstin": "29WMCCA3747S1ZO",
+    "stateCode": "29"
+   },
+   "poReference": "PO-2300",
+   "irn": "b149370fcb7255379dc632961bea1958d6ffa20179808c334be3312a6a25ce14",
+   "totals": {
+    "taxable": "32760296.01",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "4148888.39",
+    "cess": "0.00",
+    "roundOff": "-0.40",
+    "grand": "36909184.00"
+   },
+   "lineCount": 3,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Diesel Generator Spares",
+     "hsn": "84099990",
+     "uom": "SET",
+     "qty": "70",
+     "rate": "81132.80",
+     "amount": "5679296.00",
+     "gstRate": "28"
+    },
+    {
+     "lineNo": 2,
+     "description": "Rice (branded) 25kg",
+     "hsn": "10063020",
+     "uom": "BAGS",
+     "qty": "243",
+     "rate": "73311.00",
+     "amount": "17814573.00",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 3,
+     "description": "Hydraulic Oil 68",
+     "hsn": "27101980",
+     "uom": "LTR",
+     "qty": "341.8",
+     "rate": "27110.67",
+     "amount": "9266427.01",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_33",
+   "file": "pdf/inv_33.pdf",
+   "template": "classic",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "intra",
+   "number": "09/INV/3151",
+   "date": "2026-02-11",
+   "printedDate": "2026-02-11",
+   "seller": {
+    "name": "Narmada Plastics Ltd",
+    "gstin": "09XLBCN5877W1ZW",
+    "stateCode": "09"
+   },
+   "buyer": {
+    "name": "Acme Auto Components Pvt Ltd",
+    "gstin": "09TBDCA6339M1ZP",
+    "stateCode": "09"
+   },
+   "poReference": "PO-3689",
+   "irn": "6fe51f4f75b329ef0abaeff94d614e909431cf1d87fb8ec4f1d6acb1c909e0ff",
+   "totals": {
+    "taxable": "17675655.67",
+    "cgst": "2025680.07",
+    "sgst": "2025680.07",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "0.19",
+    "grand": "21727016.00"
+   },
+   "lineCount": 2,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Ball Valve 2 inch SS304",
+     "hsn": "84818030",
+     "uom": "NOS",
+     "qty": "134",
+     "rate": "67001.75",
+     "amount": "8978234.50",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Diesel Generator Spares",
+     "hsn": "84099990",
+     "uom": "SET",
+     "qty": "107",
+     "rate": "81284.31",
+     "amount": "8697421.17",
+     "gstRate": "28"
+    }
+   ]
+  },
+  {
+   "id": "inv_34",
+   "file": "pdf/inv_34.pdf",
+   "template": "boxed",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "inter",
+   "number": "2025-26/RCL/7859",
+   "date": "2025-12-06",
+   "printedDate": "06-12-2025",
+   "seller": {
+    "name": "Raghav Chemicals LLP",
+    "gstin": "09ZFDFR8317G1Z3",
+    "stateCode": "09"
+   },
+   "buyer": {
+    "name": "Acme Auto Components Pvt Ltd",
+    "gstin": "06ECYCA1603Y1ZI",
+    "stateCode": "06"
+   },
+   "poReference": null,
+   "irn": "48510715c293bcc829e876a7992412aac921911272392d07d3c4cfe6c4f9a7ee",
+   "totals": {
+    "taxable": "54595676.62",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "8901647.42",
+    "cess": "0.00",
+    "roundOff": "-0.04",
+    "grand": "63497324.00"
+   },
+   "lineCount": 6,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Ball Valve 2 inch SS304",
+     "hsn": "84818030",
+     "uom": "NOS",
+     "qty": "71",
+     "rate": "38049.07",
+     "amount": "2701483.97",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Rice (branded) 25kg",
+     "hsn": "10063020",
+     "uom": "BAGS",
+     "qty": "125",
+     "rate": "38130.06",
+     "amount": "4766257.50",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 3,
+     "description": "Copper Wire 2.5 sqmm",
+     "hsn": "85444999",
+     "uom": "MTR",
+     "qty": "554.25",
+     "rate": "70760.53",
+     "amount": "39219023.75",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 4,
+     "description": "Industrial Gloves",
+     "hsn": "40151900",
+     "uom": "PAIR",
+     "qty": "145",
+     "rate": "35167.92",
+     "amount": "5099348.40",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 5,
+     "description": "PVC Pipe 4 inch",
+     "hsn": "39172390",
+     "uom": "NOS",
+     "qty": "243",
+     "rate": "9559.00",
+     "amount": "2322837.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 6,
+     "description": "MS Angle 50x50x6",
+     "hsn": "72162100",
+     "uom": "KGS",
+     "qty": "23",
+     "rate": "21162.00",
+     "amount": "486726.00",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_35",
+   "file": "pdf/inv_35.pdf",
+   "template": "einvoice_compact",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "intra",
+   "number": "0003798",
+   "date": "2025-11-04",
+   "printedDate": "04-Nov-25",
+   "seller": {
+    "name": "Narmada Plastics Ltd",
+    "gstin": "27ESECN8542F1Z7",
+    "stateCode": "27"
+   },
+   "buyer": {
+    "name": "Satya Demo Manufacturing Ltd",
+    "gstin": "27YSNCS7518H1Z7",
+    "stateCode": "27"
+   },
+   "poReference": null,
+   "irn": null,
+   "totals": {
+    "taxable": "14500465.39",
+    "cgst": "1321824.33",
+    "sgst": "1321824.33",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "-0.05",
+    "grand": "17144114.00"
+   },
+   "lineCount": 5,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "PVC Pipe 4 inch",
+     "hsn": "39172390",
+     "uom": "NOS",
+     "qty": "135",
+     "rate": "49964.00",
+     "amount": "6745140.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Diesel Generator Spares",
+     "hsn": "84099990",
+     "uom": "SET",
+     "qty": "31",
+     "rate": "44835.00",
+     "amount": "1389885.00",
+     "gstRate": "28"
+    },
+    {
+     "lineNo": 3,
+     "description": "Corrugated Box 5 ply",
+     "hsn": "48191010",
+     "uom": "NOS",
+     "qty": "215",
+     "rate": "2727.83",
+     "amount": "586483.45",
+     "gstRate": "12"
+    },
+    {
+     "lineNo": 4,
+     "description": "Rice (branded) 25kg",
+     "hsn": "10063020",
+     "uom": "BAGS",
+     "qty": "128",
+     "rate": "4220.83",
+     "amount": "540266.24",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 5,
+     "description": "Annual Maintenance Service",
+     "hsn": "998719",
+     "uom": "NOS",
+     "qty": "191",
+     "rate": "27427.70",
+     "amount": "5238690.70",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_36",
+   "file": "pdf/inv_36.pdf",
+   "template": "letterhead",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "inter",
+   "number": "KST/25-26/2694",
+   "date": "2025-04-10",
+   "printedDate": "10/04/2025",
+   "seller": {
+    "name": "Kaveri Steel Traders",
+    "gstin": "06TEECK1262X1Z4",
+    "stateCode": "06"
+   },
+   "buyer": {
+    "name": "Bluewater Foods Pvt Ltd",
+    "gstin": "09FMUCB7802T1ZQ",
+    "stateCode": "09"
+   },
+   "poReference": null,
+   "irn": null,
+   "totals": {
+    "taxable": "445448.96",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "80180.81",
+    "cess": "0.00",
+    "roundOff": "0.23",
+    "grand": "525630.00"
+   },
+   "lineCount": 1,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Hydraulic Oil 68",
+     "hsn": "27101980",
+     "uom": "LTR",
+     "qty": "88",
+     "rate": "5061.92",
+     "amount": "445448.96",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_37",
+   "file": "pdf/inv_37.pdf",
+   "template": "classic",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "inter",
+   "number": "INV-2026-05578",
+   "date": "2026-07-20",
+   "printedDate": "20 Jul 2026",
+   "seller": {
+    "name": "Kaveri Steel Traders",
+    "gstin": "27RGNFK5544J1Z2",
+    "stateCode": "27"
+   },
+   "buyer": {
+    "name": "Acme Auto Components Pvt Ltd",
+    "gstin": "09UDYCA6632C1ZO",
+    "stateCode": "09"
+   },
+   "poReference": null,
+   "irn": null,
+   "totals": {
+    "taxable": "20798413.88",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "3032026.44",
+    "cess": "0.00",
+    "roundOff": "-0.32",
+    "grand": "23830440.00"
+   },
+   "lineCount": 3,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Ball Valve 2 inch SS304",
+     "hsn": "84818030",
+     "uom": "NOS",
+     "qty": "149",
+     "rate": "26643.00",
+     "amount": "3969807.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Packing Material",
+     "hsn": "39232990",
+     "uom": "KGS",
+     "qty": "230",
+     "rate": "49365.58",
+     "amount": "11354083.40",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "Rice (branded) 25kg",
+     "hsn": "10063020",
+     "uom": "BAGS",
+     "qty": "69",
+     "rate": "79340.92",
+     "amount": "5474523.48",
+     "gstRate": "5"
+    }
+   ]
+  },
+  {
+   "id": "inv_38",
+   "file": "pdf/inv_38.pdf",
+   "template": "boxed",
+   "twoPage": false,
+   "hasQr": false,
+   "supplyType": "inter",
+   "number": "GST/26-27/7782",
+   "date": "2026-05-05",
+   "printedDate": "05-May-2026",
+   "seller": {
+    "name": "Bharat Electricals Pvt Ltd",
+    "gstin": "07DETCB4047C1ZE",
+    "stateCode": "07"
+   },
+   "buyer": {
+    "name": "Everest Motors Limited",
+    "gstin": "19NVHCE5158S1Z6",
+    "stateCode": "19"
+   },
+   "poReference": null,
+   "irn": null,
+   "totals": {
+    "taxable": "16580016.97",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "2984403.06",
+    "cess": "0.00",
+    "roundOff": "-0.03",
+    "grand": "19564420.00"
+   },
+   "lineCount": 2,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "HDPE Granules",
+     "hsn": "39012000",
+     "uom": "KGS",
+     "qty": "185.2",
+     "rate": "4359.58",
+     "amount": "807394.22",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "PVC Pipe 4 inch",
+     "hsn": "39172390",
+     "uom": "NOS",
+     "qty": "223",
+     "rate": "70729.25",
+     "amount": "15772622.75",
+     "gstRate": "18"
+    }
+   ]
+  },
+  {
+   "id": "inv_39",
+   "file": "pdf/inv_39.pdf",
+   "template": "einvoice_compact",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "inter",
+   "number": "TI/2627/0253",
+   "date": "2026-05-23",
+   "printedDate": "23.05.2026",
+   "seller": {
+    "name": "Raghav Chemicals LLP",
+    "gstin": "09JTCFR2517Y1Z0",
+    "stateCode": "09"
+   },
+   "buyer": {
+    "name": "Everest Motors Limited",
+    "gstin": "27FLRCE7955D1ZD",
+    "stateCode": "27"
+   },
+   "poReference": "PO-4758",
+   "irn": "98b21d71dafe103cd6e5eea4b2e53449319af804ead5f6c889363dbf3008b73a",
+   "totals": {
+    "taxable": "81399191.59",
+    "cgst": "0.00",
+    "sgst": "0.00",
+    "igst": "14342106.99",
+    "cess": "0.00",
+    "roundOff": "0.42",
+    "grand": "95741299.00"
+   },
+   "lineCount": 5,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Annual Maintenance Service",
+     "hsn": "998719",
+     "uom": "NOS",
+     "qty": "22",
+     "rate": "3669.00",
+     "amount": "80718.00",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 2,
+     "description": "Copper Wire 2.5 sqmm",
+     "hsn": "85444999",
+     "uom": "MTR",
+     "qty": "41",
+     "rate": "22605.03",
+     "amount": "926806.23",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 3,
+     "description": "Cotton Fabric 60s",
+     "hsn": "52083190",
+     "uom": "MTR",
+     "qty": "144",
+     "rate": "77189.18",
+     "amount": "11115241.92",
+     "gstRate": "5"
+    },
+    {
+     "lineNo": 4,
+     "description": "Packing Material",
+     "hsn": "39232990",
+     "uom": "KGS",
+     "qty": "781.25",
+     "rate": "74142.83",
+     "amount": "57924085.94",
+     "gstRate": "18"
+    },
+    {
+     "lineNo": 5,
+     "description": "Diesel Generator Spares",
+     "hsn": "84099990",
+     "uom": "SET",
+     "qty": "127",
+     "rate": "89388.50",
+     "amount": "11352339.50",
+     "gstRate": "28"
+    }
+   ]
+  },
+  {
+   "id": "inv_40",
+   "file": "pdf/inv_40.pdf",
+   "template": "letterhead",
+   "twoPage": false,
+   "hasQr": true,
+   "supplyType": "intra",
+   "number": "24/INV/5576",
+   "date": "2025-07-10",
+   "printedDate": "2025-07-10",
+   "seller": {
+    "name": "Meridian Pumps LLP",
+    "gstin": "24MBAFM1680K1ZZ",
+    "stateCode": "24"
+   },
+   "buyer": {
+    "name": "Everest Motors Limited",
+    "gstin": "24VCMCE4597Z1ZI",
+    "stateCode": "24"
+   },
+   "poReference": "PO-3076",
+   "irn": "0427011bd053b5cea83ceef1165e77d499b97ce1cda26b78ed37655b6113a8ac",
+   "totals": {
+    "taxable": "13563782.70",
+    "cgst": "1220740.44",
+    "sgst": "1220740.44",
+    "igst": "0.00",
+    "cess": "0.00",
+    "roundOff": "0.00",
+    "grand": "16005263.58"
+   },
+   "lineCount": 1,
+   "lines": [
+    {
+     "lineNo": 1,
+     "description": "Packing Material",
+     "hsn": "39232990",
+     "uom": "KGS",
+     "qty": "195",
+     "rate": "69557.86",
+     "amount": "13563782.70",
+     "gstRate": "18"
+    }
+   ]
+  }
+ ]
+}
