@@ -89,6 +89,27 @@ const background = async () => {
     } catch (error) {
       console.error(`[startup] demo seeding failed — API keeps serving: ${error.message}`);
     }
+    // One-time curated demo reseed, opt-in via SEED_CURATED_ON_BOOT=<tag>.
+    // Runs once per tag (recorded in seed_runs), backs the demo group up
+    // first, and leaves reconciliation to the job runner.
+    const tag = process.env.SEED_CURATED_ON_BOOT;
+    if (tag && tag !== "0") {
+      try {
+        const runs = mongoose.connection.db.collection("seed_runs");
+        if (await runs.findOne({ seed: "curated", tag, status: "done" })) {
+          console.log(`[startup] curated seed '${tag}' already applied — skipping`);
+        } else {
+          await runs.updateOne({ seed: "curated", tag }, { $set: { status: "running", startedAt: new Date() } }, { upsert: true });
+          const { seedCurated } = await import("./seed/curated.js");
+          const result = await seedCurated({ backup: true, log: (line) => console.log(`[seed] ${line}`) });
+          await runs.updateOne({ seed: "curated", tag }, { $set: { status: "done", finishedAt: new Date(), result } });
+          console.log(`[startup] curated seed '${tag}' applied`);
+        }
+      } catch (error) {
+        console.error(`[startup] curated seed failed — API keeps serving: ${error.message}`);
+        await mongoose.connection.db?.collection("seed_runs").updateOne({ seed: "curated", tag }, { $set: { status: "failed", error: error.message } }).catch(() => {});
+      }
+    }
   }
 };
 

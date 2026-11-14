@@ -115,4 +115,4 @@ docker compose exec server node src/seed/curated.js --reconcile-now
 docker compose exec server node src/seed/validate.js --db
 ```
 
-On Render, open a shell on `satya-ipl-api` and run `cd /app && node src/seed/curated.js --reconcile-now`. The older BPI/enrichment scripts are archived in `scripts/legacy/`.
+On Render (no shell needed), set `SEED_CURATED_ON_BOOT=<any new tag>` on `satya-ipl-api`: on the next boot the server backs the demo group up into `backup_<timestamp>_*` collections, reseeds it once for that tag, and the job runner reconciles every case. Use a new tag to refresh the dates later. The older BPI/enrichment scripts are archived in `scripts/legacy/`.

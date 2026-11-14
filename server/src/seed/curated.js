@@ -69,6 +69,22 @@ const wipeDemoGroup = async (db, group, keepEntityId) => {
   return removed;
 };
 
+// ---------------------------------------------------------------- backup --
+// Copies the demo group's source records into backup_<timestamp>_<collection>
+// before a wipe. Engine-derived rows (snapshots, findings, jobs) are rebuilt
+// by reconcile, so they are not copied.
+const BACKUP_COLLECTIONS = ["documents", "documentlinks", "cases", "decisions", "suppliers", "items", "policies", "audits", "entities"];
+export const backupDemoGroup = async (db, group) => {
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "");
+  const copied = { prefix: `backup_${stamp}_` };
+  for (const c of BACKUP_COLLECTIONS) {
+    const rows = await db.collection(c).find({ groupId: group.id }).toArray();
+    if (rows.length) await db.collection(`backup_${stamp}_${c}`).insertMany(rows, { ordered: false });
+    copied[c] = rows.length;
+  }
+  return copied;
+};
+
 // ----------------------------------------------------------- test purge ----
 export const findTestGroups = async (db) => {
   const groups = await db.collection("groups").find({ name: { $in: TEST_GROUP_NAMES }, legacyCompanyId: { $in: [null] } }).toArray();
@@ -202,7 +218,7 @@ export const storyReport = async (groupId, ds) => {
 };
 
 // ---------------------------------------------------------------- main ----
-export const seedCurated = async ({ dryRun = false, reconcile = false, purgeTests = false, log = console.log } = {}) => {
+export const seedCurated = async ({ dryRun = false, reconcile = false, purgeTests = false, backup = true, log = console.log } = {}) => {
   const today = istDate();
   const conn = await connect();
   const { db } = conn;
@@ -246,7 +262,8 @@ export const seedCurated = async ({ dryRun = false, reconcile = false, purgeTest
     let entity = await db.collection("entities").findOne({ groupId: group.id, code: ENTITY.code }) || await db.collection("entities").findOne({ groupId: group.id });
     if (!entity) throw new Error("Demo entity missing after ensureLegacyTenant");
 
-    // 2. wipe
+    // 2. back up what is about to be replaced, then wipe
+    if (backup) log(`Backed up demo group: ${JSON.stringify(await backupDemoGroup(db, group))}`);
     const removed = await wipeDemoGroup(db, group, entity.id);
     log(`Wiped demo group ${group.id}: ${JSON.stringify(removed)}`);
     if (purgeTests) log(`Purged test tenants: ${JSON.stringify(await purgeTestGroups(db, tests))}`);
@@ -296,7 +313,8 @@ export const seedCurated = async ({ dryRun = false, reconcile = false, purgeTest
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMain) {
   const args = new Set(process.argv.slice(2));
-  seedCurated({ dryRun: args.has("--dry-run"), reconcile: args.has("--reconcile-now"), purgeTests: args.has("--purge-test-groups") })
+  // --no-backup skips the pre-wipe copy (local dev only)
+  seedCurated({ dryRun: args.has("--dry-run"), reconcile: args.has("--reconcile-now"), purgeTests: args.has("--purge-test-groups"), backup: !args.has("--no-backup") })
     .then(() => process.exit(0))
     .catch((e) => { console.error(`\nCurated seed failed: ${e.message}`); process.exit(1); });
 }

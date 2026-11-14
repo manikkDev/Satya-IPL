@@ -6,6 +6,10 @@ import mongoose from "mongoose";
 import { DEMO_COMPANY_ID } from "./company.js";
 
 export const connect = async () => {
+  // Inside the running server: reuse its connection and never close it.
+  if (mongoose.connection.readyState === 1) {
+    return { db: mongoose.connection.db, dbName: mongoose.connection.name, close: async () => {} };
+  }
   const uri = process.env.DB_URI || process.env.MONGO_URI;
   if (!uri) throw new Error("Set DB_URI or MONGO_URI");
   const dbName = process.env.APP_DB_NAME || "satya";
