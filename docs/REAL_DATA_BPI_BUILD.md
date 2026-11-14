@@ -1,5 +1,7 @@
 # Real-Data Company Build — working spec (BPI-2019 + semi-synthetic masters)
 
+> **Superseded.** The live demo now uses the curated dataset in `server/src/seed/` (see `docs/DEMO_DATASET.md`); the scripts referenced below are archived in `scripts/legacy/`.
+
 > Working document for the "simulate a real company" build requested by the team on 30 Oct 2026.
 > Append progress notes at the bottom like `docs/plan/STATUS.md`. Do not commit yet — human reviews first.
 

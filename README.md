@@ -106,4 +106,13 @@ Cross-cutting: Mongo job runner (lease+backoff+dead-letter), hash-chained audit 
 
 ## Demo data
 
-`scripts/seed-demo-v2.mjs` adds a linked PO→GRN→INVOICE→PAYMENT case to the demo group; reconcile via `POST /api/v2/cases/case_seed__po2/reconcile`. CI runs engine pytest, server `node --test`, gateway tests (LLM mocked) and client lint+tests — see `.github/workflows/ci.yml`.
+The demo company is a curated, internally consistent dataset (11 suppliers, 35 purchase orders, each with one explainable story — see [docs/DEMO_DATASET.md](docs/DEMO_DATASET.md)). All identities are fictional; every GSTIN passes the checksum, GST splits are exact to the paisa and dates are relative to the seed run, so nothing is ever future-dated.
+
+```bash
+# local stack
+docker compose exec server node src/seed/curated.js --reconcile-now
+# check stored data against the 15 dataset invariants
+docker compose exec server node src/seed/validate.js --db
+```
+
+On Render, open a shell on `satya-ipl-api` and run `cd /app && node src/seed/curated.js --reconcile-now`. The older BPI/enrichment scripts are archived in `scripts/legacy/`.
