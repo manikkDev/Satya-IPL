@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 const VARIANTS = {
   primary: "bg-[var(--accent)] text-[var(--on-accent)] hover:bg-[var(--accent-strong)]",
   secondary: "bg-[var(--surface)] text-[var(--ink)] border border-[var(--line-strong)] shadow-[var(--shadow-1)] hover:bg-[var(--surface-2)]",
-  outline: "border border-[var(--accent)]/45 text-[var(--accent-strong)] bg-transparent hover:bg-[var(--accent-soft)] hover:border-[var(--accent)]/70",
+  outline: "border border-[var(--accent)]/50 text-[var(--accent-strong)] dark:text-[var(--accent)] bg-transparent hover:bg-[var(--accent-soft)]",
   ghost: "text-[var(--ink-2)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
 } as const;
 
@@ -33,12 +33,12 @@ export function LinkBtn({
       className={cn(
         "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-sm)] font-medium transition-all duration-150",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--paper)]",
-        size === "sm" ? "h-8 px-3 text-xs" : "h-9 px-4 text-sm",
+        size === "sm" ? "h-9 px-3 text-[14px]" : "h-10 px-4 text-[15px]",
         VARIANTS[variant],
         className,
       )}
     >
-      {Icon ? <Icon size={size === "sm" ? 13 : 15} aria-hidden="true" /> : null}
+      {Icon ? <Icon size={size === "sm" ? 15 : 17} aria-hidden="true" /> : null}
       {children}
     </Link>
   );

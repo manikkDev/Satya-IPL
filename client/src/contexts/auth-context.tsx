@@ -1,201 +1,255 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useMemo,
-  useCallback,
-  ReactNode,
-} from "react";
+// Auth for the whole client, on the v2 identity API only:
+//   POST /api/v2/auth/login · POST /api/v2/auth/signup · POST /api/v2/auth/accept-invite
+//   → { token, user, memberships, activeGroup }
+//   GET  /api/v2/me  → verifies a stored token on load
+// The JWT lives in localStorage (read by lib/api/client). A non-secret
+// `satya_session` cookie mirrors "signed in" so middleware can redirect
+// /app → /login before any workspace UI renders. The API enforces access.
+
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { SERVER_URL } from "@/utils/commonHelper";
+import { queryClient } from "@/lib/query-client";
 
-type User = {
-  _id?: string;
+/** Legacy single role, derived from v2 roles (kept for older components). */
+export type LegacyRole = "ops_analyst" | "ap_manager" | "auditor" | "admin";
+
+export type AuthUser = {
+  id: string;
+  name: string;
   email: string;
-  role: "ops_analyst" | "ap_manager" | "auditor" | "admin";
-  companyId?: string;
-  institutionId?: number | null;
-  customerRef?: string | null;
-  name?: string;
-  username?: string;
-  profileImageUrl?: string;
-  avatarUrl?: string;
-  // Add other user properties as needed
+  /** v2 roles held in the active workspace (group). */
+  roles: string[];
+  role: LegacyRole;
+  activeGroupId: string | null;
+  platformRole?: string;
 };
 
-type GoogleOnboarding = {
-  role: "citizen" | "analyst";
-  institutionId?: number | null;
+export type SessionPayload = {
+  token: string;
+  user: { id: string; name: string; email: string; platformRole?: string };
+  memberships: { groupId: string; entityId: string; roles: string[] }[];
+  activeGroup: string;
 };
+
+export type SignupInput = { name: string; email: string; password: string; companyName: string; entityCode?: string };
+export type AuthResult = { success: boolean; error?: string; fields?: string[] };
 
 type AuthContextType = {
-  user: User | null;
+  user: AuthUser | null;
   token: string | null;
-  login: (
-    email: string,
-    password: string,
-  ) => Promise<{ success: boolean; error?: string }>;
-  loginWithGoogle: (
-    code: string,
-    onboarding?: GoogleOnboarding,
-  ) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
   isLoading: boolean;
+  login: (email: string, password: string, redirectTo?: string) => Promise<AuthResult>;
+  signup: (input: SignupInput, redirectTo?: string) => Promise<AuthResult>;
+  acceptInvite: (token: string, input: { name?: string; password: string }, redirectTo?: string) => Promise<AuthResult>;
+  logout: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const TOKEN_KEY = "token";
+const USER_KEY = "user";
+export const SESSION_COOKIE = "satya_session";
+
+const legacyRoleFor = (roles: string[]): LegacyRole =>
+  roles.includes("group_admin") || roles.includes("entity_admin") || roles.includes("platform_admin")
+    ? "admin"
+    : roles.includes("ap_manager")
+      ? "ap_manager"
+      : roles.includes("auditor")
+        ? "auditor"
+        : "ops_analyst";
+
+const toAuthUser = (
+  user: { id: string; name: string; email: string; platformRole?: string },
+  memberships: { groupId: string; roles: string[] }[],
+  activeGroupId: string | null,
+): AuthUser => {
+  const roles = [...new Set(memberships.filter((m) => !activeGroupId || m.groupId === activeGroupId).flatMap((m) => m.roles))];
+  return { id: user.id, name: user.name || user.email, email: user.email, roles, role: legacyRoleFor(roles), activeGroupId, platformRole: user.platformRole };
+};
+
+function setSessionCookie(on: boolean) {
+  if (typeof document === "undefined") return;
+  const secure = typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = on
+    ? `${SESSION_COOKIE}=1; Path=/; Max-Age=${12 * 3600}; SameSite=Lax${secure}`
+    : `${SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
+}
+
+function readCachedUser(): AuthUser | null {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Partial<AuthUser>) : null;
+    return parsed && parsed.email && Array.isArray(parsed.roles) ? (parsed as AuthUser) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** v2 errors are {error:{message,details}}; the rate limiter sends {message}. */
+async function errorFrom(response: Response, fallback: string): Promise<AuthResult> {
+  const body = (await response.json().catch(() => null)) as
+    | { error?: { message?: string; details?: { fields?: (string | { field: string })[] } }; message?: string }
+    | null;
+  const fields = (body?.error?.details?.fields ?? []).map((f) => (typeof f === "string" ? f : f.field));
+  return { success: false, error: body?.error?.message || body?.message || fallback, fields };
+}
+
+const NETWORK_ERROR = "We couldn’t reach Satya. Check your connection and try again — the server may take a few seconds to wake up.";
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  const handleAuthSuccess = useCallback(
-    (loggedInUser: User | null | undefined, jwt: string | null | undefined) => {
-      if (loggedInUser) {
-        localStorage.setItem("user", JSON.stringify(loggedInUser));
-        setUser(loggedInUser);
-      }
-      if (jwt) {
-        localStorage.setItem("token", jwt);
-        setToken(jwt);
-      }
-      router.push("/app");
+  const clear = useCallback(() => {
+    try {
+      localStorage.removeItem(USER_KEY);
+      localStorage.removeItem(TOKEN_KEY);
+    } catch {
+      /* storage unavailable */
+    }
+    setSessionCookie(false);
+    setUser(null);
+    setToken(null);
+  }, []);
+
+  const establish = useCallback(
+    (payload: SessionPayload, redirectTo = "/app") => {
+      const next = toAuthUser(payload.user, payload.memberships, payload.activeGroup);
+      queryClient.clear();
+      localStorage.setItem(TOKEN_KEY, payload.token);
+      localStorage.setItem(USER_KEY, JSON.stringify(next));
+      setSessionCookie(true);
+      setToken(payload.token);
+      setUser(next);
+      router.replace(redirectTo);
     },
     [router],
   );
 
-  const login = useCallback(
-    async (email: string, password: string) => {
+  const post = useCallback(
+    async (path: string, body: unknown, fallback: string, redirectTo?: string): Promise<AuthResult> => {
       try {
-        const apiUrl = SERVER_URL;
-        const response = await fetch(`${apiUrl}/api/auth/login`, {
+        const response = await fetch(`${SERVER_URL}${path}`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({ email, password }),
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(30_000),
         });
-
-        const data = await response.json();
-
-        if (response.ok) {
-          const loggedInUser = data?.data?.user || data?.user;
-          const jwt = data?.token || null;
-          handleAuthSuccess(loggedInUser, jwt);
-          return { success: true };
-        } else {
-          toast.error("Login Failed", {
-            description:
-              data.message || data.error || "Invalid email or password",
-          });
-          return { success: false, error: data.message || "Login failed" };
-        }
-      } catch (error) {
-        console.error("Login error:", error);
-        toast.error("Error", {
-          description: "An error occurred during login. Please try again.",
-        });
-        return { success: false, error: "An error occurred during login" };
+        if (!response.ok) return errorFrom(response, fallback);
+        establish((await response.json()) as SessionPayload, redirectTo);
+        return { success: true };
+      } catch {
+        return { success: false, error: NETWORK_ERROR };
       }
     },
-    [handleAuthSuccess, toast],
+    [establish],
   );
 
-  const loginWithGoogle = useCallback(
-    async (code: string, onboarding: GoogleOnboarding = { role: "citizen" }) => {
-      try {
-        const apiUrl = SERVER_URL;
-        const response = await fetch(`${apiUrl}/api/users/google`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({ code, ...onboarding }),
-        });
+  const login = useCallback(
+    (email: string, password: string, redirectTo?: string) =>
+      post("/api/v2/auth/login", { email: email.trim(), password }, "Check the email and password and try again.", redirectTo),
+    [post],
+  );
 
-        const data = await response.json();
+  const signup = useCallback(
+    (input: SignupInput, redirectTo = "/app/setup") =>
+      post(
+        "/api/v2/auth/signup",
+        {
+          name: input.name.trim(),
+          email: input.email.trim(),
+          password: input.password,
+          groupName: input.companyName.trim(),
+          entityLegalName: input.companyName.trim(),
+          ...(input.entityCode ? { entityCode: input.entityCode } : {}),
+        },
+        "We couldn’t create your workspace. Check the details and try again.",
+        redirectTo,
+      ),
+    [post],
+  );
 
-        if (response.ok) {
-          const loggedInUser = data?.data?.user || data?.user;
-          const jwt = data?.token || null;
-          handleAuthSuccess(loggedInUser, jwt);
-          return { success: true };
-        }
-
-        toast.error("Google Login Failed", {
-          description:
-            data.message || data.error || "Unable to sign in with Google",
-        });
-        return { success: false, error: data.message || "Google login failed" };
-      } catch (error) {
-        console.error("Google login error:", error);
-        toast.error("Error", {
-          description:
-            "An error occurred during Google login. Please try again.",
-        });
-        return {
-          success: false,
-          error: "An error occurred during Google login",
-        };
-      }
-    },
-    [handleAuthSuccess, toast],
+  const acceptInvite = useCallback(
+    (inviteToken: string, input: { name?: string; password: string }, redirectTo = "/app") =>
+      post("/api/v2/auth/accept-invite", { token: inviteToken, ...input }, "We couldn’t accept this invitation.", redirectTo),
+    [post],
   );
 
   const logout = useCallback(() => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
-    setUser(null);
-    setToken(null);
-    router.push("/login");
-  }, [router]);
+    clear();
+    queryClient.clear();
+    router.replace("/login");
+  }, [clear, router]);
 
+  // Verify a stored token once on load.
   useEffect(() => {
-    // Check if user is logged in on initial load
-    const checkAuth = async () => {
+    let live = true;
+    const check = async () => {
+      let stored: string | null = null;
       try {
-        const storedToken = localStorage.getItem("token");
-        if (storedToken) {
-          const response = await fetch(`${SERVER_URL}/api/auth/profile`, { headers: { Authorization: `Bearer ${storedToken}` }, signal: AbortSignal.timeout(10000) });
-          if (!response.ok) throw new Error("Active company membership is required");
-          const currentUser = await response.json();
-          setUser(currentUser);
-          setToken(storedToken);
-          localStorage.setItem("user", JSON.stringify(currentUser));
+        stored = localStorage.getItem(TOKEN_KEY);
+      } catch {
+        stored = null;
+      }
+      if (!stored) {
+        setSessionCookie(false);
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const response = await fetch(`${SERVER_URL}/api/v2/me`, {
+          headers: { Authorization: `Bearer ${stored}`, Accept: "application/json" },
+          signal: AbortSignal.timeout(20_000),
+        });
+        if (!live) return;
+        if (response.status === 401 || response.status === 403) {
+          clear();
+        } else if (response.ok) {
+          const me = (await response.json()) as {
+            user: { id: string; name: string; email: string; platformRole?: string };
+            memberships: { groupId: string; entityId: string; roles: string[] }[];
+            activeGroup: { id: string };
+          };
+          const next = toAuthUser(me.user, me.memberships, me.activeGroup?.id ?? null);
+          localStorage.setItem(USER_KEY, JSON.stringify(next));
+          setSessionCookie(true);
+          setToken(stored);
+          setUser(next);
+        } else {
+          // Server error: keep the cached session; pages show their own errors.
+          const cached = readCachedUser();
+          if (cached) {
+            setToken(stored);
+            setUser(cached);
+          } else clear();
         }
       } catch {
-        localStorage.removeItem("user");
-        localStorage.removeItem("token");
-        setUser(null);
-        setToken(null);
+        // Offline / cold start: keep the cached session rather than signing out.
+        if (!live) return;
+        const cached = readCachedUser();
+        if (cached) {
+          setToken(stored);
+          setUser(cached);
+        } else clear();
       } finally {
-        setIsLoading(false);
+        if (live) setIsLoading(false);
       }
     };
-
-    checkAuth();
-  }, []);
+    void check();
+    return () => {
+      live = false;
+    };
+  }, [clear]);
 
   const value = useMemo(
-    () => ({
-      user,
-      token,
-      login,
-      loginWithGoogle,
-      logout,
-      isLoading,
-    }),
-    [user, token, isLoading, login, loginWithGoogle, logout],
+    () => ({ user, token, isLoading, login, signup, acceptInvite, logout }),
+    [user, token, isLoading, login, signup, acceptInvite, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -203,8 +257,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
+  if (context === undefined) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 }
