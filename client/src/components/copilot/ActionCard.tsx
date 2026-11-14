@@ -198,7 +198,7 @@ export function ActionCard({
                 const shown = f.type === "select" ? (f.options ?? []).map((o) => (typeof o === "string" ? { value: o, label: o } : o)).find((o) => o.value === v)?.label ?? v : v;
                 return (
                   <div key={f.key} className={cn(f.type === "textarea" ? "block" : "flex items-baseline gap-3")}>
-                    <dt className="shrink-0 text-[12.5px] text-[var(--muted)] sm:w-28">{f.label}</dt>
+                    <dt className={cn("shrink-0 text-[12.5px] text-[var(--muted)]", f.type !== "textarea" && "sm:w-28")}>{f.label}</dt>
                     <dd className={cn("min-w-0 text-[14.5px] text-[var(--ink)]", f.type === "textarea" && "mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap leading-relaxed text-[var(--ink-2)] sx-scroll")}>
                       {shown ? String(shown).replaceAll("_", " ") : <span className="text-[var(--sev-critical)]">Missing — press Edit to add it</span>}
                     </dd>
@@ -220,7 +220,7 @@ export function ActionCard({
           </ul>
         ) : null}
 
-        {phase !== "done" && phase !== "cancelled" ? <p className="text-[13px] leading-relaxed text-[var(--muted)]">{meta.consequence}</p> : null}
+        {phase !== "done" && phase !== "cancelled" && !(card.warnings ?? []).some((w) => /^confirming\b/i.test(w)) ? <p className="text-[13px] leading-relaxed text-[var(--muted)]">{meta.consequence}</p> : null}
       </div>
 
       <footer className={cn("flex flex-wrap items-center gap-2 border-t px-5 py-3", phase === "done" ? "border-[var(--confirmed)]/25 bg-[var(--confirmed-soft)]/40" : "border-[var(--line)]")}>

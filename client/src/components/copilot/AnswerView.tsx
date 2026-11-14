@@ -173,7 +173,7 @@ export function AnswerView({
   const evidenceRefs = segmentAnswer(target, false).evidence;
   const numbered = citationNumbers(target, citations);
   const sourceCount = sources.length;
-  const totalMs = answer?.latencyMs ?? (turn.finishedAt && turn.startedAt ? turn.finishedAt - turn.startedAt : undefined);
+  const totalMs = answer ? answer.latencyMs ?? (turn.finishedAt && turn.startedAt ? turn.finishedAt - turn.startedAt : undefined) : undefined;
 
   return (
     <article className="space-y-5" aria-busy={turn.streaming}>
@@ -215,6 +215,13 @@ export function AnswerView({
 
         {shown ? <Prose text={shown} citations={citations} streaming={writing} fade={Boolean(turn.live) && writing} /> : null}
 
+        {turn.streaming && turn.draft && turn.stage && !/^Writing/i.test(turn.stage) ? (
+          <p className="sx-fade flex items-center gap-2 text-[13px]" aria-hidden="true">
+            <span className="sx-dot" />
+            <span className="sx-shimmer">{turn.stage}</span>
+          </p>
+        ) : null}
+
         {turn.stopped ? (
           <p className="sx-fade flex items-center gap-2 text-[13.5px] text-[var(--muted)]">
             Stopped{turn.draft ? " — the answer above is incomplete" : ""}.
@@ -243,7 +250,7 @@ export function AnswerView({
           </div>
         ) : null}
 
-        {!writing && uniqueTables(answer?.tables ?? []).slice(0, 2).map((t) => <MiniTable key={t.id} table={t} sources={sources} />)}
+        {!writing && uniqueTables(answer?.tables ?? []).slice(0, 2).map((t, i) => <MiniTable key={`${t.id}-${i}`} table={t} sources={sources} />)}
 
         {cards.map((card) => <ActionCard key={card.id} card={card} sources={sources} onResult={onActionResult} />)}
 

@@ -255,7 +255,14 @@ export function workingSection(answerText, derivations = []) {
       const inputs = (d.inputs || []).filter((x) => (parseExact(x) ?? 0n) !== 0n);
       if (inputs.length < 2) continue;
       seen.add(k);
-      if (inputs.length <= 5) lines.push(`- ${inputs.map(fmtMoney).join(" + ")} = ${fmtMoney(d.value)}`);
+      if (inputs.length <= 5) {
+        const terms = inputs.map((x, i) => {
+          const neg = String(x).trim().startsWith("-");
+          const abs = fmtMoney(String(x).trim().replace(/^-/, ""));
+          return i === 0 ? (neg ? `−${abs}` : abs) : `${neg ? " − " : " + "}${abs}`;
+        });
+        lines.push(`- ${terms.join("")} = ${fmtMoney(d.value)}`);
+      }
       else {
         const largest = inputs.reduce((a, b) => ((parseExact(b) ?? 0n) > (parseExact(a) ?? 0n) ? b : a));
         lines.push(`- Sum of ${inputs.length} amounts (largest ${fmtMoney(largest)}) = ${fmtMoney(d.value)}`);

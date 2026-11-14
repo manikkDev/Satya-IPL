@@ -83,7 +83,7 @@ export function WorkingSteps({ steps, stage, working, streaming, startedAt, tota
     );
   }
   if (!steps.length) return null;
-  const total = totalMs ?? done.reduce((s, x) => s + (x.ms ?? 0), 0);
+  const total = totalMs;
   return (
     <div>
       <button
