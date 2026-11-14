@@ -47,9 +47,8 @@ services:
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: password
-      # Local dev only: expose the engine's additive v2 endpoints (tax
-      # compute, gstin validate, reconcile). Production keeps this unset
-      # until launch — render.yaml has no FEATURE_V2_* keys.
+      # Engine v2 endpoints (tax compute, gstin validate, reconcile,
+      # allocate, docs). Required — render.yaml sets it too.
       FEATURE_V2_RECON_V2: "1"
     ports:
       - "127.0.0.1:8000:8000"
@@ -70,7 +69,8 @@ services:
     mem_limit: 768m
     cpus: 1
     env_file:
-      - ./server/.env
+      - path: ./server/.env
+        required: false
     environment:
       NODE_ENV: production
       PORT: 5002
@@ -82,6 +82,17 @@ services:
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: password
+      GATEWAY_API_URL: http://chatbot-backend:5001
+      # v2 flags (unset = off under NODE_ENV=production) — same as render.yaml
+      FEATURE_V2_PO_WIZARD: "1"
+      FEATURE_V2_DOC_INBOX: "1"
+      FEATURE_V2_RECON_V2: "1"
+      FEATURE_V2_GRAPH_V2: "1"
+      FEATURE_V2_COPILOT_V2: "1"
+      FEATURE_V2_COMPLIANCE: "1"
+      FEATURE_V2_ML_V2: "1"
+      FEATURE_V2_PUBLIC_SITE_V2: "1"
+      FEATURE_V2_AI_USAGE_METER: "1"
     ports:
       - "127.0.0.1:5002:5002"
     depends_on:
@@ -102,7 +113,8 @@ services:
     mem_limit: 768m
     cpus: 1
     env_file:
-      - ./chatbot-backend/.env
+      - path: ./chatbot-backend/.env
+        required: false
     environment:
       NODE_ENV: production
       PORT: 5001

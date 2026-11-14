@@ -1,3 +1,10 @@
+# Satya on Render (free tier, 512 MB per service). Secrets are `sync: false`
+# — set them in the dashboard; never commit values. Each service binds its
+# port before warming dependencies so the health check passes on a cold
+# start; dependencies report readiness on their own health endpoints.
+#
+# Origins: production + this project's Vercel preview deployments. A "*"
+# is only honoured inside the first host label (see server/src/lib/origins.js).
 services:
   - type: web
     name: satya-ipl-api
@@ -23,20 +30,46 @@ services:
         value: https://satya-ipl-ml.onrender.com
       - key: GATEWAY_API_URL
         value: https://satya-ipl-chat.onrender.com
-      - key: ALLOWED_ORIGINS
+      - key: PUBLIC_APP_URL
         value: https://satya-ipl.vercel.app
+      - key: ALLOWED_ORIGINS
+        value: https://satya-ipl.vercel.app,https://satya-ipl-*.vercel.app
       - key: RATE_LIMIT_AUTH
         value: "30"
       - key: RATE_LIMIT_API
         value: "1200"
       - key: RATE_LIMIT_WRITES
         value: "200"
+      # v2 feature flags — server lib/flags.js treats unset as OFF in
+      # production, and the client gates the v2 UI on /api/v2/meta/flags
+      - key: FEATURE_V2_PO_WIZARD
+        value: "1"
+      - key: FEATURE_V2_DOC_INBOX
+        value: "1"
+      - key: FEATURE_V2_RECON_V2
+        value: "1"
+      - key: FEATURE_V2_GRAPH_V2
+        value: "1"
+      - key: FEATURE_V2_COPILOT_V2
+        value: "1"
+      - key: FEATURE_V2_COMPLIANCE
+        value: "1"
+      - key: FEATURE_V2_ML_V2
+        value: "1"
+      - key: FEATURE_V2_PUBLIC_SITE_V2
+        value: "1"
+      - key: FEATURE_V2_AI_USAGE_METER
+        value: "1"
+      # Mongo (Atlas) URI — MONGO_URI or DB_URI; APP_DB_NAME pins the db
       - key: DB_URI
         sync: false
       - key: JWT_SECRET
         sync: false
       - key: NODE_INTERNAL_TOKEN
         sync: false
+      - key: DEMO_PASSWORD
+        sync: false
+      # Neo4j is optional: leave NEO4J_URI unset to use snapshot/link graphs
       - key: NEO4J_URI
         sync: false
       - key: NEO4J_USER
@@ -63,11 +96,27 @@ services:
       - key: ML_API_URL
         value: https://satya-ipl-ml.onrender.com
       - key: ALLOWED_ORIGINS
-        value: https://satya-ipl.vercel.app
+        value: https://satya-ipl.vercel.app,https://satya-ipl-*.vercel.app
       - key: SATYA_LLM_PROVIDER
         value: auto
       - key: ENABLE_EXTERNAL_BUSINESS_LLM
         value: "0"
+      - key: FEATURE_V2_COPILOT_V2
+        value: "1"
+      - key: FEATURE_V2_ML_V2
+        value: "1"
+      - key: FEATURE_V2_AI_USAGE_METER
+        value: "1"
+      - key: FEATURE_V2_DOC_INBOX
+        value: "1"
+      - key: FEATURE_V2_RECON_V2
+        value: "1"
+      - key: APP_DB_NAME
+        value: satya
+      # same Mongo as the API: persists copilot conversations + key state
+      # (without it conversations live in a bounded in-memory cache)
+      - key: DB_URI
+        sync: false
       - key: JWT_SECRET
         sync: false
       - key: NODE_INTERNAL_TOKEN
@@ -93,6 +142,10 @@ services:
         value: "8000"
       - key: MODEL_ARTIFACT_DIR
         value: runs/satya-linkage
+      # engine v2 contracts (reconcile, tax compute, allocate, docs) — the
+      # API maps an engine 404 to 503 "not enabled", so this must be on
+      - key: FEATURE_V2_RECON_V2
+        value: "1"
       - key: NODE_INTERNAL_TOKEN
         sync: false
       - key: NEO4J_URI
