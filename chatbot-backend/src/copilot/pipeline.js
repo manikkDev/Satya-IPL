@@ -102,15 +102,26 @@ export async function runCopilot({
   const docQs = [...(intent.entities.docRefs || []), ...(intent.entities.poNumbers || []), ...(intent.entities.invoiceNumbers || []), ...(intent.entities.grnNumbers || [])];
   const unshadowed = mentions.filter((m) => !docQs.some((q) => q !== m.q && q.includes(m.q)));
   const resolutionOptions = [];
+  const supplierLevel = isSupplierLevelQuestion(cleanMessage) && !docQs.length;
+  const poDocIds = [];
   for (const m of unshadowed.slice(0, 4)) {
     const r = await runTool("search_records", { query: m.q, type: m.type || undefined });
     const items = r.data?.items || [];
+    // A mention that names a supplier resolves to the SUPPLIER — the
+    // documents that merely carry that supplier's name are not alternatives
+    // to choose between ("How much do we owe Kaveri Pumps?" is about the
+    // supplier, not one of its invoices).
+    const supplierHit = !m.type && pickSupplier(items, m.q);
+    if (supplierHit) {
+      resolved.supplierId ||= supplierHit.id;
+      continue;
+    }
     // If the message names one candidate verbatim (option pick, or the user
     // typed a full number), resolve it instead of asking again.
     const direct = items.length > 1 && items.find((i) => i.number && cleanMessage.includes(i.number));
     if (direct) {
       resolved.documentId ||= direct.id;
-      if (direct.type === "PO") resolved.caseId ||= direct.id;
+      if (direct.type === "PO") poDocIds.push(direct.id);
       continue;
     }
     if (items.length > 1) resolutionOptions.push({ mention: m.q, items });
@@ -118,13 +129,15 @@ export async function runCopilot({
       if (items[0].kind === "supplier") resolved.supplierId ||= items[0].id;
       else {
         resolved.documentId ||= items[0].id;
-        if (items[0].type === "PO") resolved.caseId ||= items[0].id;
+        if (items[0].type === "PO") poDocIds.push(items[0].id);
       }
     }
   }
-  // Never clarify once a document is resolved — remaining ambiguity in other
-  // mentions is noise, not a question.
-  const stillAmbiguous = resolutionOptions.filter((o) => !resolved.documentId);
+  // A PO's investigation is a CASE (case_*), not the PO document id.
+  if (!resolved.caseId && poDocIds.length) resolved.caseId = await caseForDocument(call, poDocIds[0]);
+  // Never clarify once a document (or, for supplier-level questions, the
+  // supplier) is resolved — remaining ambiguity is noise, not a question.
+  const stillAmbiguous = resolutionOptions.filter(() => !resolved.documentId && !(supplierLevel && resolved.supplierId));
   if (stillAmbiguous.length) {
     return finish({
       answerType: "clarification",
@@ -136,7 +149,7 @@ export async function runCopilot({
     });
   }
   // Pronoun/context fallback: reuse focus when nothing explicit resolved.
-  if (!resolved.caseId && !resolved.documentId) {
+  if (!resolved.caseId && !resolved.documentId && !resolved.supplierId) {
     resolved.caseId = memory.focusEntities?.caseId || null;
     resolved.documentId = memory.focusEntities?.documentId || null;
   }
@@ -150,9 +163,16 @@ export async function runCopilot({
   // Resolved doc + simple intent → deterministic retrieve; the LLM tool loop
   // (up to 4 rounds) is only worth the calls for reasoning-heavy intents.
   const SIMPLE = new Set(["status", "lookup", "why_amount", "summary"]);
-  const skipAgentic = (resolved.documentId || resolved.caseId) && SIMPLE.has(intent.intent);
+  // Supplier-level money questions ("how much do we owe X and why") are
+  // answered from the supplier summary deterministically: figures +
+  // the open invoices and issues behind them.
+  const supplierAnswer = Boolean(resolved.supplierId && !resolved.documentId && (supplierLevel || ["why_amount", "status", "lookup", "analytics", "summary"].includes(intent.intent)));
+  if (supplierAnswer) {
+    await runTool("get_supplier_summary", { supplierId: resolved.supplierId });
+  }
+  const skipAgentic = supplierAnswer || ((resolved.documentId || resolved.caseId) && SIMPLE.has(intent.intent));
   const llmAlive = skipAgentic ? false : await agenticRetrieve({ llm, tools, toolCtx, runTool, intent, message: cleanMessage, resolved, send, signal });
-  if (!llmAlive) await seededRetrieve({ runTool, intent, resolved, scope, registry });
+  if (!llmAlive && !supplierAnswer) await seededRetrieve({ runTool, intent, resolved, scope, registry });
 
   /* ---- 4b. Surface retrieved records as evidence + focus ---------------- */
   // Facts were registered per-tool, but documents themselves often weren't —
@@ -165,11 +185,11 @@ export async function runCopilot({
       documentId: d.id,
     });
   }
-  if (!resolved.documentId && !resolved.caseId) {
+  if (!resolved.documentId && !resolved.caseId && !supplierAnswer) {
     const first = [...docPool.values()][0];
     if (first) {
       resolved.documentId = first.id;
-      if (first.type === "PO") resolved.caseId = first.id;
+      if (first.type === "PO") resolved.caseId = first.caseId || (await caseForDocument(call, first.id));
     }
   }
 
@@ -207,7 +227,7 @@ export async function runCopilot({
   }
   if (!final) {
     responseMode = "evidence_only";
-    const t = deterministicAnswer(intent.intent, registry, {
+    const t = deterministicAnswer(supplierAnswer && retrieved.get_supplier_summary ? "supplier_balance" : intent.intent, registry, {
       retrieved,
       missing,
       findings: retrieved.list_findings?.items || (retrieved.explain_finding ? [retrieved.explain_finding] : []),
@@ -299,6 +319,41 @@ async function agenticRetrieve({ llm, tools, toolCtx, runTool, intent, message, 
 }
 
 /* ---------- deterministic seeded retrieval (evidence-only path) -------- */
+
+/* ---------- resolution helpers ----------------------------------------- */
+
+const SUPPLIER_LEVEL_RE = /\b(owe|owed|owing|outstanding|balance|payable|paid|pay\b|how much|dues?|due to|pending (?:amount|payment)|account with|statement)\b/i;
+
+/** "How much do we owe X?", "what's our balance with X" — about a supplier, not a document. */
+export function isSupplierLevelQuestion(text) {
+  return SUPPLIER_LEVEL_RE.test(String(text || ""));
+}
+
+const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/** The supplier search hit that the mention names (substring either way). */
+export function pickSupplier(items, mention) {
+  const q = norm(mention);
+  if (!q) return null;
+  const suppliers = (items || []).filter((i) => i.kind === "supplier");
+  const named = suppliers.filter((i) => {
+    const n = norm(i.name);
+    return n && (n.includes(q) || q.includes(n));
+  });
+  if (named.length === 1) return named[0];
+  if (named.length > 1) return named.find((i) => norm(i.name) === q) || null; // genuinely ambiguous -> ask
+  return suppliers.length === 1 && !(items || []).some((i) => i.kind === "document" && i.number && norm(i.number) === q) ? suppliers[0] : null;
+}
+
+/** The investigation case of a document (PO) — never the document id itself. */
+export async function caseForDocument(call, documentId) {
+  try {
+    const r = await call(`/api/v2/documents/${encodeURIComponent(documentId)}`);
+    return r.ok ? r.data?.caseId || null : null;
+  } catch {
+    return null;
+  }
+}
 
 async function seededRetrieve({ runTool, intent, resolved, scope, registry }) {
   const eid = resolved.entityId || scope.entityId;

@@ -10,10 +10,26 @@ import { ulid } from "ulid";
 const VERBATIM_TURNS = 6;
 const SUMMARY_MAX_WORDS = 120;
 
+// In-memory fallback is BOUNDED (512 MB instances): least-recently-used
+// conversations are evicted past MAX_MEMORY_CONVERSATIONS, and each keeps at
+// most MAX_MEMORY_MESSAGES. With Mongo configured, Mongo is the source of
+// truth and the map is only a small cache.
+export const MAX_MEMORY_CONVERSATIONS = Number(process.env.COPILOT_MAX_MEMORY_CONVERSATIONS || 300);
+export const MAX_MEMORY_MESSAGES = 60;
+
 export class ConversationStore {
-  constructor(db = null) {
+  constructor(db = null, { maxConversations = MAX_MEMORY_CONVERSATIONS } = {}) {
     this.col = db?.collection("conversations") || null;
-    this.mem = new Map(); // id -> conversation
+    this.maxConversations = maxConversations;
+    this.mem = new Map(); // id -> conversation (insertion order = LRU order)
+    const set = this.mem.set.bind(this.mem);
+    this.mem.set = (id, conv) => {
+      this.mem.delete(id);
+      if (conv?.messages?.length > MAX_MEMORY_MESSAGES) conv.messages = conv.messages.slice(-MAX_MEMORY_MESSAGES);
+      set(id, conv);
+      while (this.mem.size > this.maxConversations) this.mem.delete(this.mem.keys().next().value);
+      return this.mem;
+    };
     this.ready = this.col
       ? this.col.createIndex({ groupId: 1, userId: 1, updatedAt: -1 }).catch(() => {})
       : Promise.resolve();
@@ -55,7 +71,8 @@ export class ConversationStore {
     if (!conv) return null;
     conv.messages.push(...messages);
     conv.updatedAt = new Date().toISOString();
-    if (this.col) await this.col.updateOne({ id }, { $push: { messages: { $each: messages } }, $set: { updatedAt: conv.updatedAt } });
+    if (this.col) await this.col.updateOne({ id }, { $push: { messages: { $each: messages, $slice: -200 } }, $set: { updatedAt: conv.updatedAt } });
+    else this.mem.set(id, conv); // refresh LRU position + trim
     return conv;
   }
 

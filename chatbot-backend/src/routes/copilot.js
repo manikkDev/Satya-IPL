@@ -119,22 +119,29 @@ router.post("/feedback", requireJwt, async (req, res) => {
   if (!messageId || !["up", "down"].includes(rating)) {
     return res.status(422).json({ error: { code: "VALIDATION_FAILED", message: "messageId and rating up|down are required" } });
   }
-  // Feedback rides the audit log — forwarded to server with the internal token.
-  try {
-    const call = createServerCall({});
-    await call("/api/audit/internal", {
-      method: "POST",
-      body: {
-        actor: req.auth.userId,
-        action: "copilot_feedback",
-        target: messageId,
-        meta: { rating, reason: String(reason || "").slice(0, 500) },
-      },
-    });
-  } catch {
-    /* feedback is best-effort */
+  // Feedback rides the server's hash-chained audit log via the internal
+  // endpoint (POST /api/internal/audit, x-internal-token). Best-effort: the
+  // response says whether it was recorded.
+  let recorded = false;
+  if (req.auth.groupId) {
+    try {
+      const call = createServerCall({});
+      const r = await call("/api/internal/audit", {
+        method: "POST",
+        body: {
+          groupId: req.auth.groupId,
+          actor: req.auth.userId,
+          action: "copilot_feedback",
+          target: String(messageId).slice(0, 120),
+          meta: { rating, reason: String(reason || "").slice(0, 500) },
+        },
+      });
+      recorded = Boolean(r.ok);
+    } catch {
+      /* feedback is best-effort */
+    }
   }
-  return res.status(202).json({ ok: true });
+  return res.status(202).json({ ok: true, recorded });
 });
 
 export default router;
