@@ -48,7 +48,7 @@ def pay_before_receipt(docs, ledger):
     for d in docs:
         if d["type"] != "PAYMENT_OUT" or d["status"] in {"reversed", "cancelled"}:
             continue
-        po = next((l.get("refs", {}).get("poId") for l in d["lines"] if l.get("refs")), None)
+        po = next(((l.get("refs") or {}).get("poId") for l in d["lines"] if l.get("refs")), None)
         earliest = first_grn.get(po)
         if po and (earliest is None or d["date"] < earliest):
             findings.append(_finding(
@@ -79,7 +79,7 @@ def pay_unallocated(docs, links):
         if d["type"] not in {"PAYMENT_OUT", "ADVANCE_OUT"} or d["status"] in {"reversed", "cancelled"}:
             continue
         payment = d.get("payment") or {}
-        if d["id"] in settled_to or any(l.get("refs", {}).get("invoiceId") for l in d.get("lines", [])):
+        if d["id"] in settled_to or any((l.get("refs") or {}).get("invoiceId") for l in d.get("lines", [])):
             continue
         if payment.get("invoiceId") or payment.get("purpose"):
             continue
